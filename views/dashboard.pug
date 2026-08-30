@@ -1,0 +1,28 @@
+doctype html
+html(lang="en")
+  head
+    meta(charset="UTF-8")
+    title LanguageDrill — Dashboard
+    include _style
+  body
+    include _nav
+    h1 Welcome, #{currentUser.email}
+
+    .cards
+      section
+        h2 Profile
+        p View your account details.
+        a.btn(href="/profile") Open
+      section
+        h2 Progress
+        p View and update your XP, streaks, and learning stats.
+        a.btn(href="/progress") Open
+      section
+        h2 Community
+        p Browse, publish, download, and unpublish shared drill sets.
+        a.btn(href="/community") Open
+      if currentUser.role === 'admin'
+        section
+          h2 Admin
+          p Manage user accounts and their progress records.
+          a.btn(href="/admin/users") Open

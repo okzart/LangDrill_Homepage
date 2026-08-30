@@ -1,0 +1,61 @@
+doctype html
+html(lang="en")
+  head
+    meta(charset="UTF-8")
+    title LanguageDrill — Admin: Users
+    include ../_style
+  body
+    include ../_nav
+    h1 Users
+
+    if error
+      .error= error
+
+    section
+      table
+        thead
+          tr
+            th Email
+            th Role
+            th Created
+            th Actions
+        tbody
+          each user in items
+            tr
+              td= user.email
+              td= user.role
+              td= user.createdAt
+              td
+                details
+                  summary Edit
+                  form(method="POST" action=`/admin/users/${user.id}/update`)
+                    label(for=`role-${user.id}`) Role
+                    select(id=`role-${user.id}` name="role")
+                      option(value="user" selected=(user.role === 'user')) user
+                      option(value="admin" selected=(user.role === 'admin')) admin
+                    label(for=`password-${user.id}`) New password (leave blank to keep current)
+                    input(id=`password-${user.id}` type="password" name="password")
+                    button(type="submit") Save
+                  form.inline(method="POST" action=`/admin/users/${user.id}/delete`)
+                    button.danger(type="submit") Delete
+                  a(href=`/admin/users/${user.id}/progress`) Progress
+
+      .row
+        if page > 1
+          a(href=`/admin/users?page=${page - 1}&limit=${limit}`) ← Prev
+        span Page #{page} (#{total} users total)
+        if page * limit < total
+          a(href=`/admin/users?page=${page + 1}&limit=${limit}`) Next →
+
+    section
+      h2 Create a user
+      form(method="POST" action="/admin/users")
+        label(for="new-email") Email
+        input#new-email(type="email" name="email" required)
+        label(for="new-password") Password
+        input#new-password(type="password" name="password" required)
+        label(for="new-role") Role
+        select#new-role(name="role")
+          option(value="user") user
+          option(value="admin") admin
+        button(type="submit") Create

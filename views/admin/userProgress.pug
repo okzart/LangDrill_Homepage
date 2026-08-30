@@ -1,0 +1,24 @@
+doctype html
+html(lang="en")
+  head
+    meta(charset="UTF-8")
+    title LanguageDrill — Admin: User Progress
+    include ../_style
+  body
+    include ../_nav
+    include ../mixins/progressForm
+    h1 Progress for #{userId}
+
+    if error
+      .error= error
+    if saved
+      .success Saved.
+
+    section
+      +progressForm(progress, `/admin/users/${userId}/progress`)
+
+    form(method="POST" action=`/admin/users/${userId}/progress/delete`)
+      button.danger(type="submit") Delete this progress record
+
+    p
+      a(href="/admin/users") ← Back to Users

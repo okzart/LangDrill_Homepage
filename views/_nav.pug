@@ -1,0 +1,18 @@
+//- Shared nav bar. `currentUser` comes from res.locals (see
+//- src/middleware/currentUser.js), so every page that includes this gets
+//- it automatically without passing it explicitly.
+nav
+  a(href="/dashboard") LanguageDrill
+  if currentUser
+    a(href="/profile") Profile
+    a(href="/progress") Progress
+    a(href="/community") Community
+    if currentUser.role === 'admin'
+      a(href="/admin/users") Admin
+  .spacer
+  if currentUser
+    span.user #{currentUser.email}
+    form.inline(method="POST" action="/logout")
+      button.link(type="submit") Log out
+  else
+    a(href="/login") Log in

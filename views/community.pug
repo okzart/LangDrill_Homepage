@@ -1,0 +1,54 @@
+doctype html
+html(lang="en")
+  head
+    meta(charset="UTF-8")
+    title LanguageDrill — Community
+    include _style
+  body
+    include _nav
+    h1 Community sets
+
+    if error
+      .error= error
+    if published
+      .success Published.
+    if deleted
+      .success Unpublished.
+
+    section
+      form(method="GET" action="/community")
+        .row
+          select(name="type")
+            option(value="" selected=(type === '')) All types
+            option(value="vocab" selected=(type === 'vocab')) vocab
+            option(value="listening" selected=(type === 'listening')) listening
+            option(value="writing" selected=(type === 'writing')) writing
+          input(type="text" name="q" placeholder="search name/author/desc" value=q)
+          button(type="submit") Search
+
+    if sets.length === 0
+      p No sets found.
+    each set in sets
+      .card
+        h3
+          a(href=`/community/${set.id}`)= set.name
+        .meta #{set.type} · by #{set.author} · #{set.downloads} downloads · #{set.count} items
+        p= set.desc
+
+    section
+      h2 Publish a new set
+      form(method="POST" action="/community/publish")
+        label(for="type") Type
+        select#type(name="type")
+          option(value="vocab") vocab
+          option(value="listening") listening
+          option(value="writing") writing
+        label(for="name") Name
+        input#name(type="text" name="name" required)
+        label(for="desc") Description
+        input#desc(type="text" name="desc")
+        label(for="author") Author (display name)
+        input#author(type="text" name="author" placeholder=currentUser.email)
+        label(for="items") Items (JSON array — see docs/13.community_content_formats.md in LangDrillApp for the schema per type)
+        textarea#items(name="items") [{"ko": "탑승구가 어디인가요?", "answer": "Where is the boarding gate?"}]
+        button(type="submit") Publish

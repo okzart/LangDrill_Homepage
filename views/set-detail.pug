@@ -1,0 +1,45 @@
+doctype html
+html(lang="en")
+  head
+    meta(charset="UTF-8")
+    title LanguageDrill — #{set.name}
+    include _style
+  body
+    include _nav
+    h1= set.name
+
+    if error
+      .error= error
+    if published
+      .success Published.
+    if downloaded
+      .success Downloaded — download count bumped below.
+
+    section
+      table
+        tr
+          th Type
+          td= set.type
+        tr
+          th Author
+          td= set.author
+        tr
+          th Downloads
+          td= set.downloads
+        tr
+          th Items
+          td= set.count
+      p= set.desc
+
+    section
+      h2 Items
+      pre= JSON.stringify(set.items, null, 2)
+
+    .row
+      form.inline(method="POST" action=`/community/${set.id}/download`)
+        button(type="submit") Download (+1)
+      form.inline(method="POST" action=`/community/${set.id}/delete`)
+        button.danger(type="submit") Unpublish
+
+    p
+      a(href="/community") ← Back to Community

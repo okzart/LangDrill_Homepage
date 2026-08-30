@@ -1,0 +1,12 @@
+doctype html
+html(lang="en")
+  head
+    meta(charset="UTF-8")
+    title LanguageDrill — Error #{status}
+    include _style
+  body
+    include _nav
+    h1 Error #{status}
+    .error= message
+    p
+      a(href="/dashboard") Back to dashboard

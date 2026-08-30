@@ -1,0 +1,18 @@
+doctype html
+html(lang="en")
+  head
+    meta(charset="UTF-8")
+    title LanguageDrill — Progress
+    include _style
+  body
+    include _nav
+    include mixins/progressForm
+    h1 Your progress
+
+    if error
+      .error= error
+    if saved
+      .success Saved.
+
+    section
+      +progressForm(progress, '/progress')

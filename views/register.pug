@@ -1,0 +1,23 @@
+doctype html
+html(lang="en")
+  head
+    meta(charset="UTF-8")
+    title LanguageDrill — Register
+    include _style
+  body
+    include _nav
+    h1 Create an account
+
+    if error
+      .error= error
+
+    section
+      form(method="POST" action="/register")
+        label(for="email") Email
+        input#email(type="email" name="email" required value=email autofocus)
+        label(for="password") Password
+        input#password(type="password" name="password" required)
+        button(type="submit") Register
+    p
+      | Already have an account?
+      a(href="/login")  Log in

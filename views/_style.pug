@@ -1,0 +1,33 @@
+//- Shared <style> block, included at the top of <head> on every page so
+//- the ~10 pages in this app don't each carry their own copy (contrast
+//- with the sibling services' single self-contained test pages, where
+//- that repetition didn't exist yet to dedupe).
+style.
+  body { font-family: system-ui, sans-serif; max-width: 760px; margin: 2rem auto; padding: 0 1rem; color: #222; }
+  h1 { font-size: 1.5rem; }
+  h2 { font-size: 1.1rem; }
+  nav { display: flex; gap: 1rem; align-items: center; margin-bottom: 1.5rem; padding-bottom: 1rem; border-bottom: 1px solid #ddd; font-size: 0.9rem; }
+  nav a { color: #222; text-decoration: none; }
+  nav a:hover { text-decoration: underline; }
+  nav .spacer { flex: 1; }
+  nav .user { color: #666; }
+  section { border: 1px solid #ddd; border-radius: 8px; padding: 1rem; margin-bottom: 1.5rem; }
+  label { display: block; font-size: 0.85rem; margin-top: 0.5rem; }
+  input, textarea, select { width: 100%; padding: 0.4rem; box-sizing: border-box; margin-top: 0.2rem; font-family: inherit; font-size: 0.9rem; }
+  textarea { min-height: 6rem; font-family: monospace; font-size: 0.8rem; }
+  button, .btn { margin-top: 0.75rem; padding: 0.5rem 1rem; cursor: pointer; }
+  button.danger, .btn.danger { background: #fbe3e3; border: 1px solid #c0392b; color: #7a1f1f; }
+  button.link { background: none; border: none; padding: 0; margin: 0; text-decoration: underline; color: #222; font-size: inherit; cursor: pointer; }
+  .error { background: #fbe3e3; border: 1px solid #c0392b; color: #7a1f1f; padding: 0.6rem 0.8rem; border-radius: 6px; margin-bottom: 1rem; }
+  .success { background: #e3fbea; border: 1px solid #2c9c4a; color: #1e6b32; padding: 0.6rem 0.8rem; border-radius: 6px; margin-bottom: 1rem; }
+  .card { border: 1px solid #ddd; border-radius: 8px; padding: 0.75rem 1rem; margin-bottom: 0.75rem; }
+  .card h3 { margin: 0 0 0.25rem; font-size: 1rem; }
+  .card .meta { font-size: 0.8rem; color: #666; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 0.5rem 0.75rem; }
+  .grid label { margin-top: 0; }
+  .cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 1rem; }
+  table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+  th, td { text-align: left; padding: 0.4rem 0.5rem; border-bottom: 1px solid #eee; }
+  form.inline { display: inline; margin: 0; }
+  .row { display: flex; gap: 0.5rem; align-items: center; }
+  pre { background: #111; color: #0f0; padding: 1rem; border-radius: 8px; font-size: 0.8rem; overflow-x: auto; }

@@ -1,0 +1,17 @@
+{
+  "name": "languagedrill-homepage",
+  "version": "1.0.0",
+  "description": "Web client for LanguageDrill - logs in through the API Gateway and exercises the Authentication, Progress Stats, and Content Sharing services from a single site",
+  "main": "src/server.js",
+  "type": "commonjs",
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "node --watch src/server.js"
+  },
+  "dependencies": {
+    "cookie-parser": "^1.4.6",
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2",
+    "pug": "^3.0.4"
+  }
+}
