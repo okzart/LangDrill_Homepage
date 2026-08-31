@@ -4,6 +4,24 @@ html(lang="en")
     meta(charset="UTF-8")
     title LanguageDrill — Community
     include _style
+    include mixins/itemBuilder
+    style.
+      .hint { font-size: 0.8rem; color: #666; margin: 0.25rem 0 0.75rem; }
+      .word-picker { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-top: 0.4rem; }
+      .word-btn { margin: 0; padding: 0.3rem 0.6rem; border: 1px solid #ccc; border-radius: 999px; background: #fff; font-size: 0.85rem; cursor: pointer; }
+      .word-btn.selected { background: #2c6bd9; border-color: #2c6bd9; color: #fff; }
+      #itemList { padding-left: 1.2rem; margin: 0.75rem 0; }
+      #itemList li { margin-bottom: 0.4rem; font-size: 0.9rem; }
+      #itemList button { margin: 0 0 0 0.5rem; padding: 0.1rem 0.5rem; font-size: 0.8rem; }
+      #itemBuilder { background: #fafafa; }
+      #itemBuilder .field[hidden] { display: none; }
+      .tabs { display: flex; gap: 0.25rem; margin-bottom: 1rem; border-bottom: 1px solid #ddd; }
+      .tabs a { padding: 0.5rem 1rem; text-decoration: none; color: #666; border-bottom: 2px solid transparent; margin-bottom: -1px; }
+      .tabs a.active { color: #222; border-bottom-color: #2c6bd9; font-weight: 600; }
+      .card .card-actions { margin-top: 0.5rem; display: flex; gap: 0.5rem; }
+      .card .card-actions form { margin: 0; }
+      .pager { justify-content: center; margin-top: 1rem; font-size: 0.9rem; }
+      .pager span { color: #666; }
   body
     include _nav
     h1 Community sets
@@ -14,10 +32,17 @@ html(lang="en")
       .success Published.
     if deleted
       .success Unpublished.
+    if updated
+      .success Updated.
 
     section
-      form(method="GET" action="/community")
-        .row
+      nav.tabs
+        a(href="/community?tab=list" class=(tab === 'list' ? 'active' : '')) List
+        a(href="/community?tab=create" class=(tab === 'create' ? 'active' : '')) Create
+
+      if tab === 'list'
+        form.row(method="GET" action="/community")
+          input(type="hidden" name="tab" value="list")
           select(name="type")
             option(value="" selected=(type === '')) All types
             option(value="vocab" selected=(type === 'vocab')) vocab
@@ -26,85 +51,311 @@ html(lang="en")
           input(type="text" name="q" placeholder="search name/author/desc" value=q)
           button(type="submit") Search
 
-    if sets.length === 0
-      p No sets found.
-    each set in sets
-      .card
-        h3
-          a(href=`/community/${set.id}`)= set.name
-        .meta #{set.type} · by #{set.author} · #{set.downloads} downloads · #{set.count} items
-        p= set.desc
+      //- List tab: browse/search, each row with inline Update/Delete
+      //- buttons. Ownership isn't exposed to the client (see
+      //- routes/communityRoutes.js), so anyone can try to update/delete
+      //- any visible set - the server enforces who actually owns it.
+      if tab === 'list'
+        if editError
+          .error= editError
+        if editSet
+          h2 Editing: #{editSet.name || editSet.id}
+          +itemBuilder(`/community/${editSet.id}/update`, editSet, 'Save changes')
+          p
+            a(href=`/community?${returnTo}`) ← Back to list
+        else
+          if sets.length === 0
+            p No sets found.
+          each set in sets
+            .card
+              h3
+                a(href=`/community/${set.id}`)= set.name
+              .meta #{set.type} · by #{set.author} · #{set.downloads} downloads · #{set.count} items
+              p= set.desc
+              .card-actions
+                a.btn(href=`/community?${returnTo}&editId=${set.id}`) Update
+                form(method="POST" action=`/community/${set.id}/delete` onsubmit="return confirm('Unpublish this set? This cannot be undone.')")
+                  input(type="hidden" name="returnTo" value=returnTo)
+                  button.danger(type="submit") Delete
+          if total > 0
+            .row.pager
+              if page > 1
+                a(href=`/community?${pagerBase}&page=${page - 1}`) ← Prev
+              span Page #{page} of #{totalPages} (#{total} set#{total === 1 ? '' : 's'} total)
+              if page < totalPages
+                a(href=`/community?${pagerBase}&page=${page + 1}`) Next →
 
-    section
-      h2 Publish a new set
-      form(method="POST" action="/community/publish")
-        label(for="type") Type
-        select#type(name="type")
-          option(value="vocab") vocab
-          option(value="listening") listening
-          option(value="writing") writing
-        label(for="name") Name
-        input#name(type="text" name="name" required)
-        label(for="desc") Description
-        input#desc(type="text" name="desc")
-        label(for="author") Author (display name)
-        input#author(type="text" name="author" placeholder=currentUser.email)
-        label(for="items") Items (JSON array — see docs/13.community_content_formats.md in LangDrillApp for the schema per type)
-        textarea#items(name="items")
-        button(type="submit") Publish
+      //- Create tab: publish a brand-new set via the visual item builder.
+      if tab === 'create'
+        h2 Publish a new set
+        +itemBuilder('/community/publish', editSet, 'Publish')
 
     script.
       (function () {
-        var samples = {
-          vocab: [
-            {
-              ko: '탑승구가 어디인가요?',
-              answer: 'Where is the boarding gate?',
-              keyKo: '탑승구',
-              blanks: [{ at: 3, word: 'boarding' }],
-              source: 'Airport 101',
-            },
-          ],
-          listening: [
-            {
-              type: 'choice',
-              answer: 'Would you like room for milk?',
-              options: [
-                'Would you like room for milk?',
-                'Would you like more milk, please?',
-                'Do you want a room with milk?',
-              ],
-              ko: '우유 넣을 공간 남겨 드릴까요?',
-            },
-          ],
-          writing: [
-            {
-              type: 'correct',
-              prompt: 'Yesterday I go to the library.',
-              model: 'Yesterday I went to the library.',
-              keyVocab: ['went'],
-              tip: "Use the past tense for 'yesterday'.",
-            },
-          ],
-        };
-
         var typeSelect = document.getElementById('type');
         var itemsTextarea = document.getElementById('items');
-        var dirty = false;
+        if (!typeSelect || !itemsTextarea) return; // Plain list view (no row being edited) - nothing to wire up.
 
-        function sampleFor(type) {
-          return JSON.stringify(samples[type] || samples.vocab, null, 2);
+        var FIELD_CONFIG = {
+          vocab: {
+            subtypes: null,
+            fields: ['ko', 'answer', 'blanks', 'keyko', 'source'],
+          },
+          listening: {
+            subtypes: ['dictation', 'full', 'choice', 'order'],
+            fieldsBySubtype: {
+              dictation: ['answer', 'ko', 'blanks'],
+              full: ['answer', 'ko'],
+              choice: ['answer', 'ko', 'options'],
+              order: ['answer', 'ko'],
+            },
+          },
+          writing: {
+            subtypes: ['compose', 'free', 'guided', 'correct', 'passage'],
+            fieldsBySubtype: {
+              compose: ['ko', 'model', 'keyvocab', 'tip'],
+              free: ['model', 'keyvocab', 'tip'],
+              guided: ['ko', 'model', 'keyvocab', 'tip'],
+              correct: ['prompt', 'model', 'keyvocab', 'tip'],
+              passage: ['ko', 'model', 'keyvocab', 'tip'],
+            },
+          },
+        };
+
+        var ALL_FIELDS = ['ko', 'answer', 'blanks', 'keyko', 'source', 'options', 'model', 'prompt', 'keyvocab', 'tip'];
+
+        var subtypeWrap = document.getElementById('w-subtype');
+        var subtypeSelect = document.getElementById('f-subtype');
+        var itemList = document.getElementById('itemList');
+        var itemsError = document.getElementById('itemsError');
+        var addItemBtn = document.getElementById('addItemBtn');
+        var blankPicker = document.getElementById('blankPicker');
+        var answerInput = document.getElementById('f-answer');
+
+        var selectedBlankIndices = {};
+
+        function fieldsFor() {
+          var type = typeSelect.value;
+          var cfg = FIELD_CONFIG[type];
+          if (!cfg) return [];
+          if (!cfg.subtypes) return cfg.fields;
+          return cfg.fieldsBySubtype[subtypeSelect.value] || [];
         }
 
-        itemsTextarea.addEventListener('input', function () {
-          dirty = true;
+        function getItems() {
+          try {
+            var parsed = JSON.parse(itemsTextarea.value || '[]');
+            return Array.isArray(parsed) ? parsed : [];
+          } catch (e) {
+            return [];
+          }
+        }
+
+        function setItems(items) {
+          itemsTextarea.value = JSON.stringify(items, null, 2);
+          renderItemList(items);
+        }
+
+        function summarize(item) {
+          var type = typeSelect.value;
+          if (type === 'vocab') return (item.ko || '') + ' → ' + (item.answer || '');
+          if (type === 'listening') return '[' + (item.type || '') + '] ' + (item.answer || '');
+          if (type === 'writing') return '[' + (item.type || '') + '] ' + (item.model || item.prompt || '');
+          return JSON.stringify(item);
+        }
+
+        function renderItemList(items) {
+          itemList.innerHTML = '';
+          items.forEach(function (item, index) {
+            var li = document.createElement('li');
+            var span = document.createElement('span');
+            span.textContent = summarize(item);
+            var removeBtn = document.createElement('button');
+            removeBtn.type = 'button';
+            removeBtn.textContent = 'Remove';
+            removeBtn.addEventListener('click', function () {
+              var current = getItems();
+              current.splice(index, 1);
+              setItems(current);
+            });
+            li.appendChild(span);
+            li.appendChild(removeBtn);
+            itemList.appendChild(li);
+          });
+        }
+
+        function updateSubtypeOptions() {
+          var type = typeSelect.value;
+          var cfg = FIELD_CONFIG[type];
+          if (!cfg || !cfg.subtypes) {
+            subtypeWrap.hidden = true;
+            subtypeSelect.innerHTML = '';
+            return;
+          }
+          subtypeWrap.hidden = false;
+          subtypeSelect.innerHTML = '';
+          cfg.subtypes.forEach(function (s) {
+            var opt = document.createElement('option');
+            opt.value = s;
+            opt.textContent = s;
+            subtypeSelect.appendChild(opt);
+          });
+        }
+
+        function updateFieldVisibility() {
+          var visible = fieldsFor();
+          ALL_FIELDS.forEach(function (f) {
+            var wrap = document.getElementById('w-' + f);
+            if (wrap) wrap.hidden = visible.indexOf(f) === -1;
+          });
+          if (visible.indexOf('blanks') === -1) {
+            selectedBlankIndices = {};
+          } else {
+            renderBlankPicker();
+          }
+        }
+
+        function renderBlankPicker() {
+          var text = answerInput.value || '';
+          var words = text.trim().length ? text.trim().split(/\s+/) : [];
+          blankPicker.innerHTML = '';
+          if (!words.length) return;
+          words.forEach(function (word, i) {
+            var btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'word-btn' + (selectedBlankIndices[i] ? ' selected' : '');
+            btn.textContent = word;
+            btn.addEventListener('click', function () {
+              selectedBlankIndices[i] = !selectedBlankIndices[i];
+              btn.classList.toggle('selected');
+            });
+            blankPicker.appendChild(btn);
+          });
+        }
+
+        function collectBlanks() {
+          var text = answerInput.value || '';
+          var words = text.trim().length ? text.trim().split(/\s+/) : [];
+          var blanks = [];
+          words.forEach(function (word, i) {
+            if (selectedBlankIndices[i]) blanks.push({ at: i, word: word });
+          });
+          return blanks;
+        }
+
+        function showError(msg) {
+          itemsError.textContent = msg;
+          itemsError.hidden = false;
+        }
+
+        function clearError() {
+          itemsError.hidden = true;
+          itemsError.textContent = '';
+        }
+
+        function clearBuilderFields() {
+          ['ko', 'answer', 'keyko', 'source', 'model', 'prompt', 'keyvocab', 'tip'].forEach(function (f) {
+            var input = document.getElementById('f-' + f);
+            if (input) input.value = '';
+          });
+          document.getElementById('f-options').value = '';
+          selectedBlankIndices = {};
+          blankPicker.innerHTML = '';
+        }
+
+        function buildItem() {
+          var type = typeSelect.value;
+          var val = function (f) {
+            var el = document.getElementById('f-' + f);
+            return el ? el.value.trim() : '';
+          };
+
+          if (type === 'vocab') {
+            if (!val('ko') || !val('answer')) return { error: 'Korean prompt and answer are required.' };
+            var item = { ko: val('ko'), answer: val('answer') };
+            if (val('keyko')) item.keyKo = val('keyko');
+            var blanks = collectBlanks();
+            if (blanks.length) item.blanks = blanks;
+            if (val('source')) item.source = val('source');
+            return { item: item };
+          }
+
+          if (type === 'listening') {
+            var subtype = subtypeSelect.value;
+            if (!val('answer')) return { error: 'Answer is required.' };
+            var litem = { type: subtype, answer: val('answer') };
+            if (val('ko')) litem.ko = val('ko');
+            if (subtype === 'dictation') {
+              var lblanks = collectBlanks();
+              if (lblanks.length) litem.blanks = lblanks;
+            }
+            if (subtype === 'choice') {
+              var options = document.getElementById('f-options').value
+                .split('\n')
+                .map(function (s) { return s.trim(); })
+                .filter(Boolean);
+              if (options.length < 2) return { error: 'Add at least two options (one per line).' };
+              litem.options = options;
+            }
+            return { item: litem };
+          }
+
+          if (type === 'writing') {
+            var wsubtype = subtypeSelect.value;
+            if (!val('model')) return { error: 'Model answer is required.' };
+            var witem = { type: wsubtype, model: val('model') };
+            if ((wsubtype === 'compose' || wsubtype === 'guided' || wsubtype === 'passage') && val('ko')) {
+              witem.ko = val('ko');
+            }
+            if (wsubtype === 'correct') {
+              if (!val('prompt')) return { error: 'The incorrect sentence to fix is required.' };
+              witem.prompt = val('prompt');
+            }
+            if (val('keyvocab')) {
+              witem.keyVocab = val('keyvocab').split(',').map(function (s) { return s.trim(); }).filter(Boolean);
+            }
+            if (val('tip')) witem.tip = val('tip');
+            return { item: witem };
+          }
+
+          return { error: 'Unknown type.' };
+        }
+
+        addItemBtn.addEventListener('click', function () {
+          clearError();
+          var result = buildItem();
+          if (result.error) {
+            showError(result.error);
+            return;
+          }
+          var items = getItems();
+          items.push(result.item);
+          setItems(items);
+          clearBuilderFields();
+        });
+
+        answerInput.addEventListener('input', function () {
+          selectedBlankIndices = {};
+          if (fieldsFor().indexOf('blanks') !== -1) renderBlankPicker();
         });
 
         typeSelect.addEventListener('change', function () {
-          if (dirty && itemsTextarea.value.trim() !== '') return;
-          itemsTextarea.value = sampleFor(typeSelect.value);
-          dirty = false;
+          var items = getItems();
+          if (items.length && !confirm('Changing type clears the items you already added. Continue?')) {
+            return;
+          }
+          updateSubtypeOptions();
+          updateFieldVisibility();
+          clearBuilderFields();
+          setItems([]);
         });
 
-        itemsTextarea.value = sampleFor(typeSelect.value);
+        subtypeSelect.addEventListener('change', function () {
+          updateFieldVisibility();
+          clearBuilderFields();
+        });
+
+        updateSubtypeOptions();
+        updateFieldVisibility();
+        renderItemList(getItems());
       })();

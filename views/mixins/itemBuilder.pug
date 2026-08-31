@@ -1,0 +1,84 @@
+//- Shared by views/community.pug's Create tab and the inline "Update"
+//- editor on a List tab row - same name/desc/author/type fields plus the
+//- visual per-item builder (see the script in community.pug), the only
+//- difference being formAction and whichever values `prefill` seeds the
+//- fields with (null for a blank Create form). Only one call ever renders
+//- per page load (Create tab, or a List row being edited), so the fixed
+//- element ids below (#type, #items, #f-*, ...) never collide.
+mixin itemBuilder(formAction, prefill, submitLabel)
+  - var p = prefill || {}
+  - var itemsJson = p.itemsRaw !== undefined ? p.itemsRaw : JSON.stringify(p.items || [], null, 2)
+  form(method="POST" action=formAction)
+    if p.returnTo
+      input(type="hidden" name="returnTo" value=p.returnTo)
+    label(for="type") Type
+    select#type(name="type")
+      option(value="vocab" selected=(p.type === 'vocab' || !p.type)) vocab
+      option(value="listening" selected=(p.type === 'listening')) listening
+      option(value="writing" selected=(p.type === 'writing')) writing
+    label(for="name") Name
+    input#name(type="text" name="name" required value=p.name)
+    label(for="desc") Description
+    input#desc(type="text" name="desc" value=p.desc)
+    label(for="author") Author (display name)
+    input#author(type="text" name="author" value=p.author placeholder=currentUser.email)
+
+    h3 Items
+    p.hint Fill in the fields below for one item, then click "Add item". Repeat for every item — no JSON needed.
+
+    #itemBuilder.card
+      .field#w-subtype(hidden)
+        label(for="f-subtype") Item type
+        select#f-subtype
+
+      .field#w-ko
+        label(for="f-ko") Korean prompt
+        input#f-ko(type="text")
+
+      .field#w-answer
+        label(for="f-answer") Answer / correct sentence
+        input#f-answer(type="text")
+
+      .field#w-blanks(hidden)
+        label Click the words to hide as blanks (optional)
+        #blankPicker.word-picker
+
+      .field#w-keyko(hidden)
+        label(for="f-keyko") Key Korean keyword (optional)
+        input#f-keyko(type="text")
+
+      .field#w-source(hidden)
+        label(for="f-source") Source (optional)
+        input#f-source(type="text")
+
+      .field#w-options(hidden)
+        label(for="f-options") Options — one per line, include the correct answer too
+        textarea#f-options
+
+      .field#w-model(hidden)
+        label(for="f-model") Model answer (gold standard)
+        input#f-model(type="text")
+
+      .field#w-prompt(hidden)
+        label(for="f-prompt") Incorrect sentence to fix
+        input#f-prompt(type="text")
+
+      .field#w-keyvocab(hidden)
+        label(for="f-keyvocab") Must-use words (comma-separated, optional)
+        input#f-keyvocab(type="text")
+
+      .field#w-tip(hidden)
+        label(for="f-tip") Grammar tip (optional)
+        input#f-tip(type="text")
+
+      #itemsError.error(hidden)
+      button#addItemBtn(type="button") + Add item
+
+    ol#itemList
+
+    details(open=(p.itemsRaw !== undefined))
+      summary Advanced: edit raw JSON directly
+      label(for="items") Items (JSON array — see docs/13.community_content_formats.md in LangDrillApp for the schema per type)
+      textarea#items(name="items")= itemsJson
+
+    button(type="submit")= submitLabel || 'Save'

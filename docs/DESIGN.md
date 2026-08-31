@@ -82,7 +82,7 @@ This app never talks to `:3000`/`:3002`/`:3003` directly.
 | `src/routes/authRoutes.js` | `/login`, `/register`, `/logout` - the only pages reachable while logged out. |
 | `src/routes/dashboardRoutes.js` | `/`, `/dashboard`, `/profile`. |
 | `src/routes/progressRoutes.js` | `/progress` (self-service get/update). |
-| `src/routes/communityRoutes.js` | `/community`, `/community/:id`, and the publish/download/unpublish actions. |
+| `src/routes/communityRoutes.js` | `/community` (List and Create tabs - List's rows carry inline Update/Delete), `/community/:id`, and the publish/update/download/unpublish actions. |
 | `src/routes/adminRoutes.js` | `/admin/users/*` (Authentication's admin API) and `/admin/users/:id/progress` (Progress Stats' admin API) - `requireAdmin`-gated. |
 
 ## 4. Pages & the Gateway Calls Behind Them
@@ -95,10 +95,11 @@ This app never talks to `:3000`/`:3002`/`:3003` directly.
 | `GET /dashboard` | login | — |
 | `GET /profile` | login | `GET /api/auth/me` |
 | `GET/POST /progress` | login | `GET`/`PATCH /api/progress/me` |
-| `GET /community`, `GET /community/:id` | login | `GET /api/sets`, `GET /api/sets/:id` |
-| `POST /community/publish` | login | `POST /api/sets` |
+| `GET /community` (`?tab=list\|create`; List's `?editId=` loads a row's inline editor), `GET /community/:id` | login | `GET /api/sets`, `GET /api/sets/:id` |
+| `POST /community/publish` (Create tab) | login | `POST /api/sets` |
+| `POST /community/:id/update` (List row's inline "Update" editor) | login | `PATCH /api/sets/:id` (owner-only) |
 | `POST /community/:id/download` | login | `POST /api/sets/:id/download` |
-| `POST /community/:id/delete` | login | `DELETE /api/sets/:id` (owner-only - a non-owner sees the service's own 403 message) |
+| `POST /community/:id/delete` (set-detail's Unpublish button, and the List row's Delete button) | login | `DELETE /api/sets/:id` (owner-only - a non-owner sees the service's own 403 message) |
 | `GET /admin/users`, `POST .../update`, `.../delete` | admin | `GET/POST/PATCH/DELETE /api/admin/api/users...` |
 | `GET/POST /admin/users/:id/progress`, `.../delete` | admin | `GET/PATCH/DELETE /api/progress/admin/users/:id` |
 
@@ -141,13 +142,36 @@ Environment variables (see `.env.example`):
 - No CSRF protection on the POST forms - acceptable for now since every
   mutating action also requires the session cookie (`SameSite=Lax`), but
   worth revisiting before this is a public-facing site.
-- No client-side JavaScript at all - every action is a full page
-  navigation (classic HTML forms). Reasonable for an admin/utility surface
-  today; the "official homepage" this is meant to grow into will likely
-  want a richer client-side experience.
-- Community publish only accepts items as a raw JSON textarea (same
-  approach Content Sharing's own test page uses) - a real homepage would
-  want per-drill-type structured forms instead, per
-  `LangDrillApp/docs/13.community_content_formats.md` §2.
+- Client-side JavaScript is used on `/community`'s item builder only (the
+  Create tab, and a List row's inline "Update" editor - see below) -
+  inline, no build step, no framework. Every other page is still a full
+  page navigation via classic HTML forms with no JS required.
+- Community publish/update no longer requires hand-writing JSON: the
+  Create tab and a List row's inline editor share a per-drill-type visual
+  item builder (`views/mixins/itemBuilder.pug` + the inline script in
+  `views/community.pug`) that shows only the fields relevant to the
+  chosen type/sub-type (vocab / listening's dictation·full·choice·order /
+  writing's compose·free·guided·correct·passage, per
+  `LangDrillApp/docs/13.community_content_formats.md` §2), including a
+  click-to-blank-word picker so `blanks` doesn't need manual index math.
+  A raw-JSON textarea remains available behind an "Advanced" toggle for
+  power users, and is what actually gets submitted (the visual builder
+  just keeps it in sync).
+- Update (`PATCH /api/sets/:id`) is new to Content Sharing and not part of
+  the mobile client's mock-server contract - see that service's
+  `docs/DESIGN.md` §1. Ownership isn't exposed to this app (see
+  `dto/setDto.js`), so every List row's Update/Delete buttons let anyone
+  attempt any visible set; the server enforces who actually owns it and
+  this app just surfaces the resulting 403.
+- The List tab's paging is done here, in-memory, over the full result of
+  `GET /api/sets?type=&q=` (`routes/communityRoutes.js#showCommunity`),
+  not at ContentSharing or the gateway - that endpoint's bare-array
+  response is the same frozen mobile-client contract mentioned above, so
+  adding a `{items,total,...}` envelope there to paginate server-side
+  would break it. This is the same "revisit if this grows large" tradeoff
+  ContentSharing's own `docs/DESIGN.md` §8 already accepts for its
+  in-process `q` filtering - fine at today's scale, worth moving
+  server-side (with true skip/limit) if the number of published sets
+  grows large.
 - No way to browse/download community sets without an account, even
   though the gateway itself allows anonymous browsing - see §2 Goals.
