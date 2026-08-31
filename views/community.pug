@@ -73,8 +73,15 @@ html(lang="en")
               .meta #{set.type} · by #{set.author} · #{set.downloads} downloads · #{set.count} items
               p= set.desc
               .card-actions
-                a.btn(href=`/community?${returnTo}&editId=${set.id}`) Update
-                form(method="POST" action=`/community/${set.id}/delete` onsubmit="return confirm('Unpublish this set? This cannot be undone.')")
+                form.inline(method="GET" action="/community")
+                  input(type="hidden" name="tab" value="list")
+                  input(type="hidden" name="type" value=type)
+                  input(type="hidden" name="q" value=q)
+                  input(type="hidden" name="page" value=page)
+                  input(type="hidden" name="limit" value=limit)
+                  input(type="hidden" name="editId" value=set.id)
+                  button(type="submit") Update
+                form.inline(method="POST" action=`/community/${set.id}/delete` onsubmit="return confirm('Unpublish this set? This cannot be undone.')")
                   input(type="hidden" name="returnTo" value=returnTo)
                   button.danger(type="submit") Delete
           if total > 0
