@@ -38,6 +38,7 @@ html(lang="en")
     .row
       form.inline(method="POST" action=`/community/${set.id}/download`)
         button(type="submit") Download (+1)
+      a.btn(href=`/community?tab=list&editId=${set.id}`) Modify
       form.inline(method="POST" action=`/community/${set.id}/delete`)
         button.danger(type="submit") Unpublish
 

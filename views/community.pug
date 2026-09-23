@@ -12,7 +12,9 @@ html(lang="en")
       .word-btn.selected { background: #2c6bd9; border-color: #2c6bd9; color: #fff; }
       #itemList { padding-left: 1.2rem; margin: 0.75rem 0; }
       #itemList li { margin-bottom: 0.4rem; font-size: 0.9rem; }
+      #itemList li.editing { background: #eef4ff; border-radius: 4px; padding: 0.1rem 0.4rem; margin-left: -0.4rem; }
       #itemList button { margin: 0 0 0 0.5rem; padding: 0.1rem 0.5rem; font-size: 0.8rem; }
+      #cancelEditBtn { margin-left: 0.75rem; }
       #itemBuilder { background: #fafafa; }
       #itemBuilder .field[hidden] { display: none; }
       .tabs { display: flex; gap: 0.25rem; margin-bottom: 1rem; border-bottom: 1px solid #ddd; }
@@ -136,10 +138,12 @@ html(lang="en")
         var itemList = document.getElementById('itemList');
         var itemsError = document.getElementById('itemsError');
         var addItemBtn = document.getElementById('addItemBtn');
+        var cancelEditBtn = document.getElementById('cancelEditBtn');
         var blankPicker = document.getElementById('blankPicker');
         var answerInput = document.getElementById('f-answer');
 
         var selectedBlankIndices = {};
+        var editingIndex = null; // null = the builder is composing a new item
 
         function fieldsFor() {
           var type = typeSelect.value;
@@ -175,17 +179,27 @@ html(lang="en")
           itemList.innerHTML = '';
           items.forEach(function (item, index) {
             var li = document.createElement('li');
+            if (index === editingIndex) li.className = 'editing';
             var span = document.createElement('span');
             span.textContent = summarize(item);
+            var editBtn = document.createElement('button');
+            editBtn.type = 'button';
+            editBtn.textContent = 'Edit';
+            editBtn.addEventListener('click', function () {
+              startEditing(index);
+            });
             var removeBtn = document.createElement('button');
             removeBtn.type = 'button';
             removeBtn.textContent = 'Remove';
             removeBtn.addEventListener('click', function () {
               var current = getItems();
               current.splice(index, 1);
+              if (editingIndex === index) stopEditing();
+              else if (editingIndex !== null && index < editingIndex) editingIndex -= 1;
               setItems(current);
             });
             li.appendChild(span);
+            li.appendChild(editBtn);
             li.appendChild(removeBtn);
             itemList.appendChild(li);
           });
@@ -270,6 +284,60 @@ html(lang="en")
           blankPicker.innerHTML = '';
         }
 
+        function setVal(f, v) {
+          var el = document.getElementById('f-' + f);
+          if (el) el.value = v || '';
+        }
+
+        // Reverse of buildItem(): loads an already-added item's fields back
+        // into the builder so it can be edited in place instead of only
+        // removed and re-added from scratch.
+        function populateFieldsFromItem(item) {
+          clearBuilderFields();
+          var type = typeSelect.value;
+          if (type === 'listening' || type === 'writing') {
+            subtypeSelect.value = item.type || subtypeSelect.value;
+            updateFieldVisibility();
+          }
+          if (type === 'vocab') {
+            setVal('ko', item.ko);
+            setVal('answer', item.answer);
+            setVal('keyko', item.keyKo);
+            setVal('source', item.source);
+          } else if (type === 'listening') {
+            setVal('answer', item.answer);
+            setVal('ko', item.ko);
+            if (item.options) document.getElementById('f-options').value = item.options.join('\n');
+          } else if (type === 'writing') {
+            setVal('ko', item.ko);
+            setVal('prompt', item.prompt);
+            setVal('model', item.model);
+            setVal('tip', item.tip);
+            if (item.keyVocab) document.getElementById('f-keyvocab').value = item.keyVocab.join(', ');
+          }
+          selectedBlankIndices = {};
+          (item.blanks || []).forEach(function (b) { selectedBlankIndices[b.at] = true; });
+          if (fieldsFor().indexOf('blanks') !== -1) renderBlankPicker();
+        }
+
+        function startEditing(index) {
+          var item = getItems()[index];
+          if (!item) return;
+          clearError();
+          editingIndex = index;
+          populateFieldsFromItem(item);
+          addItemBtn.textContent = 'Save changes to item';
+          cancelEditBtn.hidden = false;
+          renderItemList(getItems());
+        }
+
+        function stopEditing() {
+          editingIndex = null;
+          addItemBtn.textContent = '+ Add item';
+          cancelEditBtn.hidden = true;
+          clearBuilderFields();
+        }
+
         function buildItem() {
           var type = typeSelect.value;
           var val = function (f) {
@@ -336,9 +404,19 @@ html(lang="en")
             return;
           }
           var items = getItems();
-          items.push(result.item);
+          if (editingIndex !== null) {
+            items[editingIndex] = result.item;
+          } else {
+            items.push(result.item);
+          }
+          stopEditing();
           setItems(items);
-          clearBuilderFields();
+        });
+
+        cancelEditBtn.addEventListener('click', function () {
+          clearError();
+          stopEditing();
+          renderItemList(getItems());
         });
 
         answerInput.addEventListener('input', function () {
@@ -353,7 +431,7 @@ html(lang="en")
           }
           updateSubtypeOptions();
           updateFieldVisibility();
-          clearBuilderFields();
+          stopEditing();
           setItems([]);
         });
 
