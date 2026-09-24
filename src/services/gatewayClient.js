@@ -63,6 +63,23 @@ class GatewayClient {
   delete(path, token) {
     return this.request('DELETE', path, { token });
   }
+
+  // Fetches a non-JSON response (e.g. a cached vocab-item mp3 from
+  // /api/sets/audio/...) as a raw Buffer instead of parsing it - see
+  // routes/communityRoutes.js#audio, the one caller. No token is attached:
+  // that gateway route isn't auth-gated (filenames are content hashes of
+  // already-public sentences, not secrets - see content-sharing's
+  // src/server.js), and a plain <audio> tag couldn't send one anyway.
+  async getBinary(path) {
+    const res = await fetch(`${this.baseUrl}${path}`);
+    if (!res.ok) {
+      throw new GatewayError(res.status, res.statusText);
+    }
+    return {
+      buffer: Buffer.from(await res.arrayBuffer()),
+      contentType: res.headers.get('content-type') || 'application/octet-stream',
+    };
+  }
 }
 
 module.exports = GatewayClient;

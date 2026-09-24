@@ -33,6 +33,16 @@ html(lang="en")
 
     section
       h2 Items
+      if set.type === 'vocab'
+        ol
+          each item, i in set.items
+            li
+              p.ko= item.ko
+              p.answer= item.answer
+              if item.audioUrl
+                audio(controls src=`/community/audio/${item.audioUrl.replace('/audio/', '')}`)
+              else
+                span.hint (no audio yet)
       pre= JSON.stringify(set.items, null, 2)
 
     .row

@@ -23,6 +23,7 @@ class CommunityRoutes {
     this.router.get('/community/:id', requireLogin, AsyncHandler.wrap(this.showOne.bind(this)));
     this.router.post('/community/:id/download', requireLogin, AsyncHandler.wrap(this.download.bind(this)));
     this.router.post('/community/:id/delete', requireLogin, AsyncHandler.wrap(this.remove.bind(this)));
+    this.router.get('/community/audio/:filename', requireLogin, AsyncHandler.wrap(this.audio.bind(this)));
   }
 
   // Renders the /community page: the search/filter and set list, plus the
@@ -197,6 +198,21 @@ class CommunityRoutes {
   async download(req, res) {
     await this.gatewayClient.post(`/api/sets/${encodeURIComponent(req.params.id)}/download`, undefined, req.auth.token);
     res.redirect(`/community/${req.params.id}?downloaded=1`);
+  }
+
+  // Streams a cached vocab-item mp3 (see set-detail.pug) from the gateway's
+  // /api/sets/audio/* route. Proxied through here rather than pointing
+  // <audio src> straight at the gateway so the gateway itself never needs
+  // to be reachable from the browser - this app is the only public entry
+  // point (see docs/DESIGN.md §1). Filenames are content hashes, so the
+  // response is safe to cache hard on the client.
+  async audio(req, res) {
+    const { buffer, contentType } = await this.gatewayClient.getBinary(
+      `/api/sets/audio/${encodeURIComponent(req.params.filename)}`
+    );
+    res.set('Content-Type', contentType);
+    res.set('Cache-Control', 'public, max-age=31536000, immutable');
+    res.send(buffer);
   }
 
   // Handles both the set-detail page's own Unpublish button (no
