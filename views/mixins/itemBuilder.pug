@@ -77,6 +77,94 @@ mixin itemBuilder(formAction, prefill, submitLabel)
 
     ol#itemList
 
+    details#aiPromptDetails
+      summary Generate items with AI first (optional)
+      p.hint Copy this prompt into any AI chat tool, paste your own source text (an article, word list, topic) at the bottom of it, then paste the JSON array it returns into "Bulk add via JSON" below.
+      pre#aiPromptText.ai-prompt.
+        You will generate vocabulary/sentence-drill items for a Korean-to-English
+        language learning app, as a single JSON array. Output ONLY the JSON array —
+        no markdown code fences, no commentary, no trailing text.
+
+        Generate [NUMBER] items from the CONTENT given at the end of this prompt.
+        Each item should teach one useful, natural English sentence drawn from or
+        inspired by that content, at a [DIFFICULTY: e.g. intermediate / high-school]
+        level.
+
+        Each item is an object with these fields:
+
+        - "ko" (required, string): a natural Korean prompt/meaning the learner sees
+          first — either a translation of the English sentence or a question that
+          the English sentence answers.
+        - "answer" (required, string): the full, correct English sentence. Natural,
+          grammatical, one sentence.
+        - "keyKo" (optional, string): the specific Korean word/phrase that
+          corresponds to the word(s) you choose to blank out in "answer" — the key
+          vocabulary or grammar point being tested.
+        - "blanks" (optional, array of {"at": number, "word": string}): the word(s)
+          in "answer" to hide as blanks during practice. Pick 1-2 words that are the
+          actual teaching point (a phrasal verb, a tricky preposition, the target
+          vocabulary word) — not random words.
+        - "source" (optional, string): a short attribution, e.g. the title/topic of
+          the CONTENT below.
+
+        CRITICAL — how to compute "at" and "word" for blanks:
+        "at" counts only letter/apostrophe clusters in "answer" (a run of a-z,
+        A-Z, or ' — i.e. a normal English word), 0-based, in reading order.
+        Sentence punctuation (. , ! ? ; :) is its own unit, is NEVER attached
+        to "word", and never gets counted. Anything else that isn't a letter,
+        apostrophe, one of . , ! ? ; : , or whitespace — a digit, hyphen, $,
+        quotation mark, etc. — is skipped entirely: it does not become a unit
+        and does NOT consume an index either.
+
+        Worked example:
+          answer = "Where is the boarding gate?"
+          word units -> ["Where", "is", "the", "boarding", "gate"]
+          index:            0       1     2         3          4
+          ("?" is its own punctuation unit — not attached to "gate", not counted)
+          Blanking "boarding" -> {"at": 3, "word": "boarding"}
+          Blanking "gate"     -> {"at": 4, "word": "gate"}   <- no "?" in "word"
+
+        Worked example with a number in the sentence (the case people get wrong):
+          answer = "Could you wake me up at 6 o'clock?"
+          word units -> ["Could", "you", "wake", "me", "up", "at", "o'clock"]
+          index:            0       1      2      3     4     5        6
+          The digit "6" is skipped completely — it is NOT index 6 and does NOT
+          push "o'clock" to index 7. "o'clock" is index 6, right after "at" (5).
+          A hyphenated word like "well-known" behaves the same way: the hyphen
+          is skipped, so it becomes TWO word units ("well" then "known"), each
+          with its own index.
+
+        Full example item:
+        {
+          "ko": "탑승구가 어디인가요?",
+          "answer": "Where is the boarding gate?",
+          "keyKo": "탑승구",
+          "blanks": [{ "at": 3, "word": "boarding" }],
+          "source": "Airport 101"
+        }
+
+        Rules:
+        - Output a valid JSON array of [NUMBER] such objects, nothing else.
+        - Every "answer" must be grammatically correct, natural English.
+        - Vary sentence structure across items; don't reuse the same pattern.
+        - "word" must never include trailing/leading punctuation.
+        - Recount every "at" by hand against the rule above before outputting,
+          paying special attention to any sentence containing a number,
+          hyphenated word, or symbol — that's the most common mistake.
+
+        CONTENT:
+        [PASTE YOUR SOURCE TEXT, ARTICLE, WORD LIST, OR TOPIC HERE]
+      .row
+        button#copyAiPromptBtn(type="button") Copy prompt
+        span#copyAiPromptStatus.copy-status
+
+    details
+      summary Advanced: bulk add via JSON
+      label(for="bulkItems") Paste a JSON array of new items — merged onto the list above, your existing items are kept
+      textarea#bulkItems(placeholder='[{"ko": "...", "answer": "..."}]')
+      #bulkItemsError.error(hidden)
+      button#mergeBulkBtn(type="button") Merge into list
+
     details(open=(p.itemsRaw !== undefined))
       summary Advanced: edit raw JSON directly
       label(for="items") Items (JSON array — see docs/13.community_content_formats.md in LangDrillApp for the schema per type)

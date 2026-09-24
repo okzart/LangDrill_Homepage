@@ -10,6 +10,7 @@ html(lang="en")
       .word-picker { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-top: 0.4rem; }
       .word-btn { margin: 0; padding: 0.3rem 0.6rem; border: 1px solid #ccc; border-radius: 999px; background: #fff; font-size: 0.85rem; cursor: pointer; }
       .word-btn.selected { background: #2c6bd9; border-color: #2c6bd9; color: #fff; }
+      .tok-plain { font-size: 0.85rem; color: #666; }
       #itemList { padding-left: 1.2rem; margin: 0.75rem 0; }
       #itemList li { margin-bottom: 0.4rem; font-size: 0.9rem; }
       #itemList li.editing { background: #eef4ff; border-radius: 4px; padding: 0.1rem 0.4rem; margin-left: -0.4rem; }
@@ -17,6 +18,8 @@ html(lang="en")
       #cancelEditBtn { margin-left: 0.75rem; }
       #itemBuilder { background: #fafafa; }
       #itemBuilder .field[hidden] { display: none; }
+      .ai-prompt { white-space: pre-wrap; font-family: monospace; font-size: 0.75rem; line-height: 1.4; background: #fff; border: 1px solid #ddd; border-radius: 6px; padding: 0.75rem; max-height: 320px; overflow-y: auto; }
+      .copy-status { margin-left: 0.6rem; font-size: 0.8rem; color: #2c9c4a; }
       .tabs { display: flex; gap: 0.25rem; margin-bottom: 1rem; border-bottom: 1px solid #ddd; }
       .tabs a { padding: 0.5rem 1rem; text-decoration: none; color: #666; border-bottom: 2px solid transparent; margin-bottom: -1px; }
       .tabs a.active { color: #222; border-bottom-color: #2c6bd9; font-weight: 600; }
@@ -141,6 +144,13 @@ html(lang="en")
         var cancelEditBtn = document.getElementById('cancelEditBtn');
         var blankPicker = document.getElementById('blankPicker');
         var answerInput = document.getElementById('f-answer');
+        var bulkItemsTextarea = document.getElementById('bulkItems');
+        var bulkItemsError = document.getElementById('bulkItemsError');
+        var mergeBulkBtn = document.getElementById('mergeBulkBtn');
+        var aiPromptDetails = document.getElementById('aiPromptDetails');
+        var aiPromptText = document.getElementById('aiPromptText');
+        var copyAiPromptBtn = document.getElementById('copyAiPromptBtn');
+        var copyAiPromptStatus = document.getElementById('copyAiPromptStatus');
 
         var selectedBlankIndices = {};
         var editingIndex = null; // null = the builder is composing a new item
@@ -205,6 +215,10 @@ html(lang="en")
           });
         }
 
+        function updateAiPromptVisibility() {
+          if (aiPromptDetails) aiPromptDetails.hidden = typeSelect.value !== 'vocab';
+        }
+
         function updateSubtypeOptions() {
           var type = typeSelect.value;
           var cfg = FIELD_CONFIG[type];
@@ -236,18 +250,48 @@ html(lang="en")
           }
         }
 
+        // Mirrors LangDrillApp's tokenize() (lib/data/drill_data.dart) exactly,
+        // since that's what the mobile app's practice screen (drill_controller.dart
+        // buildLine()) uses to match a blank's "at" back to a word in the sentence.
+        // wordIdx counts only letter/apostrophe clusters - sentence punctuation is
+        // its own non-counted token, and anything else (digits, hyphens, symbols)
+        // is skipped entirely and consumes no index. A naive whitespace split
+        // disagrees with this the moment a sentence has a number, a hyphenated
+        // word, or other non-letter character, silently blanking the wrong word
+        // once the content reaches the mobile app.
+        function tokenize(sentence) {
+          var re = /[A-Za-z']+|[.,!?;:]|\s+/g;
+          var tokens = [];
+          var wordIdx = 0;
+          var m;
+          while ((m = re.exec(sentence))) {
+            var t = m[0];
+            if (/^\s+$/.test(t)) tokens.push({ kind: 'space', text: t, wordIdx: -1 });
+            else if (/^[.,!?;:]$/.test(t)) tokens.push({ kind: 'punct', text: t, wordIdx: -1 });
+            else tokens.push({ kind: 'word', text: t, wordIdx: wordIdx++ });
+          }
+          return tokens;
+        }
+
         function renderBlankPicker() {
           var text = answerInput.value || '';
-          var words = text.trim().length ? text.trim().split(/\s+/) : [];
           blankPicker.innerHTML = '';
-          if (!words.length) return;
-          words.forEach(function (word, i) {
+          tokenize(text).forEach(function (t) {
+            if (t.kind === 'space') return; // the picker's own flex gap supplies spacing
+            if (t.kind === 'punct') {
+              var span = document.createElement('span');
+              span.className = 'tok-plain';
+              span.textContent = t.text;
+              blankPicker.appendChild(span);
+              return;
+            }
+            var idx = t.wordIdx;
             var btn = document.createElement('button');
             btn.type = 'button';
-            btn.className = 'word-btn' + (selectedBlankIndices[i] ? ' selected' : '');
-            btn.textContent = word;
+            btn.className = 'word-btn' + (selectedBlankIndices[idx] ? ' selected' : '');
+            btn.textContent = t.text;
             btn.addEventListener('click', function () {
-              selectedBlankIndices[i] = !selectedBlankIndices[i];
+              selectedBlankIndices[idx] = !selectedBlankIndices[idx];
               btn.classList.toggle('selected');
             });
             blankPicker.appendChild(btn);
@@ -256,10 +300,11 @@ html(lang="en")
 
         function collectBlanks() {
           var text = answerInput.value || '';
-          var words = text.trim().length ? text.trim().split(/\s+/) : [];
           var blanks = [];
-          words.forEach(function (word, i) {
-            if (selectedBlankIndices[i]) blanks.push({ at: i, word: word });
+          tokenize(text).forEach(function (t) {
+            if (t.kind === 'word' && selectedBlankIndices[t.wordIdx]) {
+              blanks.push({ at: t.wordIdx, word: t.text });
+            }
           });
           return blanks;
         }
@@ -419,6 +464,49 @@ html(lang="en")
           renderItemList(getItems());
         });
 
+        // Bulk-add: paste a JSON array of new items and merge it onto
+        // whatever's already in the list (from the visual builder and/or
+        // earlier merges), instead of replacing it like the raw #items
+        // textarea below does.
+        function showBulkError(msg) {
+          bulkItemsError.textContent = msg;
+          bulkItemsError.hidden = false;
+        }
+
+        mergeBulkBtn.addEventListener('click', function () {
+          bulkItemsError.hidden = true;
+          var parsed;
+          try {
+            parsed = JSON.parse(bulkItemsTextarea.value || '');
+          } catch (e) {
+            showBulkError('Invalid JSON: ' + e.message);
+            return;
+          }
+          var isPlainObject = function (v) { return typeof v === 'object' && v !== null && !Array.isArray(v); };
+          if (!Array.isArray(parsed) || !parsed.length || !parsed.every(isPlainObject)) {
+            showBulkError('Must be a non-empty JSON array of item objects.');
+            return;
+          }
+          setItems(getItems().concat(parsed));
+          bulkItemsTextarea.value = '';
+        });
+
+        copyAiPromptBtn.addEventListener('click', function () {
+          var text = aiPromptText.textContent;
+          function showStatus(msg) {
+            copyAiPromptStatus.textContent = msg;
+            setTimeout(function () { copyAiPromptStatus.textContent = ''; }, 2500);
+          }
+          if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(text).then(
+              function () { showStatus('Copied!'); },
+              function () { showStatus('Could not copy automatically — select the text above and copy it manually.'); }
+            );
+          } else {
+            showStatus('Select the text above and copy it manually (Ctrl/Cmd+C).');
+          }
+        });
+
         answerInput.addEventListener('input', function () {
           selectedBlankIndices = {};
           if (fieldsFor().indexOf('blanks') !== -1) renderBlankPicker();
@@ -431,6 +519,7 @@ html(lang="en")
           }
           updateSubtypeOptions();
           updateFieldVisibility();
+          updateAiPromptVisibility();
           stopEditing();
           setItems([]);
         });
@@ -442,5 +531,6 @@ html(lang="en")
 
         updateSubtypeOptions();
         updateFieldVisibility();
+        updateAiPromptVisibility();
         renderItemList(getItems());
       })();
