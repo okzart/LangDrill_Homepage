@@ -151,6 +151,7 @@ html(lang="en")
         var aiPromptText = document.getElementById('aiPromptText');
         var copyAiPromptBtn = document.getElementById('copyAiPromptBtn');
         var copyAiPromptStatus = document.getElementById('copyAiPromptStatus');
+        var voiceWrap = document.getElementById('w-voice');
 
         var selectedBlankIndices = {};
         var editingIndex = null; // null = the builder is composing a new item
@@ -215,8 +216,11 @@ html(lang="en")
           });
         }
 
+        // The AI prompt and the audio-voice picker only apply to vocab sets.
         function updateAiPromptVisibility() {
-          if (aiPromptDetails) aiPromptDetails.hidden = typeSelect.value !== 'vocab';
+          var isVocab = typeSelect.value === 'vocab';
+          if (aiPromptDetails) aiPromptDetails.hidden = !isVocab;
+          if (voiceWrap) voiceWrap.hidden = !isVocab;
         }
 
         function updateSubtypeOptions() {

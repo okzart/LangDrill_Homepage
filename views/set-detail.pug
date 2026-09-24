@@ -23,6 +23,10 @@ html(lang="en")
         tr
           th Author
           td= set.author
+        if set.type === 'vocab'
+          tr
+            th Audio voice
+            td= set.voice || 'default'
         tr
           th Downloads
           td= set.downloads

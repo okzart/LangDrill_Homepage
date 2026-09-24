@@ -9,6 +9,10 @@ const AsyncHandler = require('../middleware/asyncHandler');
 const { GatewayError } = require('../errors');
 
 const TABS = ['list', 'create'];
+
+// tts-service's overall_grade scale, best first - used to sort the voice
+// picker so the better-sounding voices are on top. Ungraded voices go last.
+const GRADE_ORDER = ['A', 'A-', 'B+', 'B', 'B-', 'C+', 'C', 'C-', 'D+', 'D', 'D-', 'F+', 'F'];
 const DEFAULT_LIMIT = 10;
 const MAX_LIMIT = 50;
 
@@ -83,7 +87,9 @@ class CommunityRoutes {
       }
     }
 
+    const needsBuilder = tab === 'create' || editSet !== null;
     res.render('community', {
+      voiceOptions: needsBuilder ? await this.loadVoiceOptions() : null,
       sets,
       type,
       q,
@@ -105,14 +111,14 @@ class CommunityRoutes {
   }
 
   async publish(req, res, next) {
-    const { type, name, desc, author, items } = req.body || {};
+    const { type, name, desc, author, items, voice } = req.body || {};
     let parsedItems;
     try {
       parsedItems = JSON.parse(items || '[]');
     } catch {
-      return res.render('community', {
+      return this.renderCommunity(res, {
         sets: [], type: '', q: '', tab: 'create', editId: '',
-        editSet: { type, name, desc, author, itemsRaw: items },
+        editSet: { type, name, desc, author, voice, itemsRaw: items },
         editError: null, published: false, deleted: false, updated: false,
         error: 'Items must be valid JSON (an array of objects).',
       });
@@ -121,15 +127,15 @@ class CommunityRoutes {
     try {
       const card = await this.gatewayClient.post(
         '/api/sets',
-        { type, name, desc, author, items: parsedItems },
+        { type, name, desc, author, items: parsedItems, ...CommunityRoutes.voiceField(type, voice) },
         req.auth.token
       );
       res.redirect(`/community/${card.id}?published=1`);
     } catch (err) {
       if (err instanceof GatewayError && err.status === 400) {
-        return res.render('community', {
+        return this.renderCommunity(res, {
           sets: [], type: '', q: '', tab: 'create', editId: '',
-          editSet: { type, name, desc, author, items: parsedItems },
+          editSet: { type, name, desc, author, voice, items: parsedItems },
           editError: null, published: false, deleted: false, updated: false,
           error: err.message,
         });
@@ -147,16 +153,16 @@ class CommunityRoutes {
   // page 1 on success.
   async update(req, res, next) {
     const id = req.params.id;
-    const { type, name, desc, author, items, returnTo } = req.body || {};
+    const { type, name, desc, author, items, voice, returnTo } = req.body || {};
     const backTo = returnTo ? `/community?${returnTo}` : '/community?tab=list';
     const listReturnTo = returnTo || 'tab=list';
     let parsedItems;
     try {
       parsedItems = JSON.parse(items || '[]');
     } catch {
-      return res.render('community', {
+      return this.renderCommunity(res, {
         sets: [], type: '', q: '', tab: 'list', editId: id,
-        editSet: { id, type, name, desc, author, itemsRaw: items, returnTo },
+        editSet: { id, type, name, desc, author, voice, itemsRaw: items, returnTo },
         editError: null, published: false, deleted: false, updated: false,
         page: 1, limit: DEFAULT_LIMIT, total: 0, totalPages: 1, pagerBase: '', returnTo: listReturnTo,
         error: 'Items must be valid JSON (an array of objects).',
@@ -166,15 +172,15 @@ class CommunityRoutes {
     try {
       await this.gatewayClient.patch(
         `/api/sets/${encodeURIComponent(id)}`,
-        { type, name, desc, author, items: parsedItems },
+        { type, name, desc, author, items: parsedItems, ...CommunityRoutes.voiceField(type, voice) },
         req.auth.token
       );
       res.redirect(`${backTo}&updated=1`);
     } catch (err) {
       if (err instanceof GatewayError && [400, 403, 404].includes(err.status)) {
-        return res.render('community', {
+        return this.renderCommunity(res, {
           sets: [], type: '', q: '', tab: 'list', editId: id,
-          editSet: { id, type, name, desc, author, items: parsedItems, returnTo },
+          editSet: { id, type, name, desc, author, voice, items: parsedItems, returnTo },
           editError: null, published: false, deleted: false, updated: false,
           page: 1, limit: DEFAULT_LIMIT, total: 0, totalPages: 1, pagerBase: '', returnTo: listReturnTo,
           error: err.message,
@@ -182,6 +188,54 @@ class CommunityRoutes {
       }
       next(err);
     }
+  }
+
+  // Re-renders the community page with a builder form (a failed publish or
+  // update), which needs the voice picker's options like #showCommunity.
+  async renderCommunity(res, locals) {
+    res.render('community', { ...locals, voiceOptions: await this.loadVoiceOptions() });
+  }
+
+  // The voice picker's options: `{ default, voices: [{ id, label }] }`,
+  // best-graded first, or null when Content Sharing can't reach tts-service
+  // (or the call fails at all) - the form then just omits the picker and
+  // the set gets the service's default voice. Never throws: a missing
+  // picker shouldn't break the page.
+  async loadVoiceOptions() {
+    let result;
+    try {
+      result = await this.gatewayClient.get('/api/sets/voices');
+    } catch {
+      return null;
+    }
+    if (!result || !Array.isArray(result.voices) || result.voices.length === 0) {
+      return null;
+    }
+    const rank = (v) => {
+      const i = GRADE_ORDER.indexOf(v.grade);
+      return i === -1 ? GRADE_ORDER.length : i;
+    };
+    const voices = [...result.voices]
+      .sort((a, b) => rank(a) - rank(b) || a.id.localeCompare(b.id))
+      .map((v) => ({ id: v.id, label: CommunityRoutes.voiceLabel(v) }));
+    return { default: result.default, voices };
+  }
+
+  // "af_heart — American English, female (grade A)". Kokoro voice ids encode
+  // accent + gender in their first two letters (see Content Sharing's
+  // services/voiceCatalog.js, which only ever returns a*/b* ids).
+  static voiceLabel(voice) {
+    const accent = { a: 'American English', b: 'British English' }[voice.id[0]] || 'English';
+    const gender = { f: 'female', m: 'male' }[voice.id[1]] || '';
+    const grade = voice.grade ? ` (grade ${voice.grade})` : '';
+    return `${voice.id} — ${accent}${gender ? `, ${gender}` : ''}${grade}`;
+  }
+
+  // Only vocab sets are narrated, so `voice` is only sent for them - and
+  // only when one was actually chosen, so Content Sharing applies its
+  // default otherwise (e.g. when the picker couldn't be shown).
+  static voiceField(type, voice) {
+    return type === 'vocab' && voice ? { voice } : {};
   }
 
   async showOne(req, res) {

@@ -23,6 +23,23 @@ mixin itemBuilder(formAction, prefill, submitLabel)
     label(for="author") Author (display name)
     input#author(type="text" name="author" value=p.author placeholder=currentUser.email)
 
+    //- Vocab only: the tts voice every item's answer sentence is narrated
+    //- in (shown/hidden by the type <select> - see community.pug's script).
+    //- `voiceOptions` is null when the voice list couldn't be loaded; the
+    //- set then just gets Content Sharing's default voice.
+    .field#w-voice(hidden=(p.type && p.type !== 'vocab'))
+      if voiceOptions
+        - var selectedVoice = p.voice || voiceOptions.default
+        label(for="voice") Audio voice
+        select#voice(name="voice")
+          each v in voiceOptions.voices
+            option(value=v.id selected=(v.id === selectedVoice))= v.label + (v.id === voiceOptions.default ? ' — default' : '')
+        p.hint Every item's answer sentence is narrated in this voice. Changing it regenerates audio for the whole set on save.
+      else if p.voice
+        p.hint Audio voice: #{p.voice}. The voice list is unavailable right now, so it can't be changed; saving keeps this voice.
+      else
+        p.hint Audio voice: the voice list is unavailable right now, so the default voice will be used.
+
     h3 Items
     p.hint Fill in the fields below for one item, then click "Add item". Repeat for every item — no JSON needed.
 
