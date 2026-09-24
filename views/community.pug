@@ -250,15 +250,13 @@ html(lang="en")
           }
         }
 
-        // Mirrors LangDrillApp's tokenize() (lib/data/drill_data.dart) exactly,
-        // since that's what the mobile app's practice screen (drill_controller.dart
-        // buildLine()) uses to match a blank's "at" back to a word in the sentence.
-        // wordIdx counts only letter/apostrophe clusters - sentence punctuation is
-        // its own non-counted token, and anything else (digits, hyphens, symbols)
-        // is skipped entirely and consumes no index. A naive whitespace split
-        // disagrees with this the moment a sentence has a number, a hyphenated
-        // word, or other non-letter character, silently blanking the wrong word
-        // once the content reaches the mobile app.
+        // Mirrors LangDrillApp's tokenize() (lib/data/drill_data.dart) exactly -
+        // see LangDrillApp/docs/14.blank-word-indexing.md for the full rule and
+        // why a naive whitespace split silently blanks the wrong word once
+        // content reaches the mobile app. wordIdx counts only letter/apostrophe
+        // clusters; sentence punctuation is its own non-counted token, and
+        // anything else (digits, hyphens, symbols) is skipped entirely and
+        // consumes no index.
         function tokenize(sentence) {
           var re = /[A-Za-z']+|[.,!?;:]|\s+/g;
           var tokens = [];
