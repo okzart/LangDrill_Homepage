@@ -9,6 +9,7 @@ nav
     a(href="/community") Community
     if currentUser.role === 'admin'
       a(href="/admin/users") Admin
+      a(href="/admin/audio") Audio
   .spacer
   if currentUser
     span.user #{currentUser.email}

@@ -1,0 +1,65 @@
+//- Orphaned vocab audio cleanup (see routes/adminRoutes.js#showAudio).
+//- `report` is Content Sharing's dry-run scan: nothing is deleted until
+//- the button below is pressed.
+- var size = function (b) { return b >= 1048576 ? (b / 1048576).toFixed(1) + ' MB' : (b / 1024).toFixed(0) + ' KB'; }
+doctype html
+html(lang="en")
+  head
+    meta(charset="UTF-8")
+    title LanguageDrill — Admin: Audio
+    include ../_style
+    style.
+      .hint { font-size: 0.8rem; color: #666; }
+      .orphans { max-height: 320px; overflow-y: auto; }
+      .orphans td { font-family: monospace; font-size: 0.8rem; }
+  body
+    include ../_nav
+    h1 Vocab audio
+
+    if error
+      .error= error
+    if cleaned
+      .success Deleted #{cleaned.files} orphaned file#{cleaned.files === 1 ? '' : 's'} (#{size(cleaned.bytes)} freed).
+
+    section
+      table
+        tr
+          th Audio files on disk
+          td #{report.totalFiles} (#{size(report.totalBytes)})
+        tr
+          th Used by a published set
+          td= report.referencedFiles
+        tr
+          th Orphaned (can be deleted)
+          td #{report.orphans.length} (#{size(report.orphanBytes)})
+        tr
+          th Unused but recently created
+          td #{report.recentUnreferenced}
+      p.hint
+        | An orphan is an mp3 no published set uses any more — left behind when a set is unpublished, a sentence
+        | is edited, or a set's voice changes. Files created in the last #{report.graceMinutes} minutes are kept
+        | even if unused, so a publish in progress never loses its audio; they're counted as "recently created" and
+        | become eligible later. Content Sharing also runs this cleanup automatically (daily by default).
+        | Learners who downloaded a set in the mobile app before it changed keep working: the app falls back to
+        | on-device speech if a file is gone.
+
+      if report.orphans.length
+        form(method="POST" action="/admin/audio/cleanup" onsubmit=`return confirm('Delete ${report.orphans.length} orphaned audio file(s)?')`)
+          button.danger(type="submit") Delete #{report.orphans.length} orphaned file#{report.orphans.length === 1 ? '' : 's'}
+      else
+        p Nothing to clean up.
+
+    if report.orphans.length
+      section
+        h2 Orphaned files
+        .orphans
+          table
+            tr
+              th File
+              th Size
+              th Last used
+            each o in report.orphans
+              tr
+                td= o.filename.slice(0, 16) + '….mp3'
+                td= size(o.bytes)
+                td= o.modifiedAt.replace('T', ' ').slice(0, 16)

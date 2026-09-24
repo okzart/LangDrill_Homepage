@@ -42,6 +42,31 @@ class AdminRoutes {
     this.router.get('/admin/users/:id/progress', ...guard, AsyncHandler.wrap(this.showUserProgress.bind(this)));
     this.router.post('/admin/users/:id/progress', ...guard, AsyncHandler.wrap(this.updateUserProgress.bind(this)));
     this.router.post('/admin/users/:id/progress/delete', ...guard, AsyncHandler.wrap(this.deleteUserProgress.bind(this)));
+
+    this.router.get('/admin/audio', ...guard, AsyncHandler.wrap(this.showAudio.bind(this)));
+    this.router.post('/admin/audio/cleanup', ...guard, AsyncHandler.wrap(this.cleanupAudio.bind(this)));
+  }
+
+  // Orphaned vocab audio (Content Sharing's services/audioJanitor.js): a
+  // dry-run report, and a button that deletes what it lists.
+  async showAudio(req, res) {
+    const report = await this.gatewayClient.get('/api/sets/admin/audio/orphans', req.auth.token);
+    const cleaned = req.query.deleted !== undefined
+      ? { files: Number(req.query.deleted) || 0, bytes: Number(req.query.freed) || 0 }
+      : null;
+    res.render('admin/audio', { report, cleaned, error: req.query.error || null });
+  }
+
+  async cleanupAudio(req, res) {
+    try {
+      const { deletedFiles, deletedBytes } = await this.gatewayClient.delete(
+        '/api/sets/admin/audio/orphans',
+        req.auth.token
+      );
+      res.redirect(`/admin/audio?deleted=${deletedFiles}&freed=${deletedBytes}`);
+    } catch (err) {
+      withError(res, '/admin/audio', err);
+    }
   }
 
   async listUsers(req, res) {
