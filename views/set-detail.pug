@@ -4,6 +4,16 @@ html(lang="en")
     meta(charset="UTF-8")
     title LanguageDrill — #{set.name}
     include _style
+    style.
+      .hint { font-size: 0.8rem; color: #666; }
+      .play-all { margin-bottom: 1rem; }
+      .play-all .row button { margin-top: 0; }
+      .play-all-options { margin-top: 0.5rem; font-size: 0.85rem; }
+      .play-all-options label { display: inline-flex; align-items: center; gap: 0.3rem; margin: 0; }
+      .play-all-options select { width: auto; margin: 0; }
+      .play-all-options input[type="checkbox"] { width: auto; margin: 0; }
+      #vocabItems li { padding: 0.25rem 0.5rem; margin-left: -0.5rem; border-radius: 6px; transition: background 0.2s; }
+      #vocabItems li.now-playing { background: #eef4ff; }
   body
     include _nav
     h1= set.name
@@ -38,13 +48,34 @@ html(lang="en")
     section
       h2 Items
       if set.type === 'vocab'
-        ol
+        - var audioCount = set.items.filter(function (it) { return it && it.audioUrl; }).length
+        //- "Play all": plays every item's audio in order (see the script at
+        //- the bottom). Only rendered when at least one item has audio.
+        if audioCount > 0
+          #playAll.play-all
+            .row
+              button#playAllBtn(type="button") ▶ Play all (#{audioCount})
+              button#pauseAllBtn(type="button" hidden) ❚❚ Pause
+              button#stopAllBtn(type="button" hidden) ■ Stop
+            .row.play-all-options
+              label(for="playAllGap") Pause between items
+              select#playAllGap
+                option(value="0") none
+                option(value="1000") 1 s
+                option(value="2000" selected) 2 s
+                option(value="3000") 3 s
+                option(value="5000") 5 s
+              label
+                input#playAllRepeat(type="checkbox")
+                |  Repeat
+            p#playAllStatus.hint(aria-live="polite")
+        ol#vocabItems
           each item, i in set.items
             li
               p.ko= item.ko
               p.answer= item.answer
               if item.audioUrl
-                audio(controls src=`/community/audio/${item.audioUrl.replace('/audio/', '')}`)
+                audio.item-audio(controls preload="none" src=`/community/audio/${item.audioUrl.replace('/audio/', '')}`)
               else
                 span.hint (no audio yet)
       pre= JSON.stringify(set.items, null, 2)
@@ -58,3 +89,125 @@ html(lang="en")
 
     p
       a(href="/community") ← Back to Community
+
+    //- Play-all controller. Reuses each item's own <audio> element (so the
+    //- browser cache and the per-item controls stay in sync) and walks them
+    //- in order, skipping items that have no audio. Playing an item by hand
+    //- while play-all is running stops play-all, so two clips never overlap.
+    if set.type === 'vocab'
+      script.
+        (function () {
+          var playBtn = document.getElementById('playAllBtn');
+          if (!playBtn) return; // no item has audio
+          var pauseBtn = document.getElementById('pauseAllBtn');
+          var stopBtn = document.getElementById('stopAllBtn');
+          var gapSelect = document.getElementById('playAllGap');
+          var repeatBox = document.getElementById('playAllRepeat');
+          var statusEl = document.getElementById('playAllStatus');
+          var audios = Array.prototype.slice.call(document.querySelectorAll('#vocabItems audio.item-audio'));
+
+          var index = -1;      // position in `audios` currently playing, -1 = idle
+          var paused = false;
+          var gapTimer = null;
+          var driving = false; // true while play-all itself is starting a clip
+
+          function setStatus(text) { statusEl.textContent = text; }
+
+          function highlight(audio) {
+            audios.forEach(function (a) { a.closest('li').classList.remove('now-playing'); });
+            if (audio) {
+              var li = audio.closest('li');
+              li.classList.add('now-playing');
+              li.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+            }
+          }
+
+          function updateButtons() {
+            var running = index !== -1;
+            playBtn.hidden = running;
+            pauseBtn.hidden = !running;
+            stopBtn.hidden = !running;
+            pauseBtn.textContent = paused ? '▶ Resume' : '❚❚ Pause';
+          }
+
+          function playAt(i) {
+            clearTimeout(gapTimer);
+            if (i >= audios.length) {
+              if (repeatBox.checked) { i = 0; } else { stop('Finished.'); return; }
+            }
+            index = i;
+            paused = false;
+            var audio = audios[i];
+            highlight(audio);
+            setStatus('Playing ' + (i + 1) + ' of ' + audios.length);
+            updateButtons();
+            audio.currentTime = 0;
+            driving = true;
+            var p = audio.play();
+            driving = false;
+            if (p && p.catch) {
+              // A clip that fails to load shouldn't end the whole run.
+              p.catch(function () { if (index === i && !paused) next(); });
+            }
+          }
+
+          function next() {
+            var gap = parseInt(gapSelect.value, 10) || 0;
+            var nextIndex = index + 1;
+            if (gap > 0 && (nextIndex < audios.length || repeatBox.checked)) {
+              setStatus('Next in ' + gap / 1000 + ' s…');
+              gapTimer = setTimeout(function () { playAt(nextIndex); }, gap);
+            } else {
+              playAt(nextIndex);
+            }
+          }
+
+          function stop(message) {
+            clearTimeout(gapTimer);
+            if (index !== -1) {
+              audios[index].pause();
+              audios[index].currentTime = 0;
+            }
+            index = -1;
+            paused = false;
+            highlight(null);
+            updateButtons();
+            setStatus(message || '');
+          }
+
+          audios.forEach(function (audio, i) {
+            audio.addEventListener('ended', function () {
+              if (index === i && !paused) next();
+            });
+            audio.addEventListener('error', function () {
+              if (index === i && !paused) next();
+            });
+            // The user pressed play on a single item: hand control back to them.
+            audio.addEventListener('play', function () {
+              if (index !== -1 && !driving && index !== i) stop();
+              audios.forEach(function (other) { if (other !== audio) other.pause(); });
+            });
+          });
+
+          playBtn.addEventListener('click', function () { playAt(0); });
+          stopBtn.addEventListener('click', function () { stop(); });
+          pauseBtn.addEventListener('click', function () {
+            if (index === -1) return;
+            if (paused) {
+              paused = false;
+              updateButtons();
+              var audio = audios[index];
+              if (audio.ended || audio.currentTime === 0) { playAt(index); return; }
+              setStatus('Playing ' + (index + 1) + ' of ' + audios.length);
+              driving = true;
+              audio.play();
+              driving = false;
+            } else {
+              paused = true;
+              clearTimeout(gapTimer);
+              audios[index].pause();
+              updateButtons();
+              setStatus('Paused at ' + (index + 1) + ' of ' + audios.length);
+            }
+          });
+        })();
