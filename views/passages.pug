@@ -1,6 +1,8 @@
-//- Example passages: the user enters expressions, Content Sharing (via the
-//- gateway's /api/passages) writes a passage that uses all of them and
-//- narrates it. The result - text, MP3 (base64) and per-word timings - comes
+//- Example passages: the user picks expressions from a vocab drill set
+//- (each with its example sentence and meaning, loaded via GET
+//- /passages/sets/:id) and/or types their own; Content Sharing (via the
+//- gateway's /api/passages) writes a passage that uses all of them in the
+//- intended sense and narrates it. The result - text, MP3 (base64) and per-word timings - comes
 //- back in one JSON response from POST /passages/generate (see
 //- src/routes/passagesRoutes.js). The MP3 is played from memory only;
 //- nothing is saved on the server or in the browser.
@@ -12,7 +14,26 @@ html(lang="en")
     title LanguageDrill — Passages
     include _style
     style.
-      #expressions { min-height: 8rem; font-family: inherit; font-size: 0.95rem; }
+      .picker-head { display: flex; gap: 0.5rem; align-items: end; flex-wrap: wrap; }
+      .picker-head > div { flex: 1; min-width: 180px; }
+      #items { max-height: 22rem; overflow-y: auto; border: 1px solid #eee; border-radius: 6px; margin-top: 0.5rem; }
+      #items label { display: flex; gap: 0.6rem; align-items: flex-start; margin: 0; padding: 0.5rem 0.6rem; border-bottom: 1px solid #f3f3f3; cursor: pointer; }
+      #items label:hover { background: #fafafa; }
+      #items input { width: auto; margin-top: 0.2rem; }
+      #items .expr-name { font-weight: 600; color: #1f4fb0; }
+      #items .ko { color: #555; font-size: 0.85rem; }
+      #items .example { color: #666; font-size: 0.85rem; font-style: italic; }
+      #items label.added { opacity: 0.55; }
+      .picker-actions { display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; }
+      .picker-actions button { margin-top: 0.5rem; }
+      #selected { margin: 0.5rem 0 0; padding: 0; list-style: none; }
+      #selected li { display: grid; grid-template-columns: 1.2fr 1fr 2fr auto; gap: 0.4rem; align-items: center; padding: 0.35rem 0; border-bottom: 1px solid #f3f3f3; }
+      #selected li input { margin: 0; font-size: 0.9rem; }
+      #selected li input.expr-input { font-weight: 600; }
+      #selected li button { margin: 0; padding: 0.2rem 0.55rem; }
+      #selected .empty { display: block; color: #888; font-size: 0.9rem; border: 0; }
+      @media (max-width: 640px) { #selected li { grid-template-columns: 1fr auto; } #selected li .opt { grid-column: 1 / -1; } }
+      .count { font-size: 0.85rem; color: #666; font-weight: normal; }
       .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 0 1rem; }
       @media (max-width: 560px) { .grid2 { grid-template-columns: 1fr; } }
       .hint { font-size: 0.8rem; color: #666; margin: 0.25rem 0 0; }
@@ -35,13 +56,37 @@ html(lang="en")
   body
     include _nav
     h1 Passages
-    p Enter expressions you're learning. You'll get a short passage that uses every one of them, read aloud, with each word highlighted as it's spoken.
+    p Pick expressions from a vocab drill set or type your own. You'll get a short passage that uses every one of them — in the sense shown by each example sentence — read aloud, with each word highlighted as it's spoken.
+
+    if vocabSets && vocabSets.length
+      section
+        h2 Pick from a vocab drill set
+        .picker-head
+          div
+            label(for="set") Vocab set
+            select#set
+              option(value="") — choose a set —
+              each set in vocabSets
+                option(value=set.id)= `${set.name} (${set.count} items${set.author ? ` · ${set.author}` : ''})`
+          div
+            label(for="filter") Search items
+            input#filter(type="search" placeholder="word, sentence or 한국어" disabled)
+        #items.hidden
+        .picker-actions
+          button#btn-add-checked(type="button" disabled) Add checked
+          button#btn-select-all(type="button" disabled) Check all shown
+          span.hint#picker-status
+    else if vocabSets
+      p.hint No vocab drill sets have been published yet — type expressions below.
 
     section
       form#form
-        label(for="expressions") Expressions (one per line, up to 15)
-        textarea#expressions(placeholder="look forward to\ntake off\nin the long run\nrun into\nmake up one's mind" required)
-        p.hint Placeholders like "one's" or "someone" are fine. Forms may change in the passage (e.g. "take off" → "took off").
+        h2 Expressions for the passage #[span.count#count 0 / 15]
+        p.hint Each expression can carry a meaning and an example sentence; the passage uses the expression in that sense. Forms may change (e.g. "take off" → "took off"). Placeholders like "one's" are fine.
+        ul#selected
+        .picker-actions
+          button#btn-add-row(type="button") + Add expression
+          button#btn-clear-rows(type="button") Clear
         .grid2
           div
             label(for="level") Level
@@ -58,7 +103,7 @@ html(lang="en")
             else
               p.hint Voice list unavailable right now; the default voice will be used.
         .row
-          button#btn-generate(type="submit") Generate
+          button#btn-generate(type="submit" disabled) Generate
           span#status
 
     #error.error.hidden
@@ -91,11 +136,177 @@ html(lang="en")
       }
 
       // ======================================================================
+      // Expressions for the passage: [{ expression, meaning, example }]
+      // ======================================================================
+      const MAX = 15;
+      let selected = [];
+
+      const keyOf = (expression) => expression.trim().toLowerCase();
+
+      // Adds entries, skipping duplicates and anything past MAX. Returns how
+      // many were skipped for being over the limit.
+      function addSelected(entries) {
+        let overflow = 0;
+        for (const entry of entries) {
+          if (entry.expression && selected.some((s) => keyOf(s.expression) === keyOf(entry.expression))) continue;
+          if (selected.length >= MAX) { overflow++; continue; }
+          selected.push({ expression: entry.expression || '', meaning: entry.meaning || '', example: entry.example || '' });
+        }
+        renderSelected();
+        return overflow;
+      }
+
+      function renderSelected() {
+        const list = $('selected');
+        list.textContent = '';
+        if (selected.length === 0) {
+          const li = document.createElement('li');
+          li.className = 'empty';
+          li.textContent = 'No expressions yet — pick some from a drill set above or add your own.';
+          list.append(li);
+        }
+        selected.forEach((entry, i) => {
+          const li = document.createElement('li');
+          const field = (name, placeholder, cls) => {
+            const input = document.createElement('input');
+            input.value = entry[name];
+            input.placeholder = placeholder;
+            input.className = cls;
+            input.setAttribute('aria-label', placeholder);
+            input.addEventListener('input', () => { entry[name] = input.value; updateCounts(); });
+            return input;
+          };
+          const remove = document.createElement('button');
+          remove.type = 'button';
+          remove.textContent = '×';
+          remove.title = 'Remove';
+          remove.addEventListener('click', () => { selected.splice(i, 1); renderSelected(); });
+          li.append(
+            field('expression', 'expression, e.g. take off', 'expr-input'),
+            field('meaning', 'meaning (optional)', 'opt'),
+            field('example', 'example sentence (optional)', 'opt'),
+            remove
+          );
+          list.append(li);
+        });
+        updateCounts();
+      }
+
+      function updateCounts() {
+        const usable = selected.filter((s) => s.expression.trim()).length;
+        $('count').textContent = `${usable} / ${MAX}`;
+        $('btn-generate').disabled = usable === 0 || request !== null;
+        $('btn-add-row').disabled = selected.length >= MAX;
+        markAdded();
+      }
+
+      $('btn-add-row').addEventListener('click', () => {
+        addSelected([{ expression: '' }]);
+        const inputs = document.querySelectorAll('#selected .expr-input');
+        inputs[inputs.length - 1]?.focus();
+      });
+      $('btn-clear-rows').addEventListener('click', () => { selected = []; renderSelected(); });
+
+      // ======================================================================
+      // Picker: a vocab drill set's items (GET /passages/sets/:id)
+      // ======================================================================
+      let setItems = [];
+      const setSelect = $('set');
+
+      function markAdded() {
+        document.querySelectorAll('#items label').forEach((label) => {
+          const item = setItems[Number(label.dataset.i)];
+          label.classList.toggle('added', selected.some((s) => keyOf(s.expression) === keyOf(item.expression)));
+        });
+      }
+
+      function renderItems() {
+        const box = $('items');
+        box.textContent = '';
+        setItems.forEach((item, i) => {
+          const label = document.createElement('label');
+          label.dataset.i = i;
+          label.dataset.search = `${item.expression} ${item.example} ${item.meaning} ${item.ko}`.toLowerCase();
+          const box2 = document.createElement('input');
+          box2.type = 'checkbox';
+          const text = document.createElement('div');
+          const name = document.createElement('div');
+          name.className = 'expr-name';
+          name.textContent = item.expression;
+          const ko = document.createElement('div');
+          ko.className = 'ko';
+          ko.textContent = item.meaning && item.meaning !== item.ko ? `${item.meaning} — ${item.ko}` : item.ko || item.meaning;
+          const example = document.createElement('div');
+          example.className = 'example';
+          example.textContent = item.example;
+          text.append(name, ko, example);
+          label.append(box2, text);
+          box.append(label);
+        });
+        box.classList.toggle('hidden', setItems.length === 0);
+        applyFilter();
+        markAdded();
+      }
+
+      function applyFilter() {
+        const q = ($('filter')?.value || '').trim().toLowerCase();
+        document.querySelectorAll('#items label').forEach((label) => {
+          label.classList.toggle('hidden', q !== '' && !label.dataset.search.includes(q));
+        });
+      }
+
+      setSelect?.addEventListener('change', async () => {
+        setItems = [];
+        renderItems();
+        $('picker-status').textContent = '';
+        const id = setSelect.value;
+        for (const b of ['btn-add-checked', 'btn-select-all']) $(b).disabled = !id;
+        $('filter').disabled = !id;
+        if (!id) return;
+        $('picker-status').textContent = 'Loading…';
+        try {
+          const res = await fetch(`/passages/sets/${encodeURIComponent(id)}`);
+          if (res.status === 401) { window.location.href = '/login?next=/passages'; return; }
+          const body = await res.json().catch(() => ({}));
+          if (!res.ok) throw new Error(body.error || `HTTP ${res.status}`);
+          if (setSelect.value !== id) return; // another set was chosen meanwhile
+          setItems = body.items;
+          renderItems();
+          $('picker-status').textContent = setItems.length ? `${setItems.length} items` : 'This set has no items with blanks to use.';
+        } catch (error) {
+          $('picker-status').textContent = `Could not load the set: ${error.message}`;
+        }
+      });
+
+      $('filter')?.addEventListener('input', applyFilter);
+
+      $('btn-select-all')?.addEventListener('click', () => {
+        const room = MAX - selected.length;
+        let n = 0;
+        document.querySelectorAll('#items label:not(.hidden):not(.added) input').forEach((box) => {
+          box.checked = n < room;
+          if (box.checked) n++;
+        });
+        $('picker-status').textContent = n < room ? '' : `Checked ${n} — the passage takes at most ${MAX} expressions.`;
+      });
+
+      $('btn-add-checked')?.addEventListener('click', () => {
+        const checked = [...document.querySelectorAll('#items input:checked')];
+        const overflow = addSelected(checked.map((box) => setItems[Number(box.closest('label').dataset.i)]));
+        checked.forEach((box) => { box.checked = false; });
+        $('picker-status').textContent = overflow ? `${overflow} not added — at most ${MAX} expressions per passage.` : '';
+      });
+
+      renderSelected();
+
+      // ======================================================================
       // Generate
       // ======================================================================
       $('form').addEventListener('submit', async (e) => {
         e.preventDefault();
-        const expressions = $('expressions').value.split('\n').map((s) => s.trim()).filter(Boolean);
+        const expressions = selected
+          .filter((s) => s.expression.trim())
+          .map((s) => ({ expression: s.expression.trim(), meaning: s.meaning.trim() || undefined, example: s.example.trim() || undefined }));
         if (expressions.length === 0) return;
         request?.abort();
         request = new AbortController();
@@ -122,7 +333,8 @@ html(lang="en")
           $('status').textContent = '';
           showError(error.message);
         } finally {
-          $('btn-generate').disabled = false;
+          request = null;
+          updateCounts();
         }
       });
 
@@ -169,6 +381,7 @@ html(lang="en")
           const button = document.createElement('button');
           button.type = 'button';
           button.textContent = entry.expression;
+          button.title = [entry.meaning, entry.example && `e.g. ${entry.example}`].filter(Boolean).join('\n');
           if (first && first.text.toLowerCase() !== entry.expression.toLowerCase()) {
             const small = document.createElement('small');
             small.textContent = ` → ${first.text}`;
