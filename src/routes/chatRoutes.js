@@ -12,6 +12,7 @@ const { requireLogin } = require('../middleware/requireLogin');
 const AsyncHandler = require('../middleware/asyncHandler');
 const Session = require('../middleware/session');
 const { GatewayError } = require('../errors');
+const { GRADE_ORDER } = require('../services/voiceOptions');
 
 const DEFAULT_VOICE = 'af_heart';
 // Kokoro voice ids are "<language><gender>_<name>" (e.g. "ef_dora" = Spanish,
@@ -28,8 +29,6 @@ const VOICE_LANGUAGES = {
   p: 'Brazilian Portuguese',
   z: 'Mandarin Chinese',
 };
-// tts-service's overall_grade scale, best first (same as communityRoutes.js).
-const GRADE_ORDER = ['A', 'A-', 'B+', 'B', 'B-', 'C+', 'C', 'C-', 'D+', 'D', 'D-', 'F+', 'F'];
 // The page speaks one sentence per request, so this is generous; it only
 // stops a single request from tying up the GPU with a huge input.
 const MAX_SPEECH_CHARS = 1000;

@@ -1,0 +1,251 @@
+//- Example passages: the user enters expressions, Content Sharing (via the
+//- gateway's /api/passages) writes a passage that uses all of them and
+//- narrates it. The result - text, MP3 (base64) and per-word timings - comes
+//- back in one JSON response from POST /passages/generate (see
+//- src/routes/passagesRoutes.js). The MP3 is played from memory only;
+//- nothing is saved on the server or in the browser.
+doctype html
+html(lang="en")
+  head
+    meta(charset="UTF-8")
+    meta(name="viewport" content="width=device-width, initial-scale=1")
+    title LanguageDrill — Passages
+    include _style
+    style.
+      #expressions { min-height: 8rem; font-family: inherit; font-size: 0.95rem; }
+      .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 0 1rem; }
+      @media (max-width: 560px) { .grid2 { grid-template-columns: 1fr; } }
+      .hint { font-size: 0.8rem; color: #666; margin: 0.25rem 0 0; }
+      #status { font-size: 0.9rem; color: #666; margin-left: 0.5rem; }
+      .hidden { display: none; }
+      .player { display: flex; gap: 0.75rem; align-items: center; flex-wrap: wrap; }
+      .player audio { flex: 1; min-width: 240px; }
+      .player .speed button { margin: 0; padding: 0.3rem 0.6rem; }
+      .player .speed button.active { background: #222; color: #fff; }
+      .chips { display: flex; flex-wrap: wrap; gap: 0.4rem; margin: 0.75rem 0 0; padding: 0; list-style: none; }
+      .chips button { margin: 0; padding: 0.3rem 0.6rem; border: 1px solid #1f6feb; border-radius: 999px; background: #eef4ff; color: #1f4fb0; font-size: 0.85rem; }
+      .chips button small { color: #555; }
+      #passage { white-space: pre-wrap; font-size: 1.1rem; line-height: 1.9; margin-top: 1rem; }
+      #passage .w { cursor: pointer; border-radius: 3px; padding: 0 1px; }
+      #passage .w:hover { background: #f1f1f1; }
+      #passage .in-sentence { background: #f6f8fb; }
+      #passage .expr { color: #1f4fb0; font-weight: 600; border-bottom: 2px solid #9db8f0; }
+      #passage .w.current { background: #ffe58a; }
+      .meta { font-size: 0.8rem; color: #666; margin-top: 0.75rem; }
+  body
+    include _nav
+    h1 Passages
+    p Enter expressions you're learning. You'll get a short passage that uses every one of them, read aloud, with each word highlighted as it's spoken.
+
+    section
+      form#form
+        label(for="expressions") Expressions (one per line, up to 15)
+        textarea#expressions(placeholder="look forward to\ntake off\nin the long run\nrun into\nmake up one's mind" required)
+        p.hint Placeholders like "one's" or "someone" are fine. Forms may change in the passage (e.g. "take off" → "took off").
+        .grid2
+          div
+            label(for="level") Level
+            select#level
+              option(value="beginner") Beginner
+              option(value="intermediate" selected) Intermediate
+              option(value="advanced") Advanced
+          div
+            if voiceOptions
+              label(for="voice") Voice
+              select#voice
+                each v in voiceOptions.voices
+                  option(value=v.id selected=(v.id === voiceOptions.default))= v.label + (v.id === voiceOptions.default ? ' — default' : '')
+            else
+              p.hint Voice list unavailable right now; the default voice will be used.
+        .row
+          button#btn-generate(type="submit") Generate
+          span#status
+
+    #error.error.hidden
+
+    section#result.hidden
+      .player
+        audio#audio(controls preload="auto")
+        .speed
+          button(type="button" data-rate="0.75") 0.75×
+          button.active(type="button" data-rate="1") 1×
+          button(type="button" data-rate="1.25") 1.25×
+      ul#chips.chips
+      #passage
+      p.meta#meta
+
+    script.
+      const $ = (id) => document.getElementById(id);
+      const audio = $('audio');
+      const passageEl = $('passage');
+      let audioUrl = null;
+      let words = [];         // response.words, in order
+      let wordEls = [];       // the <span> for each entry of `words`
+      let sentenceOfWord = []; // sentence index for each word
+      let current = -1;
+      let request = null;
+
+      function showError(message) {
+        $('error').textContent = message;
+        $('error').classList.toggle('hidden', !message);
+      }
+
+      // ======================================================================
+      // Generate
+      // ======================================================================
+      $('form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const expressions = $('expressions').value.split('\n').map((s) => s.trim()).filter(Boolean);
+        if (expressions.length === 0) return;
+        request?.abort();
+        request = new AbortController();
+        showError('');
+        $('btn-generate').disabled = true;
+        $('status').textContent = `Writing a passage with ${expressions.length} expression${expressions.length > 1 ? 's' : ''} and recording it… (usually a few seconds)`;
+        try {
+          const res = await fetch('/passages/generate', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ expressions, level: $('level').value, voice: $('voice')?.value }),
+            signal: request.signal,
+          });
+          if (res.status === 401) {
+            window.location.href = '/login?next=/passages';
+            return;
+          }
+          const body = await res.json().catch(() => ({}));
+          if (!res.ok) throw new Error(body.error || `HTTP ${res.status}`);
+          show(body);
+          $('status').textContent = '';
+        } catch (error) {
+          if (error.name === 'AbortError') return;
+          $('status').textContent = '';
+          showError(error.message);
+        } finally {
+          $('btn-generate').disabled = false;
+        }
+      });
+
+      // ======================================================================
+      // Render a result: audio from memory, text as clickable word spans
+      // ======================================================================
+      function show(result) {
+        audio.pause();
+        if (audioUrl) URL.revokeObjectURL(audioUrl);
+        const bytes = Uint8Array.from(atob(result.audio.base64), (c) => c.charCodeAt(0));
+        audioUrl = URL.createObjectURL(new Blob([bytes], { type: result.audio.mimeType }));
+        audio.src = audioUrl;
+        audio.playbackRate = Number(document.querySelector('.speed .active').dataset.rate);
+
+        // Build the passage: text between words stays plain text (spaces,
+        // punctuation, paragraph breaks), each word is a span.
+        words = result.words;
+        passageEl.textContent = '';
+        wordEls = [];
+        let pos = 0;
+        words.forEach((word, i) => {
+          if (word.start > pos) passageEl.append(result.text.slice(pos, word.start));
+          const span = document.createElement('span');
+          span.className = word.expression === undefined ? 'w' : 'w expr';
+          span.textContent = result.text.slice(word.start, word.end);
+          span.dataset.i = i;
+          if (word.expression !== undefined) span.title = `Expression: ${result.expressions[word.expression].expression}`;
+          passageEl.append(span);
+          wordEls.push(span);
+          pos = word.end;
+        });
+        if (pos < result.text.length) passageEl.append(result.text.slice(pos));
+
+        sentenceOfWord = words.map((word) =>
+          result.sentences.findIndex((s) => word.start >= s.start && word.end <= s.end)
+        );
+        current = -1;
+
+        // One chip per expression; clicking plays from its first use.
+        $('chips').textContent = '';
+        result.expressions.forEach((entry) => {
+          const first = entry.occurrences[0];
+          const li = document.createElement('li');
+          const button = document.createElement('button');
+          button.type = 'button';
+          button.textContent = entry.expression;
+          if (first && first.text.toLowerCase() !== entry.expression.toLowerCase()) {
+            const small = document.createElement('small');
+            small.textContent = ` → ${first.text}`;
+            button.append(small);
+          }
+          button.addEventListener('click', () => {
+            const i = words.findIndex((w) => w.start >= first.start);
+            if (i !== -1) seekTo(i);
+          });
+          li.append(button);
+          $('chips').append(li);
+        });
+
+        $('meta').textContent = `${result.words.length} words · ${formatTime(result.audio.duration)} · voice ${result.voice} · ${result.level}. `
+          + 'Sentence timing is exact; word highlighting is approximate. Nothing is saved — generating again replaces this passage.';
+        $('result').classList.remove('hidden');
+        $('result').scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+
+      function formatTime(seconds) {
+        return `${Math.floor(seconds / 60)}:${String(Math.round(seconds % 60)).padStart(2, '0')}`;
+      }
+
+      // ======================================================================
+      // Highlight the word being spoken
+      // ======================================================================
+      // Last word whose startTime <= t (binary search), or -1 before the first.
+      function wordAt(t) {
+        let lo = 0, hi = words.length - 1, found = -1;
+        while (lo <= hi) {
+          const mid = (lo + hi) >> 1;
+          if (words[mid].startTime <= t) { found = mid; lo = mid + 1; } else { hi = mid - 1; }
+        }
+        // Between sentences (trailing silence) nothing is highlighted.
+        if (found !== -1 && t > words[found].endTime + 0.35) return -1;
+        return found;
+      }
+
+      function highlight(i) {
+        if (i === current) return;
+        const oldSentence = current === -1 ? -1 : sentenceOfWord[current];
+        const newSentence = i === -1 ? -1 : sentenceOfWord[i];
+        if (current !== -1) wordEls[current].classList.remove('current');
+        if (oldSentence !== newSentence) {
+          wordEls.forEach((el, k) => {
+            if (sentenceOfWord[k] === oldSentence) el.classList.remove('in-sentence');
+            if (sentenceOfWord[k] === newSentence && newSentence !== -1) el.classList.add('in-sentence');
+          });
+        }
+        if (i !== -1) wordEls[i].classList.add('current');
+        current = i;
+      }
+
+      let frame = null;
+      function tick() {
+        highlight(wordAt(audio.currentTime));
+        frame = audio.paused ? null : requestAnimationFrame(tick);
+      }
+      audio.addEventListener('play', () => { if (!frame) frame = requestAnimationFrame(tick); });
+      audio.addEventListener('seeked', () => highlight(wordAt(audio.currentTime)));
+      audio.addEventListener('ended', () => highlight(-1));
+
+      function seekTo(i) {
+        audio.currentTime = words[i].startTime;
+        highlight(i);
+        audio.play();
+      }
+      passageEl.addEventListener('click', (e) => {
+        const i = e.target.closest('.w')?.dataset.i;
+        if (i !== undefined) seekTo(Number(i));
+      });
+
+      document.querySelectorAll('.speed button').forEach((button) => {
+        button.addEventListener('click', () => {
+          document.querySelectorAll('.speed button').forEach((b) => b.classList.toggle('active', b === button));
+          audio.playbackRate = Number(button.dataset.rate);
+        });
+      });
+
+      window.addEventListener('pagehide', () => { if (audioUrl) URL.revokeObjectURL(audioUrl); });

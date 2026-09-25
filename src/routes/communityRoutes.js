@@ -7,12 +7,10 @@ const express = require('express');
 const { requireLogin } = require('../middleware/requireLogin');
 const AsyncHandler = require('../middleware/asyncHandler');
 const { GatewayError } = require('../errors');
+const { loadVoiceOptions } = require('../services/voiceOptions');
 
 const TABS = ['list', 'create'];
 
-// tts-service's overall_grade scale, best first - used to sort the voice
-// picker so the better-sounding voices are on top. Ungraded voices go last.
-const GRADE_ORDER = ['A', 'A-', 'B+', 'B', 'B-', 'C+', 'C', 'C-', 'D+', 'D', 'D-', 'F+', 'F'];
 const DEFAULT_LIMIT = 10;
 const MAX_LIMIT = 50;
 
@@ -196,39 +194,10 @@ class CommunityRoutes {
     res.render('community', { ...locals, voiceOptions: await this.loadVoiceOptions() });
   }
 
-  // The voice picker's options: `{ default, voices: [{ id, label }] }`,
-  // best-graded first, or null when Content Sharing can't reach tts-service
-  // (or the call fails at all) - the form then just omits the picker and
-  // the set gets the service's default voice. Never throws: a missing
-  // picker shouldn't break the page.
-  async loadVoiceOptions() {
-    let result;
-    try {
-      result = await this.gatewayClient.get('/api/sets/voices');
-    } catch {
-      return null;
-    }
-    if (!result || !Array.isArray(result.voices) || result.voices.length === 0) {
-      return null;
-    }
-    const rank = (v) => {
-      const i = GRADE_ORDER.indexOf(v.grade);
-      return i === -1 ? GRADE_ORDER.length : i;
-    };
-    const voices = [...result.voices]
-      .sort((a, b) => rank(a) - rank(b) || a.id.localeCompare(b.id))
-      .map((v) => ({ id: v.id, label: CommunityRoutes.voiceLabel(v) }));
-    return { default: result.default, voices };
-  }
-
-  // "af_heart — American English, female (grade A)". Kokoro voice ids encode
-  // accent + gender in their first two letters (see Content Sharing's
-  // services/voiceCatalog.js, which only ever returns a*/b* ids).
-  static voiceLabel(voice) {
-    const accent = { a: 'American English', b: 'British English' }[voice.id[0]] || 'English';
-    const gender = { f: 'female', m: 'male' }[voice.id[1]] || '';
-    const grade = voice.grade ? ` (grade ${voice.grade})` : '';
-    return `${voice.id} — ${accent}${gender ? `, ${gender}` : ''}${grade}`;
+  // The voice picker's options, or null if unavailable (see
+  // services/voiceOptions.js).
+  loadVoiceOptions() {
+    return loadVoiceOptions(this.gatewayClient);
   }
 
   // Only vocab sets are narrated, so `voice` is only sent for them - and

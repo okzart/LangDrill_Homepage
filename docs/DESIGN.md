@@ -84,6 +84,8 @@ This app never talks to `:3000`/`:3002`/`:3003` directly.
 | `src/routes/progressRoutes.js` | `/progress` (self-service get/update). |
 | `src/routes/communityRoutes.js` | `/community` (List and Create tabs - List's rows carry inline Update/Delete), `/community/:id`, and the publish/update/download/unpublish actions. |
 | `src/routes/chatRoutes.js` | `/chat` (chat page for the self-hosted LLM, optionally spoken aloud), `POST /chat/completions` (forwards the page's messages to the gateway's `/api/llm` route with the session token and pipes the streamed reply, Server-Sent Events, back to the browser) and `POST /chat/speech` (same, for one sentence of speech from `/api/tts`, piped back as `audio/mpeg` - never written to disk). |
+| `src/routes/passagesRoutes.js` | `/passages` (example passage for the user's expressions, read aloud with word highlighting) and `POST /passages/generate`, which relays the request to the gateway's `/api/passages` and returns its JSON (text + base64 MP3 + timings) with `Cache-Control: no-store` - nothing is stored. |
+| `src/services/voiceOptions.js` | The English narration voice list (`GET /api/sets/voices`) shaped for a `<select>`; shared by Community's vocab builder and Passages. |
 | `src/routes/adminRoutes.js` | `/admin/users/*` (Authentication's admin API) and `/admin/users/:id/progress` (Progress Stats' admin API) - `requireAdmin`-gated. |
 
 ## 4. Pages & the Gateway Calls Behind Them
@@ -104,6 +106,8 @@ This app never talks to `:3000`/`:3002`/`:3003` directly.
 | `GET /chat` | login | `GET /api/llm/models` (model name for the header) and `GET /api/tts/voices` (voice picker); the page still renders if either service is down, without the voice picker if tts-service is |
 | `POST /chat/completions` (called by the chat page's own `fetch`, answers JSON `{ error }` instead of redirecting) | login | `POST /api/llm/chat/completions` with `stream: true`, streamed back unchanged; cancelled upstream if the browser disconnects |
 | `POST /chat/speech` `{ text, voice }` (called by the chat page per sentence when "Speak replies" is on, or by a reply's Replay button; JSON `{ error }` on failure) | login | `POST /api/tts/speech` (`response_format: "mp3"`), streamed back as `audio/mpeg` and played as it arrives; cancelled upstream if the browser disconnects |
+| `GET /passages` | login | `GET /api/sets/voices` (voice picker; omitted if unavailable) |
+| `POST /passages/generate` `{ expressions, level, voice }` (called by the page's own `fetch`; JSON `{ error }` on failure) | login | `POST /api/passages` (Content Sharing → llm-service + tts-service). The page plays the returned MP3 from memory and highlights each word at its `startTime`; clicking a word or expression seeks there |
 | `GET /admin/users`, `POST .../update`, `.../delete` | admin | `GET/POST/PATCH/DELETE /api/admin/api/users...` |
 | `GET/POST /admin/users/:id/progress`, `.../delete` | admin | `GET/PATCH/DELETE /api/progress/admin/users/:id` |
 
