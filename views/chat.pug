@@ -204,6 +204,9 @@ html(lang="en")
         // Plays while the audio is still arriving: feeds each received
         // chunk into a MediaSource buffer as it lands.
         playStreaming(item) {
+          // stop() swaps in a new controller, so check the one this
+          // sentence started under.
+          const { signal } = this.controller;
           return new Promise((resolve, reject) => {
             const mediaSource = new MediaSource();
             const audio = new Audio();
@@ -212,7 +215,7 @@ html(lang="en")
             const finish = () => { URL.revokeObjectURL(audio.src); resolve(); };
             audio.addEventListener('ended', finish);
             audio.addEventListener('error', () => { URL.revokeObjectURL(audio.src); reject(audio.error); });
-            audio.addEventListener('pause', () => { if (this.controller.signal.aborted) finish(); });
+            audio.addEventListener('pause', () => { if (signal.aborted) finish(); });
 
             mediaSource.addEventListener('sourceopen', () => {
               const buffer = mediaSource.addSourceBuffer('audio/mpeg');
@@ -243,13 +246,14 @@ html(lang="en")
             await new Promise((resolve) => { item.onData = () => { if (item.done) resolve(); }; });
           }
           if (item.failed || item.chunks.length === 0) return;
+          const { signal } = this.controller;
           const url = URL.createObjectURL(new Blob(item.chunks, { type: 'audio/mpeg' }));
           const audio = new Audio(url);
           this.audio = audio;
           try {
             await new Promise((resolve, reject) => {
               audio.addEventListener('ended', resolve);
-              audio.addEventListener('pause', () => { if (this.controller.signal.aborted) resolve(); });
+              audio.addEventListener('pause', () => { if (signal.aborted) resolve(); });
               audio.addEventListener('error', () => reject(audio.error));
               audio.play().catch(reject);
             });
