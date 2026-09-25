@@ -2,7 +2,8 @@
 //- (each with its example sentence and meaning, loaded via GET
 //- /passages/sets/:id) and/or types their own; Content Sharing (via the
 //- gateway's /api/passages) writes a passage that uses all of them in the
-//- intended sense and narrates it. The result - text, MP3 (base64) and per-word timings - comes
+//- intended sense, narrates it, and translates it into Korean sentence by
+//- sentence (shown under the passage, highlighted in sync with the audio). The result - text, MP3 (base64) and per-word timings - comes
 //- back in one JSON response from POST /passages/generate (see
 //- src/routes/passagesRoutes.js). The MP3 is played from memory only;
 //- nothing is saved on the server or in the browser.
@@ -53,6 +54,15 @@ html(lang="en")
       #passage .expr { color: #1f4fb0; font-weight: 600; border-bottom: 2px solid #9db8f0; }
       #passage .w.current { background: #ffe58a; }
       .meta { font-size: 0.8rem; color: #666; margin-top: 0.75rem; }
+      .show-ko { display: flex; gap: 0.35rem; align-items: center; margin: 0; font-size: 0.85rem; width: auto; }
+      .show-ko input { width: auto; margin: 0; }
+      #translation-box { margin-top: 1.25rem; padding-top: 0.75rem; border-top: 1px dashed #ddd; }
+      #translation-box h3 { font-size: 0.9rem; color: #666; margin: 0 0 0.4rem; font-weight: 600; }
+      #translation { white-space: pre-wrap; font-size: 1rem; line-height: 1.85; color: #333; }
+      #translation .ko-s { cursor: pointer; border-radius: 3px; padding: 0 1px; }
+      #translation .ko-s:hover { background: #f1f1f1; }
+      #translation .ko-s.current { background: #fff3c4; }
+      #translation .ko-s.missing { color: #999; font-style: italic; }
   body
     include _nav
     h1 Passages
@@ -115,8 +125,14 @@ html(lang="en")
           button(type="button" data-rate="0.75") 0.75×
           button.active(type="button" data-rate="1") 1×
           button(type="button" data-rate="1.25") 1.25×
+        label.show-ko
+          input#show-ko(type="checkbox" checked)
+          | Show Korean
       ul#chips.chips
       #passage
+      #translation-box
+        h3 한국어 번역
+        #translation
       p.meta#meta
 
     script.
@@ -127,6 +143,8 @@ html(lang="en")
       let words = [];         // response.words, in order
       let wordEls = [];       // the <span> for each entry of `words`
       let sentenceOfWord = []; // sentence index for each word
+      let sentences = [];      // response.sentences (with .ko translations)
+      let koEls = [];          // the Korean <span> for each sentence
       let current = -1;
       let request = null;
 
@@ -312,7 +330,7 @@ html(lang="en")
         request = new AbortController();
         showError('');
         $('btn-generate').disabled = true;
-        $('status').textContent = `Writing a passage with ${expressions.length} expression${expressions.length > 1 ? 's' : ''} and recording it… (usually a few seconds)`;
+        $('status').textContent = `Writing a passage with ${expressions.length} expression${expressions.length > 1 ? 's' : ''} , recording and translating it… (usually 5–15 seconds)`;
         try {
           const res = await fetch('/passages/generate', {
             method: 'POST',
@@ -368,10 +386,12 @@ html(lang="en")
         });
         if (pos < result.text.length) passageEl.append(result.text.slice(pos));
 
+        sentences = result.sentences;
         sentenceOfWord = words.map((word) =>
-          result.sentences.findIndex((s) => word.start >= s.start && word.end <= s.end)
+          sentences.findIndex((s) => word.start >= s.start && word.end <= s.end)
         );
         current = -1;
+        renderTranslation(result);
 
         // One chip per expression; clicking plays from its first use.
         $('chips').textContent = '';
@@ -396,10 +416,50 @@ html(lang="en")
         });
 
         $('meta').textContent = `${result.words.length} words · ${formatTime(result.audio.duration)} · voice ${result.voice} · ${result.level}. `
-          + 'Sentence timing is exact; word highlighting is approximate. Nothing is saved — generating again replaces this passage.';
+          + 'Sentence timing is exact; word highlighting is approximate. '
+          + (result.translation && !result.translation.complete ? 'Some sentences could not be translated. ' : '')
+          + (!result.translation ? 'Korean translation is unavailable this time. ' : '')
+          + 'Nothing is saved — generating again replaces this passage.';
         $('result').classList.remove('hidden');
         $('result').scrollIntoView({ behavior: 'smooth', block: 'start' });
       }
+
+      // Korean translation: one span per sentence, paragraph breaks where the
+      // English has them; clicking a sentence plays it from its start.
+      function renderTranslation(result) {
+        const box = $('translation');
+        box.textContent = '';
+        koEls = [];
+        const hasKo = result.translation && sentences.some((s) => s.ko);
+        $('translation-box').dataset.available = hasKo ? 'yes' : 'no';
+        applyShowKo();
+        if (!hasKo) return;
+        sentences.forEach((sentence, i) => {
+          if (i > 0) box.append(result.text.slice(sentences[i - 1].end, sentence.start).includes('\n') ? '\n\n' : ' ');
+          const span = document.createElement('span');
+          span.className = sentence.ko ? 'ko-s' : 'ko-s missing';
+          span.textContent = sentence.ko || '(번역 없음)';
+          span.title = sentence.text;
+          span.addEventListener('click', () => {
+            const first = sentenceOfWord.indexOf(i);
+            if (first !== -1) seekTo(first);
+          });
+          box.append(span);
+          koEls.push(span);
+        });
+      }
+
+      function applyShowKo() {
+        const available = $('translation-box').dataset.available === 'yes';
+        $('translation-box').classList.toggle('hidden', !available || !$('show-ko').checked);
+        $('show-ko').closest('label').classList.toggle('hidden', !available);
+      }
+
+      try { $('show-ko').checked = localStorage.getItem('passagesShowKo') !== '0'; } catch {}
+      $('show-ko').addEventListener('change', () => {
+        applyShowKo();
+        try { localStorage.setItem('passagesShowKo', $('show-ko').checked ? '1' : '0'); } catch {}
+      });
 
       function formatTime(seconds) {
         return `${Math.floor(seconds / 60)}:${String(Math.round(seconds % 60)).padStart(2, '0')}`;
@@ -426,6 +486,8 @@ html(lang="en")
         const newSentence = i === -1 ? -1 : sentenceOfWord[i];
         if (current !== -1) wordEls[current].classList.remove('current');
         if (oldSentence !== newSentence) {
+          if (oldSentence !== -1) koEls[oldSentence]?.classList.remove('current');
+          if (newSentence !== -1) koEls[newSentence]?.classList.add('current');
           wordEls.forEach((el, k) => {
             if (sentenceOfWord[k] === oldSentence) el.classList.remove('in-sentence');
             if (sentenceOfWord[k] === newSentence && newSentence !== -1) el.classList.add('in-sentence');
