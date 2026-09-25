@@ -83,6 +83,7 @@ This app never talks to `:3000`/`:3002`/`:3003` directly.
 | `src/routes/dashboardRoutes.js` | `/`, `/dashboard`, `/profile`. |
 | `src/routes/progressRoutes.js` | `/progress` (self-service get/update). |
 | `src/routes/communityRoutes.js` | `/community` (List and Create tabs - List's rows carry inline Update/Delete), `/community/:id`, and the publish/update/download/unpublish actions. |
+| `src/routes/chatRoutes.js` | `/chat` (chat page for the self-hosted LLM) and `POST /chat/completions`, which forwards the page's messages to the gateway's `/api/llm` route with the session token and pipes the streamed reply (Server-Sent Events) back to the browser. |
 | `src/routes/adminRoutes.js` | `/admin/users/*` (Authentication's admin API) and `/admin/users/:id/progress` (Progress Stats' admin API) - `requireAdmin`-gated. |
 
 ## 4. Pages & the Gateway Calls Behind Them
@@ -100,6 +101,8 @@ This app never talks to `:3000`/`:3002`/`:3003` directly.
 | `POST /community/:id/update` (List row's inline "Update" editor) | login | `PATCH /api/sets/:id` (owner-only) |
 | `POST /community/:id/download` | login | `POST /api/sets/:id/download` |
 | `POST /community/:id/delete` (set-detail's Unpublish button, and the List row's Delete button) | login | `DELETE /api/sets/:id` (owner-only - a non-owner sees the service's own 403 message) |
+| `GET /chat` | login | `GET /api/llm/models` (model name for the header; the page still renders if llm-service is down) |
+| `POST /chat/completions` (called by the chat page's own `fetch`, answers JSON `{ error }` instead of redirecting) | login | `POST /api/llm/chat/completions` with `stream: true`, streamed back unchanged; cancelled upstream if the browser disconnects |
 | `GET /admin/users`, `POST .../update`, `.../delete` | admin | `GET/POST/PATCH/DELETE /api/admin/api/users...` |
 | `GET/POST /admin/users/:id/progress`, `.../delete` | admin | `GET/PATCH/DELETE /api/progress/admin/users/:id` |
 

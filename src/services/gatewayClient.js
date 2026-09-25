@@ -80,6 +80,37 @@ class GatewayClient {
       contentType: res.headers.get('content-type') || 'application/octet-stream',
     };
   }
+
+  // POSTs a JSON body and returns the raw fetch Response without reading
+  // it, so the caller can pipe a streamed body (e.g. Server-Sent Events
+  // from /api/llm/chat/completions) straight through to the browser - see
+  // routes/chatRoutes.js, the one caller. `signal` lets the caller cancel
+  // the upstream request when the browser disconnects. A non-2xx status
+  // still throws GatewayError, like #request.
+  async stream(path, body, token, signal) {
+    const headers = { 'Content-Type': 'application/json' };
+    if (token) {
+      headers.Authorization = `Bearer ${token}`;
+    }
+    const res = await fetch(`${this.baseUrl}${path}`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(body),
+      signal,
+    });
+    if (!res.ok) {
+      let parsed = null;
+      try {
+        parsed = await res.json();
+      } catch {
+        parsed = null;
+      }
+      // Fastify-based services (llm-service) put the human-readable reason
+      // in `message` and only the status text in `error`.
+      throw new GatewayError(res.status, parsed?.message || parsed?.error || res.statusText);
+    }
+    return res;
+  }
 }
 
 module.exports = GatewayClient;

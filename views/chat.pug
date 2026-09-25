@@ -1,0 +1,160 @@
+//- Chat with the self-hosted LLM (llm-service). The browser only ever talks
+//- to this server: messages go to POST /chat/completions (see
+//- src/routes/chatRoutes.js), which forwards them to the gateway's /api/llm
+//- route with the session's token and streams the reply back as
+//- Server-Sent Events. The conversation lives only in this page.
+doctype html
+html(lang="en")
+  head
+    meta(charset="UTF-8")
+    meta(name="viewport" content="width=device-width, initial-scale=1")
+    title LanguageDrill — Chat
+    include _style
+    style.
+      .meta { font-size: 0.85rem; color: #666; margin-top: -0.5rem; }
+      #system-prompt { min-height: 3rem; font-family: inherit; font-size: 0.9rem; }
+      #prompt { min-height: 3.5rem; font-family: inherit; font-size: 1rem; }
+      #messages { display: flex; flex-direction: column; gap: 0.75rem; min-height: 10rem; max-height: 60vh; overflow-y: auto; }
+      .msg { padding: 0.6rem 0.8rem; border-radius: 8px; white-space: pre-wrap; word-wrap: break-word; line-height: 1.45; max-width: 85%; }
+      .msg.user { align-self: flex-end; background: #1f6feb; color: #fff; }
+      .msg.assistant { align-self: flex-start; background: #f1f1f1; }
+      .msg.error { align-self: stretch; max-width: none; margin-bottom: 0; }
+      .empty { color: #888; font-size: 0.9rem; text-align: center; margin: auto; }
+      .hidden { display: none; }
+      button:disabled { cursor: default; opacity: 0.5; }
+  body
+    include _nav
+    h1 Chat
+    if model
+      p.meta Model: #{model}
+    else if modelError
+      .error LLM service unavailable: #{modelError}
+
+    section
+      details
+        summary System prompt
+        textarea#system-prompt You are a friendly, concise language tutor. When the user writes in a language they are learning, gently correct mistakes and explain briefly.
+
+    section
+      #messages
+        p.empty Say something to start the conversation.
+
+    textarea#prompt(placeholder="Type a message. Enter to send, Shift+Enter for a new line.")
+    .row
+      button#btn-send(type="button") Send
+      button#btn-stop.hidden(type="button") Stop
+      button#btn-clear(type="button") New chat
+
+    script.
+      const $ = (id) => document.getElementById(id);
+      const messagesEl = $('messages');
+      const promptEl = $('prompt');
+
+      // Conversation sent to the model on every turn: [{ role, content }].
+      let history = [];
+      let abortController = null;
+
+      function addMessage(role, text) {
+        messagesEl.querySelector('.empty')?.remove();
+        const el = document.createElement('div');
+        el.className = role === 'error' ? 'msg error error' : `msg ${role}`;
+        el.textContent = text;
+        messagesEl.appendChild(el);
+        messagesEl.scrollTop = messagesEl.scrollHeight;
+        return el;
+      }
+
+      function setBusy(busy) {
+        $('btn-send').disabled = busy;
+        $('btn-stop').classList.toggle('hidden', !busy);
+      }
+
+      async function send() {
+        const text = promptEl.value.trim();
+        if (!text || abortController) return;
+        promptEl.value = '';
+
+        // Keep a reference to this turn's conversation: "New chat" replaces
+        // `history`, and a stopped reply must not leak into the new one.
+        const conversation = history;
+        conversation.push({ role: 'user', content: text });
+        addMessage('user', text);
+        const replyEl = addMessage('assistant', '…');
+
+        const system = $('system-prompt').value.trim();
+        const messages = system ? [{ role: 'system', content: system }, ...conversation] : conversation;
+
+        abortController = new AbortController();
+        setBusy(true);
+        let reply = '';
+        try {
+          const res = await fetch('/chat/completions', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ messages }),
+            signal: abortController.signal,
+          });
+          if (res.status === 401) {
+            // Session expired: log in again and come back here.
+            window.location.href = '/login?next=/chat';
+            return;
+          }
+          if (!res.ok) {
+            const body = await res.json().catch(() => ({}));
+            throw new Error(body.error || `HTTP ${res.status}`);
+          }
+
+          // Parse the SSE stream: lines of "data: {json}", ending with "data: [DONE]".
+          const reader = res.body.pipeThrough(new TextDecoderStream()).getReader();
+          let buffer = '';
+          while (true) {
+            const { value, done } = await reader.read();
+            if (done) break;
+            buffer += value;
+            const lines = buffer.split('\n');
+            buffer = lines.pop();
+            for (const line of lines) {
+              if (!line.startsWith('data: ')) continue;
+              const data = line.slice(6).trim();
+              if (data === '[DONE]') continue;
+              const chunk = JSON.parse(data);
+              if (chunk.error) throw new Error(chunk.error.message || JSON.stringify(chunk.error));
+              reply += chunk.choices?.[0]?.delta?.content ?? '';
+              replyEl.textContent = reply || '…';
+              messagesEl.scrollTop = messagesEl.scrollHeight;
+            }
+          }
+          conversation.push({ role: 'assistant', content: reply });
+        } catch (error) {
+          if (error.name === 'AbortError') {
+            // Stopped by the user: keep what arrived so far as the reply.
+            if (reply) conversation.push({ role: 'assistant', content: reply });
+            else { replyEl.remove(); conversation.pop(); }
+          } else {
+            replyEl.remove();
+            conversation.pop();
+            addMessage('error', `Error: ${error.message}`);
+          }
+        } finally {
+          abortController = null;
+          setBusy(false);
+          promptEl.focus();
+        }
+      }
+
+      $('btn-send').addEventListener('click', send);
+      $('btn-stop').addEventListener('click', () => abortController?.abort());
+      $('btn-clear').addEventListener('click', () => {
+        abortController?.abort();
+        history = [];
+        messagesEl.innerHTML = '<p class="empty">Say something to start the conversation.</p>';
+        promptEl.focus();
+      });
+      promptEl.addEventListener('keydown', (e) => {
+        // isComposing: don't send while an IME (e.g. Korean) is mid-syllable.
+        if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) {
+          e.preventDefault();
+          send();
+        }
+      });
+      promptEl.focus();

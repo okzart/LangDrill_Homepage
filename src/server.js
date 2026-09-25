@@ -11,6 +11,7 @@ const DashboardRoutes = require('./routes/dashboardRoutes');
 const ProgressRoutes = require('./routes/progressRoutes');
 const CommunityRoutes = require('./routes/communityRoutes');
 const AdminRoutes = require('./routes/adminRoutes');
+const ChatRoutes = require('./routes/chatRoutes');
 
 // Fail fast: without COOKIE_SECRET the session cookie can't be signed, so
 // every login would be silently unverifiable (see middleware/session.js).
@@ -30,6 +31,7 @@ const dashboardRoutes = new DashboardRoutes(gatewayClient);
 const progressRoutes = new ProgressRoutes(gatewayClient);
 const communityRoutes = new CommunityRoutes(gatewayClient);
 const adminRoutes = new AdminRoutes(gatewayClient);
+const chatRoutes = new ChatRoutes(gatewayClient);
 
 const app = express();
 // Parses JSON bodies (unused by this app's own forms, kept for parity/
@@ -50,6 +52,7 @@ app.use(dashboardRoutes.router);
 app.use(progressRoutes.router);
 app.use(communityRoutes.router);
 app.use(adminRoutes.router);
+app.use(chatRoutes.router);
 
 // Simple liveness check, useful for uptime monitors / load balancers
 app.get('/health', (req, res) => res.json({ status: 'ok' }));
