@@ -1,8 +1,11 @@
-//- Chat with the self-hosted LLM (llm-service). The browser only ever talks
-//- to this server: messages go to POST /chat/completions (see
-//- src/routes/chatRoutes.js), which forwards them to the gateway's /api/llm
-//- route with the session's token and streams the reply back as
-//- Server-Sent Events. The conversation lives only in this page.
+//- Chat with the self-hosted LLM (llm-service), optionally spoken aloud by
+//- tts-service. The browser only ever talks to this server (see
+//- src/routes/chatRoutes.js): messages go to POST /chat/completions, which
+//- forwards them to the gateway's /api/llm route and streams the reply back
+//- as Server-Sent Events; with "Speak replies" on, each finished sentence of
+//- the reply goes to POST /chat/speech, which streams audio/mpeg from the
+//- gateway's /api/tts route. Nothing is stored: the conversation lives only
+//- in this page and the audio only in memory while it plays.
 doctype html
 html(lang="en")
   head
@@ -22,6 +25,13 @@ html(lang="en")
       .empty { color: #888; font-size: 0.9rem; text-align: center; margin: auto; }
       .hidden { display: none; }
       button:disabled { cursor: default; opacity: 0.5; }
+      .speech { display: flex; gap: 0.75rem; align-items: center; flex-wrap: wrap; font-size: 0.85rem; }
+      .speech label { display: flex; gap: 0.35rem; align-items: center; margin: 0; width: auto; }
+      .speech input[type=checkbox] { width: auto; margin: 0; }
+      .speech select { width: auto; max-width: 100%; margin: 0; }
+      .speech .hint { color: #888; }
+      .msg-actions { align-self: flex-start; margin-top: -0.5rem; }
+      .msg-actions button { margin: 0; padding: 0.1rem 0.5rem; font-size: 0.8rem; }
   body
     include _nav
     h1 Chat
@@ -34,6 +44,22 @@ html(lang="en")
       details
         summary System prompt
         textarea#system-prompt You are a friendly, concise language tutor. When the user writes in a language they are learning, gently correct mistakes and explain briefly.
+
+    section.speech
+      if voiceGroups
+        label
+          input#speak-toggle(type="checkbox")
+          | 🔊 Speak replies
+        label
+          | Voice
+          select#voice
+            each group in voiceGroups
+              optgroup(label=group.language)
+                each voice in group.voices
+                  option(value=voice.id selected=voice.id === defaultVoice)= voice.label
+        span.hint Pick a voice in the language the tutor replies in (no Korean voices).
+      else
+        span.hint 🔇 Speech unavailable: tts-service can't be reached through the gateway.
 
     section
       #messages
@@ -64,15 +90,259 @@ html(lang="en")
         return el;
       }
 
-      function setBusy(busy) {
-        $('btn-send').disabled = busy;
-        $('btn-stop').classList.toggle('hidden', !busy);
+      // A "🔊 Replay" button under a finished assistant reply.
+      function addReplayButton(replyEl, text) {
+        if (!speech.available || !text.trim()) return;
+        const actions = document.createElement('div');
+        actions.className = 'msg-actions';
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.textContent = '🔊 Replay';
+        button.addEventListener('click', () => {
+          speech.stop();
+          splitSentences(text).forEach((sentence) => speech.enqueue(sentence));
+          updateStopButton();
+        });
+        actions.appendChild(button);
+        replyEl.after(actions);
       }
 
+      // ======================================================================
+      // Speech: sentences are sent to POST /chat/speech one at a time (at
+      // most PREFETCH requests ahead of what's playing) and played in order.
+      // Where the browser's MediaSource supports audio/mpeg (Chrome, Edge,
+      // Firefox) each sentence starts playing while its audio is still
+      // arriving; elsewhere it plays once its audio has fully arrived.
+      // Nothing is saved - the audio only lives in memory while it plays.
+      // ======================================================================
+      const PREFETCH = 2;
+      const canStreamAudio = 'MediaSource' in window && MediaSource.isTypeSupported('audio/mpeg');
+
+      const speech = {
+        available: Boolean($('speak-toggle')),
+        queue: [],        // [{ text, chunks: Uint8Array[], done, failed, started, onData }]
+        audio: null,      // the <audio> currently playing
+        playing: false,
+        controller: new AbortController(),
+
+        get enabled() {
+          return this.available && $('speak-toggle').checked;
+        },
+
+        get active() {
+          return this.playing || this.queue.length > 0;
+        },
+
+        enqueue(text) {
+          const clean = cleanForSpeech(text);
+          // Skip fragments with nothing to pronounce (e.g. a lone "**").
+          if (!/[\p{L}\p{N}]/u.test(clean)) return;
+          this.queue.push({ text: clean, chunks: [], done: false, failed: false, started: false, onData: null });
+          this.fetchAhead();
+          this.playNext();
+        },
+
+        // Starts fetching the next queued sentences, keeping at most
+        // PREFETCH requests in flight.
+        fetchAhead() {
+          const inFlight = this.queue.filter((item) => item.started && !item.done).length;
+          const waiting = this.queue.filter((item) => !item.started).slice(0, PREFETCH - inFlight);
+          waiting.forEach((item) => this.fetchItem(item));
+        },
+
+        async fetchItem(item) {
+          item.started = true;
+          const { signal } = this.controller;
+          try {
+            const res = await fetch('/chat/speech', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ text: item.text, voice: $('voice').value }),
+              signal,
+            });
+            if (res.status === 401) {
+              window.location.href = '/login?next=/chat';
+              return;
+            }
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            const reader = res.body.getReader();
+            while (true) {
+              const { value, done } = await reader.read();
+              if (done) break;
+              item.chunks.push(value);
+              item.onData?.();
+            }
+          } catch (error) {
+            if (error.name !== 'AbortError') console.warn('Speech failed for:', item.text, error);
+            item.failed = true;
+          } finally {
+            item.done = true;
+            item.onData?.();
+            if (!signal.aborted) this.fetchAhead();
+          }
+        },
+
+        async playNext() {
+          if (this.playing || this.queue.length === 0) return;
+          this.playing = true;
+          const item = this.queue[0];
+          const { signal } = this.controller;
+          try {
+            await (canStreamAudio ? this.playStreaming(item) : this.playWhenLoaded(item));
+          } catch (error) {
+            console.warn('Playback failed for:', item.text, error);
+          }
+          if (signal.aborted) return; // stop() already reset the queue
+          this.queue.shift();
+          this.playing = false;
+          this.audio = null;
+          this.fetchAhead();
+          updateStopButton();
+          this.playNext();
+        },
+
+        // Plays while the audio is still arriving: feeds each received
+        // chunk into a MediaSource buffer as it lands.
+        playStreaming(item) {
+          return new Promise((resolve, reject) => {
+            const mediaSource = new MediaSource();
+            const audio = new Audio();
+            this.audio = audio;
+            audio.src = URL.createObjectURL(mediaSource);
+            const finish = () => { URL.revokeObjectURL(audio.src); resolve(); };
+            audio.addEventListener('ended', finish);
+            audio.addEventListener('error', () => { URL.revokeObjectURL(audio.src); reject(audio.error); });
+            audio.addEventListener('pause', () => { if (this.controller.signal.aborted) finish(); });
+
+            mediaSource.addEventListener('sourceopen', () => {
+              const buffer = mediaSource.addSourceBuffer('audio/mpeg');
+              let next = 0;
+              const append = () => {
+                if (buffer.updating || mediaSource.readyState !== 'open') return;
+                if (next < item.chunks.length) {
+                  buffer.appendBuffer(item.chunks[next++]);
+                } else if (item.done) {
+                  item.onData = null;
+                  if (next === 0) return finish(); // nothing arrived (failed or aborted)
+                  mediaSource.endOfStream();
+                }
+              };
+              buffer.addEventListener('updateend', append);
+              item.onData = append;
+              append();
+            }, { once: true });
+
+            audio.play().catch(reject);
+          });
+        },
+
+        // Fallback without MediaSource support: wait for the whole sentence,
+        // then play it from an in-memory Blob.
+        async playWhenLoaded(item) {
+          if (!item.done) {
+            await new Promise((resolve) => { item.onData = () => { if (item.done) resolve(); }; });
+          }
+          if (item.failed || item.chunks.length === 0) return;
+          const url = URL.createObjectURL(new Blob(item.chunks, { type: 'audio/mpeg' }));
+          const audio = new Audio(url);
+          this.audio = audio;
+          try {
+            await new Promise((resolve, reject) => {
+              audio.addEventListener('ended', resolve);
+              audio.addEventListener('pause', () => { if (this.controller.signal.aborted) resolve(); });
+              audio.addEventListener('error', () => reject(audio.error));
+              audio.play().catch(reject);
+            });
+          } finally {
+            URL.revokeObjectURL(url);
+          }
+        },
+
+        // Silences everything: cancels in-flight requests (which also stops
+        // tts-service generating them) and drops the queue.
+        stop() {
+          this.controller.abort();
+          this.controller = new AbortController();
+          this.audio?.pause();
+          this.audio = null;
+          this.queue = [];
+          this.playing = false;
+          updateStopButton();
+        },
+      };
+
+      // Markdown the model likes to emit shouldn't be read out loud.
+      function cleanForSpeech(text) {
+        return text
+          .replace(/```[\s\S]*?```/g, ' ')
+          .replace(/[*_`#>|~]+/g, ' ')
+          .replace(/\[([^\]]*)\]\([^)]*\)/g, '$1')
+          .replace(/\s+/g, ' ')
+          .trim();
+      }
+
+      // Splits streamed text into speakable pieces as it arrives: a piece
+      // ends at . ! ? (followed by a space), CJK 。！？, or a line break.
+      // Very short pieces are held back and joined with the next one so
+      // playback doesn't stutter.
+      const MIN_PIECE = 20;
+      const BOUNDARY = /[.!?…]+["'”’)\]]*\s+|[。！？]+|\n+/g;
+
+      function createSentenceSplitter(onSentence) {
+        let buffer = '';
+        let pending = '';
+        const emit = (piece, force) => {
+          pending += piece;
+          if (force || pending.trim().length >= MIN_PIECE) {
+            if (pending.trim()) onSentence(pending.trim());
+            pending = '';
+          }
+        };
+        return {
+          push(text) {
+            buffer += text;
+            let last = 0;
+            for (const match of buffer.matchAll(BOUNDARY)) {
+              const end = match.index + match[0].length;
+              emit(buffer.slice(last, end), false);
+              last = end;
+            }
+            buffer = buffer.slice(last);
+          },
+          flush() {
+            emit(buffer, true);
+            buffer = '';
+          },
+        };
+      }
+
+      function splitSentences(text) {
+        const sentences = [];
+        const splitter = createSentenceSplitter((sentence) => sentences.push(sentence));
+        splitter.push(text);
+        splitter.flush();
+        return sentences;
+      }
+
+      // Stop is shown while a reply is streaming or speech is playing, and
+      // stops both.
+      function updateStopButton() {
+        $('btn-stop').classList.toggle('hidden', !abortController && !speech.active);
+      }
+
+      function setBusy(busy) {
+        $('btn-send').disabled = busy;
+        updateStopButton();
+      }
+
+      // ======================================================================
+      // Send a message and stream the reply (and speak it, if enabled)
+      // ======================================================================
       async function send() {
         const text = promptEl.value.trim();
         if (!text || abortController) return;
         promptEl.value = '';
+        speech.stop(); // a new question interrupts the previous answer
 
         // Keep a reference to this turn's conversation: "New chat" replaces
         // `history`, and a stopped reply must not leak into the new one.
@@ -83,6 +353,9 @@ html(lang="en")
 
         const system = $('system-prompt').value.trim();
         const messages = system ? [{ role: 'system', content: system }, ...conversation] : conversation;
+        const splitter = speech.enabled
+          ? createSentenceSplitter((sentence) => { speech.enqueue(sentence); updateStopButton(); })
+          : null;
 
         abortController = new AbortController();
         setBusy(true);
@@ -119,17 +392,26 @@ html(lang="en")
               if (data === '[DONE]') continue;
               const chunk = JSON.parse(data);
               if (chunk.error) throw new Error(chunk.error.message || JSON.stringify(chunk.error));
-              reply += chunk.choices?.[0]?.delta?.content ?? '';
+              const delta = chunk.choices?.[0]?.delta?.content ?? '';
+              reply += delta;
+              splitter?.push(delta);
               replyEl.textContent = reply || '…';
               messagesEl.scrollTop = messagesEl.scrollHeight;
             }
           }
+          splitter?.flush();
           conversation.push({ role: 'assistant', content: reply });
+          addReplayButton(replyEl, reply);
         } catch (error) {
           if (error.name === 'AbortError') {
             // Stopped by the user: keep what arrived so far as the reply.
-            if (reply) conversation.push({ role: 'assistant', content: reply });
-            else { replyEl.remove(); conversation.pop(); }
+            if (reply) {
+              conversation.push({ role: 'assistant', content: reply });
+              addReplayButton(replyEl, reply);
+            } else {
+              replyEl.remove();
+              conversation.pop();
+            }
           } else {
             replyEl.remove();
             conversation.pop();
@@ -143,9 +425,13 @@ html(lang="en")
       }
 
       $('btn-send').addEventListener('click', send);
-      $('btn-stop').addEventListener('click', () => abortController?.abort());
+      $('btn-stop').addEventListener('click', () => {
+        abortController?.abort();
+        speech.stop();
+      });
       $('btn-clear').addEventListener('click', () => {
         abortController?.abort();
+        speech.stop();
         history = [];
         messagesEl.innerHTML = '<p class="empty">Say something to start the conversation.</p>';
         promptEl.focus();
@@ -157,4 +443,20 @@ html(lang="en")
           send();
         }
       });
+
+      // Remember the speech toggle and voice per browser (a convenience only).
+      if (speech.available) {
+        try {
+          $('speak-toggle').checked = localStorage.getItem('chatSpeak') === '1';
+          const savedVoice = localStorage.getItem('chatVoice');
+          if (savedVoice && [...$('voice').options].some((o) => o.value === savedVoice)) $('voice').value = savedVoice;
+        } catch {}
+        $('speak-toggle').addEventListener('change', (e) => {
+          if (!e.target.checked) speech.stop();
+          try { localStorage.setItem('chatSpeak', e.target.checked ? '1' : '0'); } catch {}
+        });
+        $('voice').addEventListener('change', (e) => {
+          try { localStorage.setItem('chatVoice', e.target.value); } catch {}
+        });
+      }
       promptEl.focus();
