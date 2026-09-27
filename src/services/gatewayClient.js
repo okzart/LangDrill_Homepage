@@ -81,6 +81,24 @@ class GatewayClient {
     };
   }
 
+  // POSTs multipart/form-data (e.g. an audio file for /api/stt) and returns
+  // the parsed JSON, throwing GatewayError on a non-2xx status like
+  // #request. `form` is a FormData; fetch sets the multipart boundary.
+  async postMultipart(path, form, token) {
+    const headers = token ? { Authorization: `Bearer ${token}` } : {};
+    const res = await fetch(`${this.baseUrl}${path}`, { method: 'POST', headers, body: form });
+    let parsed = null;
+    try {
+      parsed = await res.json();
+    } catch {
+      parsed = null;
+    }
+    if (!res.ok) {
+      throw new GatewayError(res.status, parsed?.error || parsed?.message || res.statusText);
+    }
+    return parsed;
+  }
+
   // POSTs a JSON body and returns the raw fetch Response without reading
   // it, so the caller can pipe a streamed body (e.g. Server-Sent Events
   // from /api/llm/chat/completions) straight through to the browser - see

@@ -1,7 +1,7 @@
 // Presentation layer for /chat - a chat page for the self-hosted LLM
-// (llm-service) that can also read its replies aloud (tts-service). Calls
-// the API Gateway's /api/llm and /api/tts routes, never those services
-// directly (see docs/DESIGN.md §1). Both are streamed: the browser POSTs to
+// (llm-service) that can also read its replies aloud (tts-service) and take
+// spoken input (stt-service). Calls the API Gateway's /api/llm, /api/tts and
+// /api/stt routes, never those services directly (see docs/DESIGN.md §1). Both are streamed: the browser POSTs to
 // /chat/completions or /chat/speech here, this server forwards the request
 // with the caller's token and pipes the gateway's response back unchanged
 // (Server-Sent Events for text, audio/mpeg for speech), so the token never
@@ -32,6 +32,11 @@ const VOICE_LANGUAGES = {
 // The page speaks one sentence per request, so this is generous; it only
 // stops a single request from tying up the GPU with a huge input.
 const MAX_SPEECH_CHARS = 1000;
+// Voice input: the page caps a recording at 60 s (~0.5 MB of opus); this is
+// stt-service's own upload limit.
+const MAX_RECORDING_BYTES = 25 * 1024 * 1024;
+const STT_LANGUAGES = ['en', 'ko'];
+const AUDIO_EXTENSIONS = { 'audio/webm': 'webm', 'audio/ogg': 'ogg', 'audio/mp4': 'm4a', 'audio/mpeg': 'mp3', 'audio/wav': 'wav', 'audio/x-wav': 'wav' };
 
 class ChatRoutes {
   constructor(gatewayClient) {
@@ -41,6 +46,14 @@ class ChatRoutes {
     this.router.get('/chat', requireLogin, AsyncHandler.wrap(this.showChat.bind(this)));
     this.router.post('/chat/completions', AsyncHandler.wrap(this.complete.bind(this)));
     this.router.post('/chat/speech', AsyncHandler.wrap(this.speech.bind(this)));
+    // The browser posts the recording as the raw request body (Content-Type
+    // audio/webm etc.) - simpler than multipart on the page, and nothing
+    // else in this app parses audio bodies.
+    this.router.post(
+      '/chat/transcribe',
+      express.raw({ type: ['audio/*', 'application/octet-stream'], limit: MAX_RECORDING_BYTES }),
+      AsyncHandler.wrap(this.transcribe.bind(this))
+    );
   }
 
   // The model name and voice list only decorate the page, so a failure
@@ -109,6 +122,39 @@ class ChatRoutes {
       { input: text, voice: voice || DEFAULT_VOICE, response_format: 'mp3' },
       'audio/mpeg'
     );
+  }
+
+  // Speech-to-text for the chat's microphone button: relays the recording
+  // to the gateway's /api/stt/transcriptions (Whisper) and returns
+  // { text }. `?language=en|ko` pins the language (faster and more reliable
+  // on short clips than auto-detection); anything else auto-detects. The
+  // audio is only relayed, never stored.
+  async transcribe(req, res) {
+    if (!req.auth) {
+      return res.status(401).json({ error: 'Not logged in' });
+    }
+    if (!Buffer.isBuffer(req.body) || req.body.length === 0) {
+      return res.status(400).json({ error: 'Send the recording as an audio/* request body' });
+    }
+    const type = (req.get('content-type') || 'application/octet-stream').split(';')[0].trim();
+    const form = new FormData();
+    form.append('file', new Blob([req.body], { type }), `recording.${AUDIO_EXTENSIONS[type] || 'webm'}`);
+    form.append('response_format', 'json');
+    if (STT_LANGUAGES.includes(req.query.language)) form.append('language', req.query.language);
+    try {
+      const result = await this.gatewayClient.postMultipart('/api/stt/transcriptions', form, req.auth.token);
+      res.set('Cache-Control', 'no-store');
+      res.json({ text: (result?.text || '').trim() });
+    } catch (err) {
+      if (!(err instanceof GatewayError)) {
+        console.error(err);
+        return res.status(502).json({ error: 'Speech recognition is unavailable right now' });
+      }
+      if (err.status === 401) Session.clearToken(res);
+      // 502/503/504: stt-service not running or still loading its model.
+      const message = err.status >= 502 ? 'Speech recognition is unavailable right now' : err.message;
+      res.status(err.status).json({ error: message });
+    }
   }
 
   // POSTs `body` to the gateway and pipes the streamed response straight to

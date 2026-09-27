@@ -4,8 +4,10 @@
 //- forwards them to the gateway's /api/llm route and streams the reply back
 //- as Server-Sent Events; with "Speak replies" on, each finished sentence of
 //- the reply goes to POST /chat/speech, which streams audio/mpeg from the
-//- gateway's /api/tts route. Nothing is stored: the conversation lives only
-//- in this page and the audio only in memory while it plays.
+//- gateway's /api/tts route. The 🎤 button records the user's voice and sends
+//- it to POST /chat/transcribe (→ gateway /api/stt, Whisper), putting the
+//- transcript in the message box. Nothing is stored: the conversation lives
+//- only in this page and audio only in memory while it's played or sent.
 doctype html
 html(lang="en")
   head
@@ -32,6 +34,15 @@ html(lang="en")
       .speech .hint { color: #888; }
       .msg-actions { align-self: flex-start; margin-top: -0.5rem; }
       .msg-actions button { margin: 0; padding: 0.1rem 0.5rem; font-size: 0.8rem; }
+      .composer-row { display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; margin-top: 0.5rem; }
+      .composer-row button { margin: 0; }
+      .composer-row label { display: flex; gap: 0.3rem; align-items: center; margin: 0; width: auto; font-size: 0.85rem; }
+      .composer-row input[type=checkbox] { width: auto; margin: 0; }
+      .composer-row select { width: auto; margin: 0; font-size: 0.85rem; padding: 0.3rem; }
+      #btn-mic.recording { background: #fbe3e3; border: 1px solid #c0392b; color: #7a1f1f; }
+      #mic-status { font-size: 0.85rem; color: #666; }
+      #mic-status.error { color: #b00020; }
+      .spacer { flex: 1; }
   body
     include _nav
     h1 Chat
@@ -65,9 +76,19 @@ html(lang="en")
       #messages
         p.empty Say something to start the conversation.
 
-    textarea#prompt(placeholder="Type a message. Enter to send, Shift+Enter for a new line.")
-    .row
+    textarea#prompt(placeholder="Type a message (Enter to send, Shift+Enter for a new line) — or press 🎤 and speak.")
+    .composer-row
       button#btn-send(type="button") Send
+      button#btn-mic(type="button" title="Speak: click to start, click again to stop (max 60 s)") 🎤 Speak
+      select#stt-lang(title="Language you will speak" aria-label="Language you will speak")
+        option(value="en") English
+        option(value="ko") 한국어
+        option(value="auto") Auto-detect
+      label(title="Send the transcript right away instead of leaving it in the box")
+        input#auto-send(type="checkbox" checked)
+        | Send after speaking
+      span#mic-status
+      span.spacer
       button#btn-stop.hidden(type="button") Stop
       button#btn-clear(type="button") New chat
 
@@ -447,6 +468,121 @@ html(lang="en")
           send();
         }
       });
+
+      // ======================================================================
+      // Voice input: record with MediaRecorder, transcribe via POST
+      // /chat/transcribe (→ gateway /api/stt → Whisper), then fill the box
+      // (and send, if "Send after speaking" is on). Browsers only allow the
+      // microphone on HTTPS or localhost.
+      // ======================================================================
+      const MAX_RECORDING_MS = 60 * 1000;
+      const micButton = $('btn-mic');
+      const micStatus = $('mic-status');
+      const micSupported = window.isSecureContext && !!navigator.mediaDevices?.getUserMedia && 'MediaRecorder' in window;
+      let recorder = null;
+      let recordTimer = null;
+
+      function setMicStatus(text, isError = false) {
+        micStatus.textContent = text;
+        micStatus.classList.toggle('error', isError);
+      }
+
+      if (!micSupported) {
+        micButton.disabled = true;
+        micButton.title = window.isSecureContext
+          ? 'This browser cannot record audio.'
+          : 'The microphone only works over HTTPS or on localhost. Open this page via https:// (or localhost) to speak.';
+        setMicStatus(window.isSecureContext ? '' : '🎤 needs HTTPS or localhost');
+      }
+
+      // webm/opus where supported (Chrome, Firefox, Edge), else mp4 (Safari).
+      function recordingType() {
+        for (const type of ['audio/webm;codecs=opus', 'audio/webm', 'audio/ogg;codecs=opus', 'audio/mp4']) {
+          if (MediaRecorder.isTypeSupported(type)) return type;
+        }
+        return '';
+      }
+
+      async function startRecording() {
+        let stream;
+        try {
+          stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        } catch (error) {
+          setMicStatus(error.name === 'NotAllowedError' ? 'Microphone permission denied.' : `Microphone unavailable: ${error.message}`, true);
+          return;
+        }
+        speech.stop(); // don't record the tutor's own voice
+        const type = recordingType();
+        const chunks = [];
+        recorder = new MediaRecorder(stream, type ? { mimeType: type } : undefined);
+        recorder.addEventListener('dataavailable', (e) => { if (e.data.size > 0) chunks.push(e.data); });
+        recorder.addEventListener('stop', () => {
+          stream.getTracks().forEach((t) => t.stop());
+          clearInterval(recordTimer);
+          micButton.classList.remove('recording');
+          micButton.textContent = '🎤 Speak';
+          const blob = new Blob(chunks, { type: (recorder.mimeType || type || 'audio/webm').split(';')[0] });
+          recorder = null;
+          transcribe(blob);
+        });
+        const started = Date.now();
+        recorder.start();
+        micButton.classList.add('recording');
+        const tick = () => {
+          const s = Math.floor((Date.now() - started) / 1000);
+          micButton.textContent = `⏹ Stop 0:${String(s).padStart(2, '0')}`;
+          if (Date.now() - started >= MAX_RECORDING_MS) stopRecording();
+        };
+        tick();
+        recordTimer = setInterval(tick, 250);
+        setMicStatus('Listening…');
+      }
+
+      function stopRecording() {
+        if (recorder && recorder.state !== 'inactive') recorder.stop();
+      }
+
+      async function transcribe(blob) {
+        if (blob.size === 0) { setMicStatus('Nothing was recorded.', true); return; }
+        setMicStatus('Transcribing…');
+        micButton.disabled = true;
+        try {
+          const res = await fetch(`/chat/transcribe?language=${encodeURIComponent($('stt-lang').value)}`, {
+            method: 'POST',
+            headers: { 'Content-Type': blob.type || 'audio/webm' },
+            body: blob,
+          });
+          if (res.status === 401) { window.location.href = '/login?next=/chat'; return; }
+          const body = await res.json().catch(() => ({}));
+          if (!res.ok) throw new Error(body.error || `HTTP ${res.status}`);
+          const text = (body.text || '').trim();
+          if (!text) { setMicStatus('No speech recognized — try again, a little closer to the mic.', true); return; }
+          setMicStatus('');
+          const wasEmpty = promptEl.value.trim() === '';
+          promptEl.value = wasEmpty ? text : `${promptEl.value.trimEnd()} ${text}`;
+          // Auto-send only a fresh message, and not while a reply is streaming.
+          if ($('auto-send').checked && wasEmpty && !abortController) send();
+          else promptEl.focus();
+        } catch (error) {
+          setMicStatus(`Couldn't transcribe: ${error.message}`, true);
+        } finally {
+          micButton.disabled = false;
+        }
+      }
+
+      micButton.addEventListener('click', () => {
+        if (!micSupported) return;
+        if (recorder) stopRecording();
+        else startRecording();
+      });
+
+      try {
+        const lang = localStorage.getItem('chatSttLang');
+        if (lang && [...$('stt-lang').options].some((o) => o.value === lang)) $('stt-lang').value = lang;
+        $('auto-send').checked = localStorage.getItem('chatAutoSend') !== '0';
+      } catch {}
+      $('stt-lang').addEventListener('change', (e) => { try { localStorage.setItem('chatSttLang', e.target.value); } catch {} });
+      $('auto-send').addEventListener('change', (e) => { try { localStorage.setItem('chatAutoSend', e.target.checked ? '1' : '0'); } catch {} });
 
       // Remember the speech toggle and voice per browser (a convenience only).
       if (speech.available) {
