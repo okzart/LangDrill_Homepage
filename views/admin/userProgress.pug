@@ -1,11 +1,17 @@
+//- Admin: one user's progress - the same dashboard as /progress
+//- (views/mixins/progressCharts.pug) above the edit form
+//- (views/mixins/progressForm.pug). The charts redraw live from the form as
+//- values are edited; nothing is stored until Save.
 doctype html
 html(lang="en")
   head
     meta(charset="UTF-8")
+    meta(name="viewport" content="width=device-width, initial-scale=1")
     title LanguageDrill — Admin: User Progress
     include ../_style
   body
     include ../_nav
+    include ../mixins/progressCharts
     include ../mixins/progressForm
     h1 Progress for #{userId}
 
@@ -14,7 +20,10 @@ html(lang="en")
     if saved
       .success Saved.
 
+    +progressCharts(progress, { liveForm: '#progress-form', previewNote: 'Preview: the charts update as you edit the fields below. Nothing is stored until you press Save.' })
+
     section
+      h2 Edit
       +progressForm(progress, `/admin/users/${userId}/progress`)
 
     form(method="POST" action=`/admin/users/${userId}/progress/delete`)

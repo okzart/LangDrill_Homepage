@@ -94,6 +94,28 @@ html(lang="en")
                 audio.item-audio(controls preload="none" src=`/community/audio/${item.audioUrl.replace('/audio/', '')}`)
               else
                 span.hint (no audio yet)
+      else if set.type === 'listening'
+        //- Listening items may carry their own clip (e.g. made on /studio);
+        //- blanked words are highlighted.
+        ol#listeningItems
+          each item, i in set.items
+            li
+              p.hint= item.type
+              - var blankAt = {}
+              - (item.blanks || []).forEach(function (b) { blankAt[b.at] = true; })
+              - var parts = [], at = 0, last = 0, m, re = /[A-Za-z']+/g, text = String(item.answer || '')
+              - while ((m = re.exec(text)) !== null) { parts.push({ t: text.slice(last, m.index) }); parts.push({ t: m[0], blank: !!blankAt[at] }); last = m.index + m[0].length; at++; }
+              - parts.push({ t: text.slice(last) })
+              p.answer
+                each part in parts
+                  if part.blank
+                    mark= part.t
+                  else
+                    | #{part.t}
+              if item.ko
+                p.ko= item.ko
+              if item.audioUrl
+                audio.item-audio(controls preload="none" src=`/community/audio/${item.audioUrl.replace('/audio/', '')}`)
       pre= JSON.stringify(set.items, null, 2)
 
     //- Play-all controller. Reuses each item's own <audio> element (so the

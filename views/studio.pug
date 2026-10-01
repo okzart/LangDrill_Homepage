@@ -1,0 +1,827 @@
+//- Studio: make listening drill items from your own material. Upload an
+//- audio or video file (or record your voice here), get a transcript with
+//- word timings (POST /studio/transcribe → audio-split-service, which
+//- extracts the audio track from video and asks stt-service for the words),
+//- select a stretch of words, check and adjust the crop by ear, and add it
+//- as a dictation/full item - POST /studio/clip crops it and stores the clip
+//- in content-sharing. The draft items are published together as one
+//- listening set (POST /studio/publish). See src/routes/studioRoutes.js.
+//-
+//- The extracted mp3 stays in this page's memory only; every crop request
+//- sends it back, so nothing about the source is stored on any server.
+doctype html
+html(lang="en")
+  head
+    meta(charset="UTF-8")
+    meta(name="viewport" content="width=device-width, initial-scale=1")
+    title LanguageDrill — Studio
+    include _style
+    style.
+      .hint { font-size: 0.8rem; color: #666; margin: 0.25rem 0 0; }
+      .status { font-size: 0.85rem; color: #555; margin-top: 0.5rem; min-height: 1.2em; }
+      #tx-progress { margin-top: 0.75rem; }
+      #tx-progress[hidden] { display: none; }
+      #tx-progress .top { display: flex; justify-content: space-between; gap: 1rem; align-items: baseline; font-size: 0.85rem; color: #333; }
+      #tx-progress .top button { margin: 0; padding: 0.15rem 0.6rem; font-size: 0.8rem; }
+      #tx-progress .bar { position: relative; height: 8px; margin-top: 0.35rem; background: #e3eaf5; border-radius: 4px; overflow: hidden; }
+      #tx-progress .fill { height: 100%; width: 0; background: #2a78d6; border-radius: 4px; transition: width 0.2s linear; }
+      #tx-progress .bar.working .fill { width: 30%; transition: none; animation: tx-slide 1.3s ease-in-out infinite; }
+      @keyframes tx-slide { from { transform: translateX(-100%); } to { transform: translateX(340%); } }
+      @media (prefers-reduced-motion: reduce) { #tx-progress .bar.working .fill { animation: none; width: 100%; opacity: 0.35; } }
+      #tx-progress .steps { display: flex; gap: 1rem; margin-top: 0.35rem; font-size: 0.75rem; color: #999; }
+      #tx-progress .steps .now { color: #1f4fb0; font-weight: 600; }
+      #tx-progress .steps .done { color: #555; }
+      .source-row { display: flex; gap: 1rem; flex-wrap: wrap; align-items: end; }
+      .source-row > div { flex: 1; min-width: 200px; }
+      .source-row button { margin-top: 0; }
+      #rec-time { font-variant-numeric: tabular-nums; font-size: 0.9rem; color: #7a1f1f; }
+      button.recording { background: #fbe3e3; border: 1px solid #c0392b; color: #7a1f1f; }
+      audio { width: 100%; margin-top: 0.5rem; }
+      #transcript { max-height: 26rem; overflow-y: auto; border: 1px solid #eee; border-radius: 6px; margin-top: 0.75rem; }
+      .sentence { display: flex; gap: 0.5rem; align-items: baseline; padding: 0.45rem 0.6rem; border-bottom: 1px solid #f3f3f3; }
+      .sentence .t { font-size: 0.75rem; color: #888; font-variant-numeric: tabular-nums; min-width: 3.2rem; }
+      .sentence .words { flex: 1; line-height: 1.9; }
+      .sentence .tools { display: flex; gap: 0.25rem; }
+      .sentence .tools button { margin: 0; padding: 0.1rem 0.45rem; font-size: 0.8rem; }
+      .w { cursor: pointer; padding: 0.1rem 0.08rem; border-radius: 3px; user-select: none; }
+      .w:hover { background: #eef3fc; }
+      .w.sel { background: #cfe0fa; }
+      .w.anchor { outline: 2px solid #2a78d6; }
+      .w.low { text-decoration: underline dotted #c0392b; }
+      .w.playing { color: #1f4fb0; font-weight: 600; }
+      #sel-panel[hidden] { display: none; }
+      .times { display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem 1rem; }
+      .nudge { display: flex; gap: 0.25rem; align-items: center; }
+      .nudge input { flex: 1; margin: 0; }
+      .nudge button { margin: 0; padding: 0.3rem 0.5rem; }
+      .actions { display: flex; gap: 0.5rem; flex-wrap: wrap; align-items: center; }
+      .chips { display: flex; flex-wrap: wrap; gap: 0.3rem; margin-top: 0.3rem; }
+      .chip { border: 1px solid #ccc; border-radius: 999px; padding: 0.15rem 0.6rem; font-size: 0.85rem; cursor: pointer; background: #fff; margin: 0; }
+      .chip.on { background: #2a78d6; border-color: #2a78d6; color: #fff; }
+      #items { list-style: none; margin: 0.5rem 0 0; padding: 0; }
+      #items li { display: flex; gap: 0.6rem; align-items: center; padding: 0.5rem 0; border-bottom: 1px solid #f3f3f3; }
+      #items li .body { flex: 1; min-width: 0; }
+      #items li .kind { font-size: 0.75rem; color: #666; text-transform: uppercase; letter-spacing: 0.03em; }
+      #items li .ko { font-size: 0.85rem; color: #555; }
+      #items li audio { width: 11rem; margin: 0; }
+      #items li button { margin: 0; padding: 0.2rem 0.55rem; }
+      #items .empty { color: #888; font-size: 0.9rem; display: block; border: 0; }
+      #items li.existing .kind::after { content: " · already in the set"; text-transform: none; letter-spacing: 0; }
+      #items li.removed { opacity: 0.45; }
+      #items li.removed .body { text-decoration: line-through; }
+      #items li .noclip { width: 11rem; font-size: 0.8rem; color: #888; }
+      .modes { display: flex; gap: 1.25rem; flex-wrap: wrap; }
+      .modes label { display: flex; gap: 0.35rem; align-items: center; margin: 0; font-size: 0.9rem; cursor: pointer; }
+      .modes input { width: auto; margin: 0; }
+      #existing-picker { margin-top: 0.75rem; padding: 0.75rem; background: #fafafa; border: 1px solid #eee; border-radius: 6px; }
+      #existing-picker[hidden], #set-search-box[hidden], #chosen-set[hidden] { display: none; }
+      #set-results { list-style: none; margin: 0.4rem 0 0; padding: 0; max-height: 15rem; overflow-y: auto; }
+      #set-results li { padding: 0.45rem 0.5rem; border-bottom: 1px solid #eee; cursor: pointer; background: #fff; }
+      #set-results li:hover, #set-results li:focus { background: #eef3fc; outline: none; }
+      #set-results .meta { font-size: 0.8rem; color: #666; }
+      #chosen-set { display: flex; gap: 0.75rem; align-items: baseline; flex-wrap: wrap; }
+      .blank { background: #cfe0fa; border-radius: 3px; padding: 0 0.15rem; }
+      .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 0 1rem; }
+      @media (max-width: 560px) { .grid2, .times { grid-template-columns: 1fr; } #items li { flex-wrap: wrap; } #items li audio { width: 100%; } }
+  body
+    include _nav
+    h1 Studio
+    p.hint Turn your own audio or video into listening drills: transcribe it, pick a sentence (or part of one), crop the audio, and publish the items as a listening set.
+
+    #error.error(hidden)
+
+    section
+      h2 1. Source
+      .source-row
+        div
+          label(for="file") Audio or video file
+          input#file(type="file" accept="audio/*,video/*,.mp3,.m4a,.wav,.ogg,.webm,.mp4,.mov,.mkv")
+        div
+          label(for="language") Spoken language
+          select#language
+            option(value="en" selected) English
+            option(value="ko") Korean
+            option(value="auto") Detect automatically
+      .actions
+        button#rec-btn(type="button") ● Record my voice
+        span#rec-time
+        button#transcribe-btn(type="button" disabled) Transcribe
+      p#rec-hint.hint(hidden)
+      p.hint Up to 300 MB and 30 minutes. From a video only the sound is used.
+      #tx-progress(hidden)
+        .top
+          span#tx-label(aria-live="polite")
+          button#tx-cancel(type="button") Cancel
+        .bar(role="progressbar" aria-label="Upload and transcription progress" aria-valuemin="0" aria-valuemax="100")
+          .fill
+        .steps
+          span(data-step="upload") 1 Upload
+          span(data-step="work") 2 Extract &amp; transcribe
+          span(data-step="receive") 3 Receive
+      #source-status.status
+
+    section#editor(hidden)
+      h2 2. Pick the part to use
+      audio#player(controls preload="auto")
+      p.hint Click the first word, then the last word (or use a whole sentence). Dotted words were hard to hear - check them.
+      #transcript
+
+      #sel-panel(hidden)
+        h3 Selection
+        .times
+          div
+            label(for="start") Start (s)
+            .nudge
+              button(type="button" data-nudge="start" data-by="-0.1") −
+              input#start(type="number" step="0.05" min="0")
+              button(type="button" data-nudge="start" data-by="0.1") +
+          div
+            label(for="end") End (s)
+            .nudge
+              button(type="button" data-nudge="end" data-by="-0.1") −
+              input#end(type="number" step="0.05" min="0")
+              button(type="button" data-nudge="end" data-by="0.1") +
+        .actions
+          button#play-sel(type="button") ▶ Play selection
+          span#sel-len.hint
+        .grid2
+          div
+            label(for="item-type") Drill type
+            select#item-type
+              option(value="dictation" selected) Dictation (fill in blanks)
+              option(value="full") Full sentence (write it all)
+          div
+            label(for="ko") Korean meaning (optional)
+            input#ko(type="text" placeholder="한국어 뜻")
+        label(for="answer") Answer text
+        input#answer(type="text")
+        p.hint Fix any word the transcript got wrong - the learner is marked against this text.
+        #blanks-field
+          label Blanks - click the words the learner must fill in
+          #blank-chips.chips
+        .actions
+          button#add-item(type="button") + Add as item
+          span#clip-status.status
+
+    section
+      h2 3. Your listening set
+      .modes
+        label
+          input(type="radio" name="set-mode" value="new" checked)
+          |  Publish as a new set
+        label
+          input(type="radio" name="set-mode" value="existing")
+          |  Add to an existing listening set
+      #existing-picker(hidden)
+        #set-search-box
+          label(for="set-search") Find a listening set
+          input#set-search(type="search" placeholder="Search by name, author or description" autocomplete="off")
+          ul#set-results
+          p#set-results-note.hint
+        #chosen-set(hidden)
+          span#chosen-label
+          button#change-set.link(type="button") Change
+        p.hint Only the person who published a set can add to it.
+      ul#items
+        li.empty No items yet - add one from the transcript above.
+      .grid2
+        div
+          label(for="set-name") Set name
+          input#set-name(type="text" placeholder="e.g. Ordering at a restaurant")
+        div
+          label(for="set-author") Author (optional)
+          input#set-author(type="text")
+      label(for="set-desc") Description (optional)
+      input#set-desc(type="text")
+      .actions
+        button#publish(type="button" disabled) Publish listening set
+        span#publish-status.status
+
+    script.
+      (function () {
+        var MAX_CLIP = #{maxClipSeconds};
+        var MAX_RECORD_SECONDS = 10 * 60;
+        var WORD = /[A-Za-z']+/g;
+        var $ = function (id) { return document.getElementById(id); };
+
+        var errorBox = $('error');
+        function showError(msg) { errorBox.textContent = msg; errorBox.hidden = false; errorBox.scrollIntoView({ block: 'nearest' }); }
+        function clearError() { errorBox.hidden = true; }
+        function fmt(t) { var m = Math.floor(t / 60), s = t - m * 60; return m + ':' + (s < 10 ? '0' : '') + s.toFixed(1); }
+        function round2(t) { return Math.round(t * 100) / 100; }
+
+        // Page fetch helper: JSON errors → Error(message); 401 → /login.
+        function call(url, opts) {
+          return fetch(url, opts).then(function (res) {
+            if (res.status === 401) { location.href = '/login?next=/studio'; throw new Error('Not logged in'); }
+            return res.json().catch(function () { return {}; }).then(function (data) {
+              if (!res.ok) throw new Error(data.error || ('Request failed (' + res.status + ')'));
+              return data;
+            });
+          });
+        }
+
+        // ---- 1. Source: file or recording --------------------------------
+        var source = null; // { blob, name }
+        var fileInput = $('file'), transcribeBtn = $('transcribe-btn'), sourceStatus = $('source-status');
+
+        fileInput.addEventListener('change', function () {
+          var f = fileInput.files[0];
+          source = f ? { blob: f, name: f.name } : null;
+          transcribeBtn.disabled = !source;
+          sourceStatus.textContent = f ? f.name + ' (' + (f.size / 1048576).toFixed(1) + ' MB)' : '';
+        });
+
+        var recBtn = $('rec-btn'), recTime = $('rec-time'), recHint = $('rec-hint');
+        var recorder = null, recChunks = [], recStarted = 0, recTimer = null;
+        if (!window.isSecureContext || !navigator.mediaDevices || !window.MediaRecorder) {
+          recBtn.disabled = true;
+          recHint.hidden = false;
+          recHint.textContent = 'Recording needs the page on HTTPS (or localhost) - see guidebook chapter 13 (Tailscale HTTPS). You can still upload a file.';
+        }
+        recBtn.addEventListener('click', function () {
+          if (recorder && recorder.state === 'recording') { recorder.stop(); return; }
+          clearError();
+          navigator.mediaDevices.getUserMedia({ audio: true }).then(function (stream) {
+            recChunks = [];
+            recorder = new MediaRecorder(stream);
+            recorder.ondataavailable = function (e) { if (e.data && e.data.size) recChunks.push(e.data); };
+            recorder.onstop = function () {
+              stream.getTracks().forEach(function (t) { t.stop(); });
+              clearInterval(recTimer);
+              recBtn.classList.remove('recording');
+              recBtn.textContent = '● Record again';
+              var type = (recorder.mimeType || 'audio/webm').split(';')[0];
+              var ext = type.indexOf('mp4') !== -1 ? 'm4a' : type.indexOf('ogg') !== -1 ? 'ogg' : 'webm';
+              var blob = new Blob(recChunks, { type: type });
+              source = { blob: blob, name: 'recording.' + ext };
+              fileInput.value = '';
+              transcribeBtn.disabled = false;
+              sourceStatus.textContent = 'Recording ready (' + fmt((Date.now() - recStarted) / 1000) + ') - click Transcribe.';
+            };
+            recorder.start(1000);
+            recStarted = Date.now();
+            recBtn.classList.add('recording');
+            recBtn.textContent = '■ Stop recording';
+            recTime.textContent = '0:00.0';
+            recTimer = setInterval(function () {
+              var secs = (Date.now() - recStarted) / 1000;
+              recTime.textContent = fmt(secs);
+              if (secs >= MAX_RECORD_SECONDS) recorder.stop();
+            }, 200);
+          }).catch(function (err) {
+            showError('Could not use the microphone: ' + err.message);
+          });
+        });
+
+        // ---- 2. Transcript + selection ------------------------------------
+        var data = null;      // /studio/transcribe response
+        var audioBlob = null; // the extracted mp3 (sent back for every crop)
+        var player = $('player');
+        var wordEls = [];
+        var anchor = null, selFirst = null, selLast = null, rangeDone = true;
+
+        // Progress: upload % comes from XHR's upload events (fetch can't
+        // report them); extracting + transcribing reports nothing until it's
+        // done, so that phase shows a moving bar and the elapsed time; the
+        // response (transcript + audio) is downloaded with its own %.
+        var txXhr = null;
+        var progress = {
+          box: $('tx-progress'), bar: document.querySelector('#tx-progress .bar'),
+          fill: document.querySelector('#tx-progress .fill'), label: $('tx-label'), timer: null,
+          step: function (name) {
+            var passed = true;
+            document.querySelectorAll('#tx-progress [data-step]').forEach(function (el) {
+              if (el.dataset.step === name) passed = false;
+              el.className = el.dataset.step === name ? 'now' : passed ? 'done' : '';
+            });
+            clearInterval(this.timer);
+          },
+          percent: function (pct, text) {
+            this.bar.classList.remove('working');
+            this.fill.style.width = pct + '%';
+            this.bar.setAttribute('aria-valuenow', String(Math.round(pct)));
+            this.label.textContent = text;
+          },
+          working: function (text) {
+            var self = this, started = Date.now();
+            this.bar.classList.add('working');
+            this.fill.style.width = ''; // let the .working animation size it
+            this.bar.removeAttribute('aria-valuenow');
+            var show = function () { self.label.textContent = text + ' ' + Math.round((Date.now() - started) / 1000) + ' s'; };
+            show();
+            this.timer = setInterval(show, 1000);
+          },
+          start: function () { this.box.hidden = false; },
+          stop: function () { clearInterval(this.timer); this.box.hidden = true; },
+        };
+        function mb(bytes) { return (bytes / 1048576).toFixed(1); }
+
+        // POST with progress callbacks; resolves with the parsed JSON, rejects
+        // with Error(message) like call().
+        function postWithProgress(url, form) {
+          return new Promise(function (resolve, reject) {
+            var xhr = new XMLHttpRequest();
+            txXhr = xhr;
+            xhr.open('POST', url);
+            xhr.upload.onprogress = function (e) {
+              if (!e.lengthComputable) return;
+              progress.percent(e.loaded / e.total * 100, 'Uploading… ' + Math.round(e.loaded / e.total * 100) + '% (' + mb(e.loaded) + ' / ' + mb(e.total) + ' MB)');
+            };
+            xhr.upload.onload = function () {
+              progress.step('work');
+              progress.working(source && /^video\//.test(source.blob.type) ? 'Extracting the audio and transcribing…' : 'Transcribing…');
+            };
+            var receiving = false;
+            xhr.onprogress = function (e) {
+              if (!receiving) { receiving = true; progress.step('receive'); }
+              if (e.lengthComputable) progress.percent(e.loaded / e.total * 100, 'Receiving the transcript and audio… ' + Math.round(e.loaded / e.total * 100) + '%');
+              else progress.working('Receiving the transcript and audio… ' + mb(e.loaded) + ' MB,');
+            };
+            xhr.onload = function () {
+              if (xhr.status === 401) { location.href = '/login?next=/studio'; return reject(new Error('Not logged in')); }
+              var body = {};
+              try { body = JSON.parse(xhr.responseText); } catch (e) { body = {}; }
+              if (xhr.status < 200 || xhr.status >= 300) return reject(new Error(body.error || ('Request failed (' + xhr.status + ')')));
+              resolve(body);
+            };
+            xhr.onerror = function () { reject(new Error('The connection failed during the upload.')); };
+            xhr.onabort = function () { var err = new Error('Cancelled.'); err.cancelled = true; reject(err); };
+            xhr.send(form);
+          });
+        }
+        $('tx-cancel').addEventListener('click', function () { if (txXhr) txXhr.abort(); });
+
+        transcribeBtn.addEventListener('click', function () {
+          if (!source) return;
+          if (items.length && !confirm('Start over with a new source? Items already added stay in your set.')) return;
+          clearError();
+          var form = new FormData();
+          form.append('language', $('language').value);
+          form.append('file', source.blob, source.name);
+          transcribeBtn.disabled = true;
+          sourceStatus.textContent = '';
+          progress.start();
+          progress.step('upload');
+          progress.percent(0, 'Uploading… 0% (0 / ' + mb(source.blob.size) + ' MB)');
+          postWithProgress('/studio/transcribe', form)
+            .then(function (result) { loadTranscript(result); })
+            .catch(function (err) { if (!err.cancelled) showError(err.message); sourceStatus.textContent = err.cancelled ? 'Cancelled.' : ''; })
+            .then(function () { txXhr = null; progress.stop(); transcribeBtn.disabled = !source; });
+        });
+
+        function loadTranscript(result) {
+          data = result;
+          var bytes = atob(result.audio.base64), arr = new Uint8Array(bytes.length);
+          for (var i = 0; i < bytes.length; i++) arr[i] = bytes.charCodeAt(i);
+          audioBlob = new Blob([arr], { type: result.audio.mimeType || 'audio/mpeg' });
+          if (player.src) URL.revokeObjectURL(player.src);
+          player.src = URL.createObjectURL(audioBlob);
+          sourceStatus.textContent = (result.source.hadVideo ? 'Audio extracted from video · ' : '') +
+            fmt(result.duration) + ' · ' + result.sentences.length + ' sentences · language: ' + (result.language || '?');
+          renderTranscript();
+          clearSelection();
+          $('editor').hidden = false;
+          if (!result.words.length) showError('No speech was recognized in this file.');
+        }
+
+        function renderTranscript() {
+          var box = $('transcript');
+          box.innerHTML = '';
+          wordEls = [];
+          data.sentences.forEach(function (s) {
+            var row = document.createElement('div');
+            row.className = 'sentence';
+            var t = document.createElement('span');
+            t.className = 't';
+            t.textContent = fmt(s.start);
+            var words = document.createElement('span');
+            words.className = 'words';
+            for (var i = s.firstWord; i <= s.lastWord; i++) {
+              var w = data.words[i];
+              var el = document.createElement('span');
+              el.className = 'w' + (w.probability !== undefined && w.probability < 0.5 ? ' low' : '');
+              el.textContent = w.word;
+              el.dataset.i = i;
+              words.appendChild(el);
+              words.appendChild(document.createTextNode(' '));
+              wordEls[i] = el;
+            }
+            var tools = document.createElement('span');
+            tools.className = 'tools';
+            var play = document.createElement('button');
+            play.type = 'button';
+            play.title = 'Play this sentence';
+            play.textContent = '▶';
+            play.addEventListener('click', function () { playRange(s.start, s.end); });
+            var use = document.createElement('button');
+            use.type = 'button';
+            use.textContent = 'Use';
+            use.title = 'Select this whole sentence';
+            use.addEventListener('click', function () { select(s.firstWord, s.lastWord); });
+            tools.appendChild(play);
+            tools.appendChild(use);
+            row.appendChild(t);
+            row.appendChild(words);
+            row.appendChild(tools);
+            box.appendChild(row);
+          });
+        }
+
+        // First click sets the anchor, the next click closes the range
+        // (works on touch screens too); a click after that starts over.
+        $('transcript').addEventListener('click', function (e) {
+          var el = e.target.closest('.w');
+          if (!el) return;
+          var i = Number(el.dataset.i);
+          if (rangeDone || anchor === null) {
+            anchor = i;
+            rangeDone = false;
+            select(i, i, true);
+          } else {
+            rangeDone = true;
+            select(Math.min(anchor, i), Math.max(anchor, i));
+          }
+        });
+
+        function clearSelection() {
+          selFirst = selLast = anchor = null;
+          rangeDone = true;
+          $('sel-panel').hidden = true;
+          paintSelection();
+        }
+
+        function paintSelection() {
+          wordEls.forEach(function (el, i) {
+            if (!el) return;
+            el.classList.toggle('sel', selFirst !== null && i >= selFirst && i <= selLast);
+            el.classList.toggle('anchor', !rangeDone && i === anchor);
+          });
+        }
+
+        // Whisper's word edges are tight, so pad a little into the silence
+        // around the selection without reaching into the neighbouring words.
+        function paddedRange(first, last) {
+          var words = data.words;
+          var a = words[first], b = words[last];
+          var prevEnd = first > 0 ? words[first - 1].end : 0;
+          var nextStart = last < words.length - 1 ? words[last + 1].start : data.duration;
+          var start = Math.max(0, a.start - 0.15, Math.min(prevEnd, a.start - 0.03));
+          var end = Math.min(data.duration, b.end + 0.2, Math.max(nextStart, b.end + 0.03));
+          return { start: round2(start), end: round2(end) };
+        }
+
+        function select(first, last, pending) {
+          selFirst = first;
+          selLast = last;
+          if (!pending) { rangeDone = true; anchor = first; }
+          paintSelection();
+          var r = paddedRange(first, last);
+          $('start').value = r.start;
+          $('end').value = r.end;
+          var text = data.words.slice(first, last + 1).map(function (w) { return w.word; }).join(' ');
+          $('answer').value = text;
+          $('ko').value = '';
+          blankSet = {};
+          renderBlankChips();
+          updateLength();
+          $('clip-status').textContent = '';
+          $('sel-panel').hidden = false;
+        }
+
+        function times() { return { start: Number($('start').value), end: Number($('end').value) }; }
+        function updateLength() {
+          var t = times(), len = t.end - t.start;
+          $('sel-len').textContent = len > 0 ? len.toFixed(2) + ' s' + (len > MAX_CLIP ? ' - too long (max ' + MAX_CLIP + ' s)' : '') : 'end must be after start';
+        }
+        ['start', 'end'].forEach(function (id) { $(id).addEventListener('input', updateLength); });
+        document.querySelectorAll('[data-nudge]').forEach(function (btn) {
+          btn.addEventListener('click', function () {
+            var input = $(btn.dataset.nudge);
+            input.value = round2(Math.max(0, Math.min(data.duration, Number(input.value) + Number(btn.dataset.by))));
+            updateLength();
+            // Hear the edge that moved: the start plays from the start, the
+            // end plays its last 1.5 s.
+            var t = times();
+            if (btn.dataset.nudge === 'start') playRange(t.start, Math.min(t.end, t.start + 1.5));
+            else playRange(Math.max(t.start, t.end - 1.5), t.end);
+          });
+        });
+
+        var stopAt = null;
+        function playRange(start, end) {
+          stopAt = end;
+          player.currentTime = start;
+          player.play();
+        }
+        $('play-sel').addEventListener('click', function () { var t = times(); playRange(t.start, t.end); });
+        player.addEventListener('timeupdate', function () {
+          if (stopAt !== null && player.currentTime >= stopAt) { player.pause(); stopAt = null; }
+          highlightPlaying(player.currentTime);
+        });
+        player.addEventListener('seeking', function () { if (player.paused) stopAt = null; });
+        var lastPlaying = null;
+        function highlightPlaying(t) {
+          if (!data) return;
+          var idx = null;
+          for (var i = 0; i < data.words.length; i++) {
+            if (data.words[i].start <= t && t < data.words[i].end) { idx = i; break; }
+          }
+          if (idx === lastPlaying) return;
+          if (lastPlaying !== null && wordEls[lastPlaying]) wordEls[lastPlaying].classList.remove('playing');
+          if (idx !== null && wordEls[idx]) wordEls[idx].classList.add('playing');
+          lastPlaying = idx;
+        }
+
+        // Blanks are word positions in the answer, counted over [A-Za-z']+
+        // tokens - the same way the apps count them.
+        var blankSet = {};
+        function answerWords() { return $('answer').value.match(WORD) || []; }
+        function renderBlankChips() {
+          var box = $('blank-chips');
+          box.innerHTML = '';
+          answerWords().forEach(function (w, at) {
+            var chip = document.createElement('button');
+            chip.type = 'button';
+            chip.className = 'chip' + (blankSet[at] ? ' on' : '');
+            chip.textContent = w;
+            chip.addEventListener('click', function () {
+              if (blankSet[at]) delete blankSet[at]; else blankSet[at] = true;
+              chip.classList.toggle('on', !!blankSet[at]);
+            });
+            box.appendChild(chip);
+          });
+        }
+        $('answer').addEventListener('input', function () { blankSet = {}; renderBlankChips(); });
+        function syncType() { $('blanks-field').hidden = $('item-type').value !== 'dictation'; }
+        $('item-type').addEventListener('change', syncType);
+        syncType();
+
+        $('add-item').addEventListener('click', function () {
+          clearError();
+          var t = times();
+          var type = $('item-type').value;
+          var answer = $('answer').value.trim();
+          var words = answerWords();
+          var blanks = Object.keys(blankSet).map(Number).filter(function (at) { return at < words.length; })
+            .sort(function (a, b) { return a - b; })
+            .map(function (at) { return { at: at, word: words[at] }; });
+          if (!answer) return showError('The answer text is empty.');
+          if (!(t.end > t.start)) return showError('End must be after start.');
+          if (t.end - t.start > MAX_CLIP) return showError('A clip can be at most ' + MAX_CLIP + ' seconds.');
+          if (type === 'dictation' && !blanks.length) return showError('Pick at least one word to blank out (or choose "Full sentence").');
+          var btn = $('add-item'), status = $('clip-status');
+          btn.disabled = true;
+          status.textContent = 'Cropping and saving the clip…';
+          call('/studio/clip?start=' + t.start + '&end=' + t.end, { method: 'POST', headers: { 'Content-Type': 'audio/mpeg' }, body: audioBlob })
+            .then(function (clip) {
+              var item = { type: type, answer: answer, audioUrl: clip.audioUrl };
+              var ko = $('ko').value.trim();
+              if (ko) item.ko = ko;
+              if (type === 'dictation') item.blanks = blanks;
+              items.push(item);
+              renderItems();
+              status.textContent = 'Added (' + clip.duration.toFixed(2) + ' s clip).';
+              clearSelection();
+            })
+            .catch(function (err) { showError(err.message); status.textContent = ''; })
+            .then(function () { btn.disabled = false; });
+        });
+
+        // ---- 3. Draft set: new, or added to an existing listening set ------
+        var items = [];     // new Studio items
+        var mode = 'new';
+        var target = null;  // { id, name, items } when adding to an existing set
+        var keep = [];      // keep[i] = false once the user removes target.items[i]
+        var draftFields = null; // the new-set fields, restored when switching back
+
+        function itemRow(item, label, onToggle, removed, existing) {
+          var li = document.createElement('li');
+          if (existing) li.classList.add('existing');
+          if (removed) li.classList.add('removed');
+          var audio;
+          if (item.audioUrl) {
+            audio = document.createElement('audio');
+            audio.controls = true;
+            audio.preload = 'none';
+            audio.src = '/community/audio/' + String(item.audioUrl).replace('/audio/', '');
+          } else {
+            audio = document.createElement('span');
+            audio.className = 'noclip';
+            audio.textContent = '(no clip - read by the app)';
+          }
+          var body = document.createElement('div');
+          body.className = 'body';
+          var kind = document.createElement('div');
+          kind.className = 'kind';
+          kind.textContent = label + '. ' + (item.type || '');
+          var text = document.createElement('div');
+          var answer = String(item.answer || '');
+          var blankAt = {};
+          (item.blanks || []).forEach(function (b) { blankAt[b.at] = true; });
+          var at = 0, last = 0, m;
+          WORD.lastIndex = 0;
+          while ((m = WORD.exec(answer)) !== null) {
+            text.appendChild(document.createTextNode(answer.slice(last, m.index)));
+            var span = document.createElement('span');
+            span.textContent = m[0];
+            if (blankAt[at]) span.className = 'blank';
+            text.appendChild(span);
+            last = m.index + m[0].length;
+            at++;
+          }
+          text.appendChild(document.createTextNode(answer.slice(last)));
+          body.appendChild(kind);
+          body.appendChild(text);
+          if (item.ko) {
+            var ko = document.createElement('div');
+            ko.className = 'ko';
+            ko.textContent = item.ko;
+            body.appendChild(ko);
+          }
+          var btn = document.createElement('button');
+          btn.type = 'button';
+          btn.className = removed ? '' : 'danger';
+          btn.textContent = removed ? 'Undo' : 'Remove';
+          btn.addEventListener('click', onToggle);
+          li.appendChild(audio);
+          li.appendChild(body);
+          li.appendChild(btn);
+          return li;
+        }
+
+        function renderItems() {
+          var list = $('items');
+          list.innerHTML = '';
+          var n = 0;
+          if (target) {
+            target.items.forEach(function (item, i) {
+              list.appendChild(itemRow(item, String(++n), function () { keep[i] = !keep[i]; renderItems(); }, !keep[i], true));
+            });
+          }
+          if (!items.length) {
+            var empty = document.createElement('li');
+            empty.className = 'empty';
+            empty.textContent = target && target.items.length
+              ? 'No new items yet - add one from the transcript above.'
+              : 'No items yet - add one from the transcript above.';
+            list.appendChild(empty);
+          }
+          items.forEach(function (item, index) {
+            list.appendChild(itemRow(item, String(++n), function () { items.splice(index, 1); renderItems(); }, false, false));
+          });
+          updatePublishButton();
+        }
+
+        function keptIndexes() {
+          var out = [];
+          keep.forEach(function (k, i) { if (k) out.push(i); });
+          return out;
+        }
+
+        function updatePublishButton() {
+          var btn = $('publish');
+          if (mode === 'new') {
+            btn.textContent = 'Publish listening set';
+            btn.disabled = !items.length;
+          } else {
+            btn.textContent = target ? 'Save to "' + target.name + '"' : 'Save to the chosen set';
+            btn.disabled = !target || (keptIndexes().length + items.length === 0);
+          }
+        }
+
+        // Mode switch. The new-set fields are kept aside while an existing
+        // set's name/description/author are shown, and put back afterwards.
+        document.querySelectorAll('input[name="set-mode"]').forEach(function (radio) {
+          radio.addEventListener('change', function () {
+            if (!radio.checked) return;
+            mode = radio.value;
+            clearError();
+            $('existing-picker').hidden = mode !== 'existing';
+            if (mode === 'existing') {
+              draftFields = { name: $('set-name').value, desc: $('set-desc').value, author: $('set-author').value };
+              if (!target) { showSearch(); searchSets(); }
+            } else {
+              chooseSet(null);
+              if (draftFields) {
+                $('set-name').value = draftFields.name;
+                $('set-desc').value = draftFields.desc;
+                $('set-author').value = draftFields.author;
+              }
+            }
+            updatePublishButton();
+          });
+        });
+
+        function showSearch() {
+          $('set-search-box').hidden = false;
+          $('chosen-set').hidden = true;
+          $('set-search').focus();
+        }
+
+        var searchTimer = null, searchSeq = 0;
+        $('set-search').addEventListener('input', function () {
+          clearTimeout(searchTimer);
+          searchTimer = setTimeout(searchSets, 300);
+        });
+        $('set-search').addEventListener('keydown', function (e) {
+          if (e.key === 'Enter') { e.preventDefault(); clearTimeout(searchTimer); searchSets(); }
+        });
+
+        function searchSets() {
+          var seq = ++searchSeq;
+          var q = $('set-search').value.trim();
+          $('set-results-note').textContent = 'Searching…';
+          call('/studio/sets?q=' + encodeURIComponent(q))
+            .then(function (result) {
+              if (seq !== searchSeq) return; // a newer search is on its way
+              var list = $('set-results');
+              list.innerHTML = '';
+              result.sets.forEach(function (card) {
+                var li = document.createElement('li');
+                li.tabIndex = 0;
+                var title = document.createElement('div');
+                title.textContent = card.name;
+                var meta = document.createElement('div');
+                meta.className = 'meta';
+                meta.textContent = card.count + ' items · by ' + card.author + (card.desc ? ' · ' + card.desc : '');
+                li.appendChild(title);
+                li.appendChild(meta);
+                li.addEventListener('click', function () { loadSet(card.id); });
+                li.addEventListener('keydown', function (e) { if (e.key === 'Enter') loadSet(card.id); });
+                list.appendChild(li);
+              });
+              $('set-results-note').textContent = !result.total
+                ? (q ? 'No listening sets match "' + q + '".' : 'No listening sets published yet.')
+                : result.total > result.sets.length ? 'Showing the newest ' + result.sets.length + ' of ' + result.total + ' - type to narrow it down.' : '';
+            })
+            .catch(function (err) { if (seq === searchSeq) $('set-results-note').textContent = err.message; });
+        }
+
+        function loadSet(id) {
+          clearError();
+          $('set-results-note').textContent = 'Loading…';
+          call('/studio/sets/' + encodeURIComponent(id))
+            .then(function (set) { chooseSet(set); })
+            .catch(function (err) { $('set-results-note').textContent = ''; showError(err.message); });
+        }
+
+        function chooseSet(set) {
+          target = set ? { id: set.id, name: set.name, items: set.items || [] } : null;
+          keep = target ? target.items.map(function () { return true; }) : [];
+          if (target) {
+            $('set-name').value = set.name || '';
+            $('set-desc').value = set.desc || '';
+            $('set-author').value = set.author || '';
+            $('chosen-label').textContent = 'Adding to "' + set.name + '" (' + target.items.length + ' items, by ' + set.author + ')';
+            $('set-search-box').hidden = true;
+            $('chosen-set').hidden = false;
+            $('set-results-note').textContent = '';
+          }
+          renderItems();
+        }
+        $('change-set').addEventListener('click', function () {
+          chooseSet(null);
+          showSearch();
+          searchSets();
+        });
+
+        $('publish').addEventListener('click', function () {
+          clearError();
+          var name = $('set-name').value.trim();
+          if (!name) { $('set-name').focus(); return showError('Give the set a name.'); }
+          var btn = $('publish'), status = $('publish-status');
+          var fields = { name: name, desc: $('set-desc').value, author: $('set-author').value };
+          var url, body;
+          if (mode === 'existing') {
+            if (!target) return showError('Pick the listening set to add to.');
+            var removed = target.items.length - keptIndexes().length;
+            if (removed && !confirm('Remove ' + removed + ' item(s) that are already in "' + target.name + '"?')) return;
+            url = '/studio/sets/' + encodeURIComponent(target.id) + '/update';
+            fields.keep = keptIndexes();
+            fields.items = items;
+            status.textContent = 'Saving…';
+          } else {
+            url = '/studio/publish';
+            fields.items = items;
+            status.textContent = 'Publishing…';
+          }
+          btn.disabled = true;
+          call(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(fields) })
+            .then(function (result) {
+              items = [];
+              location.href = result.id ? '/community/' + encodeURIComponent(result.id) : '/community?published=1';
+            })
+            .catch(function (err) {
+              showError(err.message);
+              status.textContent = '';
+              updatePublishButton();
+            });
+        });
+
+        // Clips not in any published set are cleaned up after about an hour,
+        // so an unpublished draft can't be recovered later.
+        window.addEventListener('beforeunload', function (e) {
+          if (items.length) { e.preventDefault(); e.returnValue = ''; }
+        });
+      })();

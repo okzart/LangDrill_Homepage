@@ -13,7 +13,7 @@ the resulting token.
 
 It exists to give people (not just developers pasting tokens into a raw
 test page) a real login-gated way to use the features already built across
-the backend - account login/registration, self-service progress editing,
+the backend - account login/registration, a progress dashboard,
 community set publishing/browsing, and user/progress administration -
 from one site instead of three separate services' individual `/`/`/admin`
 test pages. Per the project's own roadmap, this is meant to grow into the
@@ -72,21 +72,24 @@ This app never talks to `:3000`/`:3002`/`:3003` directly.
 | File | Responsibility |
 |---|---|
 | `src/server.js` | Entry point. Loads `.env`, validates `COOKIE_SECRET`, wires the dependency graph, starts the HTTP listener. |
-| `src/services/gatewayClient.js` | The one place this app makes an HTTP call - attaches the bearer token, parses the response, throws `GatewayError` on a non-2xx status. |
+| `src/services/gatewayClient.js` | The one place this app makes an HTTP call - attaches the bearer token, parses the response, throws `GatewayError` on a non-2xx status. Besides JSON calls it can stream a response back (`stream`), relay a request stream untouched (`postStream`, for Studio uploads), post raw bytes (`postRaw`) and multipart (`postMultipart`, `postMultipartBinary`), and wait up to 15 minutes (`postLong`). |
 | `src/services/jwt.js` | Decodes (never verifies) a JWT's payload, for display/nav purposes only - see §2 Non-goals. |
-| `src/services/progressForm.js` | Parses the shared progress-editing HTML form into the JSON body Progress Stats' PATCH endpoints expect - used by both the self-service and admin progress routes. |
+| `src/services/progressForm.js` | Parses the shared progress-editing HTML form into the JSON body Progress Stats' PATCH endpoints expect - used by the admin progress editor (`/admin/users/:id/progress`). |
 | `src/middleware/session.js` | Reads/writes the signed `ld_token` cookie. |
 | `src/middleware/currentUser.js` | Runs on every request; decodes the cookie (if present and unexpired) into `req.auth` / `res.locals.currentUser`. |
 | `src/middleware/requireLogin.js` | `requireLogin` (redirects to `/login` if `req.auth` is unset) and `requireAdmin` (403s if `role !== 'admin'`) - route guards. |
 | `src/middleware/errorHandler.js` | Maps a thrown `GatewayError` to a redirect-to-login (401) or an error page (anything else); anything not a `GatewayError` is an unexpected bug, logged and answered 500. |
 | `src/routes/authRoutes.js` | `/login`, `/register`, `/logout` - the only pages reachable while logged out. |
 | `src/routes/dashboardRoutes.js` | `/`, `/dashboard`, `/profile`. |
-| `src/routes/progressRoutes.js` | `/progress` (self-service get/update). |
+| `src/routes/progressRoutes.js` | `/progress` - the caller's progress as a read-only dashboard (admins get an Edit button to their own record in the admin editor). |
+| `views/mixins/progressCharts.pug` | The progress dashboard, shared by `/progress` and `/admin/users/:id/progress`: stat tiles (level/XP, streak, study time, sentences, average accuracy, saved items), a daily-goal meter, a Mon-Sun activity column chart, accuracy-by-type bars with an average line, badges, and a table view of every number. Drawn client-side from the embedded record; on the admin page it redraws live from the edit form. |
 | `src/routes/communityRoutes.js` | `/community` (List and Create tabs - List's rows carry inline Update/Delete), `/community/:id`, and the publish/update/download/unpublish actions. |
 | `src/routes/chatRoutes.js` | `/chat` (chat page for the self-hosted LLM, optionally spoken aloud, with voice input), `POST /chat/transcribe` (relays a browser recording to the gateway's `/api/stt/transcriptions` as multipart and returns `{ text }` - never stored), `POST /chat/completions` (forwards the page's messages to the gateway's `/api/llm` route with the session token and pipes the streamed reply, Server-Sent Events, back to the browser) and `POST /chat/speech` (same, for one sentence of speech from `/api/tts`, piped back as `audio/mpeg` - never written to disk). |
 | `src/routes/passagesRoutes.js` | `/passages` (example passage for the user's expressions, read aloud with word highlighting), `GET /passages/sets/:id` (a vocab drill set's items as `{ expression, example, meaning }` for the page's picker) and `POST /passages/generate`, which relays the request to the gateway's `/api/passages` and returns its JSON (text + base64 MP3 + timings) with `Cache-Control: no-store` - nothing is stored. |
 | `src/services/vocabExpressions.js` | Maps a vocab drill item to a passage expression: `expression` = the answer's text from the first to the last blank, words counted with the mobile app's tokenizer (`[A-Za-z']+`), blank words compared without edge punctuation (blanks often hide only part of an idiom, e.g. "[off] the [ground]"), `example` = `answer`, `meaning` = `keyKo` (else `ko`). Items without blanks are skipped. |
 | `src/services/voiceOptions.js` | The English narration voice list (`GET /api/sets/voices`) shaped for a `<select>`; shared by Community's vocab builder and Passages. |
+| `src/routes/listeningRoutes.js` | `/admin/listening` (admin test bench for tts-service-listening / Dia2) and `POST /admin/listening/generate`, which relays to the gateway's `/api/listening/generate` via `gatewayClient.postLong` (undici fetch with a 15-minute timeout - Node's built-in fetch gives up after 5 minutes without response headers). Admin-only: a heavy GPU job for producing listening material. |
+| `src/routes/studioRoutes.js` | `/studio` - make listening drills from your own audio/video or a voice recording made on the page. `POST /studio/transcribe` streams the multipart upload through to the gateway's `/api/split/transcribe` (`gatewayClient.postStream`, never buffered here); `POST /studio/clip` sends the extracted mp3 + `start`/`end` to `/api/split/cut`, stores the clip via `/api/sets/clips`, and answers `{ audioUrl, duration }`; `POST /studio/publish` rebuilds each item from known fields (`dictation`/`full`, `answer`, `ko?`, `blanks` recomputed from `[A-Za-z']+` positions, `audioUrl` must be a clip URL) and publishes a listening set. Or, instead of a new set, the items are added to an existing listening set: `GET /studio/sets?q=` searches (`GET /api/sets?type=listening&q=`, newest 20), `GET /studio/sets/:id` loads one, and `POST /studio/sets/:id/update` re-reads the set, keeps the current items the page didn't remove (taken from the service, not the page, so item kinds Studio can't make pass through untouched), appends the new ones and `PATCH`es it - owner-only, a non-owner gets a "publish as a new set instead" message. Stateless: the page keeps the extracted mp3 in memory and re-sends it with each crop. |
 | `src/routes/adminRoutes.js` | `/admin/users/*` (Authentication's admin API) and `/admin/users/:id/progress` (Progress Stats' admin API) - `requireAdmin`-gated. |
 
 ## 4. Pages & the Gateway Calls Behind Them
@@ -98,7 +101,7 @@ This app never talks to `:3000`/`:3002`/`:3003` directly.
 | `POST /logout` | — | (clears the cookie only - no gateway call; JWTs aren't revocable, see Authentication's `docs/DESIGN.md`) |
 | `GET /dashboard` | login | — |
 | `GET /profile` | login | `GET /api/auth/me` |
-| `GET/POST /progress` | login | `GET`/`PATCH /api/progress/me` |
+| `GET /progress` | login | `GET /api/progress/me` (read-only dashboard; progress is recorded by the app, and editing is admin-only via `/admin/users/:id/progress`) |
 | `GET /community` (`?tab=list\|create`; List's `?editId=` loads a row's inline editor), `GET /community/:id` | login | `GET /api/sets`, `GET /api/sets/:id` |
 | `POST /community/publish` (Create tab) | login | `POST /api/sets` |
 | `POST /community/:id/update` (List row's inline "Update" editor) | login | `PATCH /api/sets/:id` (owner-only) |
@@ -111,8 +114,17 @@ This app never talks to `:3000`/`:3002`/`:3003` directly.
 | `GET /passages` | login | `GET /api/sets/voices` (voice picker) and `GET /api/sets?type=vocab` (drill-set picker); each is omitted if unavailable |
 | `GET /passages/sets/:id` (called by the page's picker; JSON) | login | `GET /api/sets/:id` → items mapped by `vocabExpressions.js`; `400` for a non-vocab set |
 | `POST /passages/generate` `{ expressions: [{ expression, meaning?, example? }], level, voice }` (called by the page's own `fetch`; JSON `{ error }` on failure). The page builds the list from picked drill items (editable) plus typed rows, max 15 | login | `POST /api/passages` (Content Sharing → llm-service + tts-service). The page plays the returned MP3 from memory and highlights each word at its `startTime`; clicking a word or expression seeks there. Below the passage, a 한국어 번역 panel shows `sentences[].ko`, highlights the Korean sentence being spoken, and plays a sentence when clicked ("Show Korean" toggle, remembered per browser) |
+| `GET /studio` | login | — (the recorder is disabled with a hint unless the page is on HTTPS or localhost) |
+| `POST /studio/transcribe` (multipart `file` + `language` = `en`/`ko`/`auto`, from the page's file picker or its MediaRecorder recording; ≤ 300 MB, ≤ 30 min of audio; JSON `{ error }` on failure) | login | `POST /api/split/transcribe` (audio-split-service → stt-service; the page posts it with `XMLHttpRequest` to show a progress bar - upload %, then a moving bar with elapsed time while the audio is extracted and transcribed, then download % - and a Cancel button): the audio track as a compact mp3 (base64; from a video only the sound), words with timings and sentences. The page shows the transcript as clickable words per sentence - first click / second click selects a range, or "Use" takes a whole sentence; the crop is padded slightly into the surrounding silence and can be nudged by ear |
+| `POST /studio/clip?start=&end=` (raw `audio/mpeg` body = the extracted mp3; clip ≤ 120 s; JSON) | login | `POST /api/split/cut` (mono mp3, 20 ms fades) → `POST /api/sets/clips` (Content Sharing stores it as `/audio/<sha256>.mp3`) → `{ audioUrl, duration }`. The item (type, answer text - editable, blanks picked by clicking words, optional Korean) joins the page's draft list |
+| `GET /studio/sets?q=` (the page's "Add to an existing listening set" search, as you type; JSON `{ sets, total }`) | login | `GET /api/sets?type=listening&q=` (newest 20 shown) |
+| `GET /studio/sets/:id` (JSON) | login | `GET /api/sets/:id` → `{ id, name, desc, author, items }`; `400` for a non-listening set. The page lists the current items (each can be removed / undone) above the new ones and fills in the set's name, description and author |
+| `POST /studio/sets/:id/update` `{ name, desc?, author?, keep: [index…], items }` (JSON) | login | `GET /api/sets/:id`, then `PATCH /api/sets/:id` with the kept current items + the new ones. Owner-only: a `403` becomes "Only the person who published this set can add to it - publish your items as a new set instead." |
+| `POST /studio/publish` `{ name, desc?, author?, items }` (JSON) | login | `POST /api/sets` with `type: "listening"`; the page then opens `/community/:id`, which plays each item's clip. Unpublished clips are deleted by Content Sharing's audio janitor after about an hour |
+| `GET /admin/listening` | admin | `GET /api/listening/voices` (voice pickers; shows an error banner if tts-service-listening is unreachable) |
+| `POST /admin/listening/generate` `{ script, voices?, format?, seed?, cfg_scale?, temperature? }` (called by the page's `fetch`; other fields are dropped; JSON `{ error }` on failure) | admin | `POST /api/listening/generate` (`response: "json"`) → audio (base64) + words with speakers. The page plays it with a speaker-grouped read-along transcript, offers the audio and a timestamps JSON as downloads, and keeps this visit's takes in memory for comparison |
 | `GET /admin/users`, `POST .../update`, `.../delete` | admin | `GET/POST/PATCH/DELETE /api/admin/api/users...` |
-| `GET/POST /admin/users/:id/progress`, `.../delete` | admin | `GET/PATCH/DELETE /api/progress/admin/users/:id` |
+| `GET/POST /admin/users/:id/progress`, `.../delete` | admin | `GET/PATCH/DELETE /api/progress/admin/users/:id` - the same dashboard as `/progress` above the edit form, previewing edits live before Save |
 
 Every login-gated page redirects an unauthenticated visitor to
 `/login?next=<original path>` and sends them back there after a successful

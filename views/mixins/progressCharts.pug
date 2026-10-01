@@ -1,0 +1,335 @@
+//- Progress dashboard: stat tiles, daily-goal meter, weekly activity columns,
+//- accuracy-by-type bars, badges, and a table view of every number. Shared
+//- by views/progress.pug (read-only) and views/admin/userProgress.pug (above
+//- the edit form, where the charts redraw live from the form - see
+//- ProgressCharts.fromForm). Rendered client-side from the progress record
+//- embedded as JSON, so both pages draw with exactly the same code.
+//-
+//- Chart choices (dataviz method): single numbers are stat tiles, the daily
+//- goal is a meter (one ratio against a limit - not a 2-slice pie), weekly
+//- activity and per-type accuracy compare magnitudes → one blue series
+//- (validated ≥3:1 on white). Nothing here is part-to-whole, so no pie.
+mixin progressCharts(progress, options)
+  - var opts = options || {}
+  - var json = JSON.stringify(progress || {}).replace(/</g, '\\u003c')
+  .pc-root(data-live-form=opts.liveForm || false)
+    if opts.previewNote
+      p.pc-note= opts.previewNote
+    .pc-tiles
+    .pc-grid
+      section.pc-card
+        h2 Daily goal
+        .pc-goal
+      section.pc-card
+        h2 This week's activity
+        p.pc-sub Activity per day, Monday to Sunday
+        .pc-week(role="group" aria-label="Weekly activity by day")
+      section.pc-card.pc-wide
+        h2 Accuracy by drill type
+        p.pc-sub Percent correct; the line marks the overall average
+        .pc-acc(role="group" aria-label="Accuracy by drill type")
+      section.pc-card.pc-wide
+        h2 Badges
+        .pc-badges
+    details.pc-table-wrap
+      summary Show all numbers as a table
+      table.pc-table
+    .pc-tooltip(role="tooltip" hidden)
+    script.pc-data(type="application/json")!= json
+
+  style.
+    .pc-root { --pc-surface: #ffffff; --pc-ink: #222; --pc-ink-2: #52514e; --pc-muted: #898781;
+      --pc-grid: #e1e0d9; --pc-base: #c3c2b7; --pc-series: #2a78d6; --pc-series-hover: #3987e5;
+      --pc-track: #cde2fb; --pc-good: #006300; position: relative; }
+    .pc-note { font-size: 0.85rem; color: var(--pc-ink-2); background: #f4f8fe; border: 1px solid var(--pc-track); border-radius: 6px; padding: 0.4rem 0.7rem; }
+    .pc-tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 0.75rem; margin-bottom: 1rem; }
+    .pc-tile { border: 1px solid #ddd; border-radius: 8px; padding: 0.7rem 0.85rem; }
+    .pc-tile .pc-label { font-size: 0.8rem; color: var(--pc-ink-2); }
+    .pc-tile .pc-value { font-size: 1.6rem; font-weight: 600; color: var(--pc-ink); line-height: 1.25; margin-top: 0.15rem; }
+    .pc-tile .pc-value small { font-size: 0.85rem; font-weight: 500; color: var(--pc-ink-2); margin-left: 0.2rem; }
+    .pc-tile .pc-detail { font-size: 0.78rem; color: var(--pc-muted); margin-top: 0.1rem; }
+    .pc-grid { display: grid; grid-template-columns: 1fr 1.4fr; gap: 0 1rem; align-items: start; }
+    .pc-grid .pc-wide { grid-column: 1 / -1; }
+    @media (max-width: 640px) { .pc-grid { grid-template-columns: 1fr; } }
+    .pc-card h2 { margin: 0 0 0.2rem; }
+    .pc-sub { font-size: 0.8rem; color: var(--pc-muted); margin: 0 0 0.6rem; }
+    /* meter */
+    .pc-goal .pc-big { font-size: 1.6rem; font-weight: 600; color: var(--pc-ink); }
+    .pc-goal .pc-big small { font-size: 0.9rem; font-weight: 500; color: var(--pc-ink-2); }
+    .pc-meter { height: 10px; background: var(--pc-track); border-radius: 5px; margin: 0.5rem 0 0.35rem; overflow: hidden; }
+    .pc-meter > div { height: 100%; background: var(--pc-series); border-radius: 5px; }
+    .pc-goal .pc-state { font-size: 0.85rem; color: var(--pc-ink-2); }
+    .pc-goal .pc-state.done { color: var(--pc-good); font-weight: 600; }
+    /* weekly columns */
+    .pc-week { position: relative; display: grid; grid-template-columns: 2.2rem 1fr; grid-template-rows: 130px auto; margin-top: 1.4rem; }
+    .pc-yaxis { position: relative; font-size: 0.72rem; color: var(--pc-muted); font-variant-numeric: tabular-nums; }
+    .pc-yaxis span { position: absolute; right: 0.4rem; transform: translateY(50%); }
+    .pc-plot { position: relative; border-bottom: 1px solid var(--pc-base); display: flex; align-items: flex-end; justify-content: space-around; }
+    .pc-gridline { position: absolute; left: 0; right: 0; border-top: 1px solid var(--pc-grid); pointer-events: none; }
+    .pc-col { position: relative; flex: 1; display: flex; justify-content: center; align-items: flex-end; height: 100%; cursor: default; outline: none; }
+    .pc-col .pc-bar { width: min(24px, 60%); background: var(--pc-series); border-radius: 4px 4px 0 0; min-height: 0; }
+    .pc-col:hover .pc-bar, .pc-col:focus-visible .pc-bar { background: var(--pc-series-hover); }
+    .pc-col:focus-visible { box-shadow: inset 0 0 0 2px var(--pc-series); border-radius: 4px; }
+    .pc-col .pc-cap { position: absolute; font-size: 0.75rem; color: var(--pc-ink-2); line-height: 1; }
+    .pc-xaxis { grid-column: 2; display: flex; justify-content: space-around; font-size: 0.75rem; color: var(--pc-muted); margin-top: 0.3rem; }
+    .pc-xaxis span { flex: 1; text-align: center; }
+    .pc-xaxis span.today { color: var(--pc-ink); font-weight: 600; }
+    /* accuracy bars */
+    .pc-acc { position: relative; }
+    .pc-accrow { display: grid; grid-template-columns: 5.5rem 1fr; align-items: center; height: 2rem; outline: none; }
+    .pc-accrow .pc-name { font-size: 0.85rem; color: var(--pc-ink-2); }
+    .pc-accplot { position: relative; height: 100%; }
+    .pc-accplot .pc-hbar { position: absolute; left: 0; top: 50%; transform: translateY(-50%); height: 16px; background: var(--pc-series); border-radius: 0 4px 4px 0; }
+    .pc-accrow:hover .pc-hbar, .pc-accrow:focus-visible .pc-hbar { background: var(--pc-series-hover); }
+    .pc-accrow:focus-visible { box-shadow: inset 0 0 0 2px var(--pc-series); border-radius: 4px; }
+    .pc-accplot .pc-tip { position: absolute; top: 50%; transform: translateY(-50%); font-size: 0.8rem; color: var(--pc-ink); padding-left: 0.35rem; white-space: nowrap; }
+    .pc-accplot .pc-tip.inside { transform: translate(-100%, -50%); padding: 0 0.35rem 0 0; color: #fff; font-weight: 600; }
+    .pc-accgrid { position: absolute; left: 5.5rem; right: 0; top: 0; bottom: 1.2rem; pointer-events: none; }
+    .pc-accgrid .pc-v { position: absolute; top: 0; bottom: 0; border-left: 1px solid var(--pc-grid); }
+    .pc-accgrid .pc-v span { position: absolute; bottom: -1.2rem; transform: translateX(-50%); font-size: 0.72rem; color: var(--pc-muted); font-variant-numeric: tabular-nums; }
+    .pc-accgrid .pc-avg { position: absolute; top: -0.2rem; bottom: 0; border-left: 1px solid var(--pc-ink-2); }
+    .pc-accgrid .pc-avg span { position: absolute; top: -1.1rem; transform: translateX(-50%); font-size: 0.72rem; color: var(--pc-ink-2); white-space: nowrap; background: var(--pc-surface); padding: 0 0.2rem; }
+    .pc-accrows { position: relative; padding: 1.1rem 0 1.3rem; }
+    /* badges, table, tooltip */
+    .pc-badges { display: flex; flex-wrap: wrap; gap: 0.4rem; }
+    .pc-badges span { border: 1px solid #ccc; border-radius: 999px; padding: 0.15rem 0.6rem; font-size: 0.85rem; }
+    .pc-badges .pc-none { color: var(--pc-muted); border: 0; padding: 0; }
+    .pc-table-wrap { margin: 0.5rem 0 1rem; font-size: 0.9rem; }
+    .pc-table td:last-child { font-variant-numeric: tabular-nums; }
+    .pc-tooltip { position: absolute; z-index: 5; pointer-events: none; background: #fff; border: 1px solid rgba(11,11,11,0.12); box-shadow: 0 2px 8px rgba(0,0,0,0.12); border-radius: 6px; padding: 0.3rem 0.55rem; font-size: 0.8rem; color: var(--pc-ink-2); white-space: nowrap; }
+    .pc-tooltip strong { color: var(--pc-ink); font-size: 0.95rem; margin-right: 0.3rem; }
+
+  script.
+    window.ProgressCharts = window.ProgressCharts || (() => {
+      const DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+      const TYPES = [['vocabAccuracy', 'Vocab'], ['listeningAccuracy', 'Listening'], ['writingAccuracy', 'Writing'], ['youtubeAccuracy', 'YouTube']];
+      const num = (v) => (Number.isFinite(Number(v)) ? Number(v) : 0);
+      const fmt = (v) => Math.round(num(v)).toLocaleString();
+      const el = (tag, cls, text) => {
+        const e = document.createElement(tag);
+        if (cls) e.className = cls;
+        if (text !== undefined) e.textContent = text;
+        return e;
+      };
+      // A clean axis maximum (1, 2, 5 × 10^n) at or above the data's max.
+      const niceMax = (max) => {
+        if (max <= 0) return 1;
+        const p = 10 ** Math.floor(Math.log10(max));
+        return [1, 2, 2.5, 5, 10].map((m) => m * p).find((m) => m >= max);
+      };
+      const todayIndex = () => (new Date().getDay() + 6) % 7; // Mon = 0
+
+      function normalize(p) {
+        const weekly = Array.isArray(p.weeklyActivity) ? p.weeklyActivity.slice(0, 7).map(num) : [];
+        while (weekly.length < 7) weekly.push(0);
+        return { ...p, weeklyActivity: weekly, badges: Array.isArray(p.badges) ? p.badges : [] };
+      }
+
+      function tooltip(root, target, valueText, labelText) {
+        const tip = root.querySelector('.pc-tooltip');
+        const show = () => {
+          tip.textContent = '';
+          tip.append(el('strong', null, valueText), el('span', null, labelText));
+          tip.hidden = false;
+          const r = target.getBoundingClientRect();
+          const base = root.getBoundingClientRect();
+          tip.style.left = `${Math.max(0, Math.min(r.left - base.left + r.width / 2 - tip.offsetWidth / 2, base.width - tip.offsetWidth))}px`;
+          tip.style.top = `${r.top - base.top - tip.offsetHeight - 6}px`;
+        };
+        const hide = () => { tip.hidden = true; };
+        target.addEventListener('pointerenter', show);
+        target.addEventListener('pointerleave', hide);
+        target.addEventListener('focus', show);
+        target.addEventListener('blur', hide);
+      }
+
+      function tiles(root, p) {
+        const box = root.querySelector('.pc-tiles');
+        box.textContent = '';
+        const hours = num(p.totalStudyTime) / 3600;
+        const items = [
+          ['Level', fmt(p.level || 1), '', `${fmt(p.xp)} XP`],
+          ['Study streak', fmt(p.streakDays), num(p.streakDays) === 1 ? 'day' : 'days', `Longest ${fmt(p.longestStreak)} days`],
+          ['Study time', hours >= 10 ? hours.toFixed(0) : hours.toFixed(1), 'h', `${fmt(num(p.totalStudyTime) / 60)} minutes in total`],
+          ['Sentences practiced', fmt(p.totalSentences), '', ''],
+          ['Average accuracy', fmt(p.averageAccuracy), '%', ''],
+          ['Saved items', fmt(p.savedItemsCount), '', `in ${fmt(p.foldersCount)} folder${num(p.foldersCount) === 1 ? '' : 's'}`],
+        ];
+        for (const [label, value, unit, detail] of items) {
+          const t = el('div', 'pc-tile');
+          const v = el('div', 'pc-value', value);
+          if (unit) v.append(el('small', null, unit));
+          t.append(el('div', 'pc-label', label), v);
+          if (detail) t.append(el('div', 'pc-detail', detail));
+          box.append(t);
+        }
+      }
+
+      function goal(root, p) {
+        const box = root.querySelector('.pc-goal');
+        box.textContent = '';
+        const target = num(p.dailyGoal);
+        const done = num(p.dailyGoalProgress);
+        const big = el('div', 'pc-big', fmt(done));
+        big.append(el('small', null, ` / ${fmt(target)} sentences today`));
+        const meter = el('div', 'pc-meter');
+        meter.setAttribute('role', 'meter');
+        meter.setAttribute('aria-valuemin', '0');
+        meter.setAttribute('aria-valuemax', String(target));
+        meter.setAttribute('aria-valuenow', String(done));
+        meter.setAttribute('aria-label', 'Daily goal progress');
+        const fill = el('div');
+        fill.style.width = `${target > 0 ? Math.min(100, (done / target) * 100) : 0}%`;
+        meter.append(fill);
+        const reached = target > 0 && done >= target;
+        const state = el('div', reached ? 'pc-state done' : 'pc-state',
+          target <= 0 ? 'No daily goal set' : reached ? '✓ Goal reached' : `${fmt(target - done)} to go · ${Math.round((done / target) * 100)}%`);
+        box.append(big, meter, state);
+      }
+
+      function week(root, p) {
+        const box = root.querySelector('.pc-week');
+        box.textContent = '';
+        const values = p.weeklyActivity;
+        const max = niceMax(Math.max(...values));
+        const yaxis = el('div', 'pc-yaxis');
+        const plot = el('div', 'pc-plot');
+        for (const tick of [0, max / 2, max]) {
+          const pos = (tick / max) * 100;
+          const label = el('span', null, Number.isInteger(tick) ? tick.toLocaleString() : tick.toFixed(1));
+          label.style.bottom = `${pos}%`;
+          yaxis.append(label);
+          if (tick > 0) {
+            const g = el('div', 'pc-gridline');
+            g.style.bottom = `${pos}%`;
+            plot.append(g);
+          }
+        }
+        const peak = values.indexOf(Math.max(...values));
+        values.forEach((v, i) => {
+          const col = el('div', 'pc-col');
+          col.tabIndex = 0;
+          col.setAttribute('aria-label', `${DAYS[i]}: ${fmt(v)}`);
+          const bar = el('div', 'pc-bar');
+          bar.style.height = `${(v / max) * 100}%`;
+          col.append(bar);
+          // Label only the busiest day on the chart; the rest via tooltip/table.
+          if (v > 0 && i === peak) {
+            const cap = el('span', 'pc-cap', fmt(v));
+            cap.style.bottom = `calc(${(v / max) * 100}% + 4px)`; // just above the bar's top
+            col.append(cap);
+          }
+          tooltip(root, col, fmt(v), DAYS[i] + (i === todayIndex() ? ' (today)' : ''));
+          plot.append(col);
+        });
+        const x = el('div', 'pc-xaxis');
+        DAYS.forEach((d, i) => x.append(el('span', i === todayIndex() ? 'today' : '', d)));
+        box.append(yaxis, plot, el('div'), x);
+      }
+
+      function accuracy(root, p) {
+        const box = root.querySelector('.pc-acc');
+        box.textContent = '';
+        const grid = el('div', 'pc-accgrid');
+        for (const t of [0, 25, 50, 75, 100]) {
+          const v = el('div', 'pc-v');
+          v.style.left = `${t}%`;
+          v.append(el('span', null, `${t}%`));
+          grid.append(v);
+        }
+        const avg = Math.max(0, Math.min(100, num(p.averageAccuracy)));
+        const avgLine = el('div', 'pc-avg');
+        avgLine.style.left = `${avg}%`;
+        avgLine.append(el('span', null, `avg ${fmt(avg)}%`));
+        grid.append(avgLine);
+        const rows = el('div', 'pc-accrows');
+        for (const [key, name] of TYPES) {
+          const value = Math.max(0, Math.min(100, num(p[key])));
+          const row = el('div', 'pc-accrow');
+          row.tabIndex = 0;
+          row.setAttribute('aria-label', `${name}: ${fmt(value)}%`);
+          const plot = el('div', 'pc-accplot');
+          const bar = el('div', 'pc-hbar');
+          bar.style.width = `${value}%`;
+          // Near 100% there's no room after the bar end: put the value inside
+          // it (white on the blue fill, ≥4.5:1) instead of letting it overflow.
+          const tip = el('span', value >= 85 ? 'pc-tip inside' : 'pc-tip', `${fmt(value)}%`);
+          tip.style.left = `${value}%`;
+          plot.append(bar, tip);
+          row.append(el('span', 'pc-name', name), plot);
+          tooltip(root, row, `${fmt(value)}%`, `${name} accuracy`);
+          rows.append(row);
+        }
+        box.append(grid, rows);
+      }
+
+      function badges(root, p) {
+        const box = root.querySelector('.pc-badges');
+        box.textContent = '';
+        if (!p.badges.length) box.append(el('span', 'pc-none', 'No badges yet'));
+        for (const b of p.badges) box.append(el('span', null, b));
+      }
+
+      function table(root, p) {
+        const t = root.querySelector('.pc-table');
+        t.textContent = '';
+        const rows = [
+          ['Level', fmt(p.level || 1)], ['XP', fmt(p.xp)], ['Study streak (days)', fmt(p.streakDays)],
+          ['Longest streak (days)', fmt(p.longestStreak)], ['Study time (hours)', (num(p.totalStudyTime) / 3600).toFixed(1)],
+          ['Sentences practiced', fmt(p.totalSentences)], ['Average accuracy (%)', fmt(p.averageAccuracy)],
+          ...TYPES.map(([k, n]) => [`${n} accuracy (%)`, fmt(p[k])]),
+          ['Daily goal (sentences)', fmt(p.dailyGoal)], ['Today toward goal', fmt(p.dailyGoalProgress)],
+          ...DAYS.map((d, i) => [`Activity ${d}`, fmt(p.weeklyActivity[i])]),
+          ['Saved items', fmt(p.savedItemsCount)], ['Folders', fmt(p.foldersCount)],
+          ['Badges', p.badges.join(', ') || '—'], ['Target language', p.targetLanguage || '—'],
+          ['Last studied', p.lastStudyDate ? new Date(p.lastStudyDate).toLocaleString() : 'never'],
+        ];
+        for (const [k, v] of rows) {
+          const tr = el('tr');
+          tr.append(el('td', null, k), el('td', null, v));
+          t.append(tr);
+        }
+      }
+
+      function render(root, progress) {
+        const p = normalize(progress || {});
+        tiles(root, p);
+        goal(root, p);
+        week(root, p);
+        accuracy(root, p);
+        badges(root, p);
+        table(root, p);
+      }
+
+      // Reads the shared progress form (views/mixins/progressForm.pug) into a
+      // progress-shaped object, so the admin page can preview edits live.
+      function fromForm(form) {
+        const p = {};
+        for (const input of form.querySelectorAll('input[type=number][name]:not([name$="[]"])')) {
+          if (input.value !== '') p[input.name] = Number(input.value);
+        }
+        p.weeklyActivity = [...form.querySelectorAll('input[name="weeklyActivity[]"]')].map((i) => Number(i.value) || 0);
+        const badgesInput = form.querySelector('input[name=badges]');
+        if (badgesInput) p.badges = badgesInput.value.split(',').map((b) => b.trim()).filter(Boolean);
+        const lang = form.querySelector('input[name=targetLanguage]');
+        if (lang) p.targetLanguage = lang.value.trim();
+        const last = form.querySelector('input[name=lastStudyDate]');
+        if (last) p.lastStudyDate = last.value || null;
+        return p;
+      }
+
+      function init(root) {
+        const data = JSON.parse(root.querySelector('.pc-data').textContent || '{}');
+        render(root, data);
+        const formSelector = root.dataset.liveForm;
+        const form = formSelector && formSelector !== 'false' ? document.querySelector(formSelector) : null;
+        if (form) form.addEventListener('input', () => render(root, { ...data, ...fromForm(form) }));
+      }
+
+      // The admin edit form comes after the charts in the page, so wait for
+      // the whole document before looking it up.
+      const start = () => document.querySelectorAll('.pc-root').forEach(init);
+      if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start);
+      else start();
+      return { render, fromForm };
+    })();

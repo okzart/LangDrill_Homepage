@@ -15,7 +15,7 @@ html(lang="en")
         a.btn(href="/profile") Open
       section
         h2 Progress
-        p View and update your XP, streaks, and learning stats.
+        p Your XP, streak, weekly activity and accuracy at a glance.
         a.btn(href="/progress") Open
       section
         h2 Community
@@ -29,6 +29,10 @@ html(lang="en")
         h2 Passages
         p Turn your expressions into a short story, then listen and read along.
         a.btn(href="/passages") Open
+      section
+        h2 Studio
+        p Upload audio or video (or record yourself), then crop sentences into listening drills.
+        a.btn(href="/studio") Open
       if currentUser.role === 'admin'
         section
           h2 Admin

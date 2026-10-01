@@ -1,0 +1,362 @@
+//- Admin test bench for tts-service-listening (Dia2) via the gateway's
+//- /api/listening routes (see routes/listeningRoutes.js). `voices` is the
+//- service's reference-voice list, or null with `serviceError` if it can't be
+//- reached. Generated audio lives only in this page (blob URLs) until the
+//- admin downloads it; the history list is in memory for this visit only.
+doctype html
+html(lang="en")
+  head
+    meta(charset="UTF-8")
+    meta(name="viewport" content="width=device-width, initial-scale=1")
+    title LanguageDrill — Admin: Listening audio
+    include ../_style
+    style.
+      .hint { font-size: 0.8rem; color: #666; margin: 0.25rem 0 0; }
+      .hidden { display: none; }
+      #script { min-height: 12rem; font-family: ui-monospace, monospace; font-size: 0.9rem; line-height: 1.5; }
+      .toolbar { display: flex; gap: 0.35rem; flex-wrap: wrap; align-items: center; margin-top: 0.4rem; }
+      .toolbar button, .toolbar select { margin: 0; padding: 0.25rem 0.55rem; font-size: 0.8rem; width: auto; }
+      .toolbar .spacer { flex: 1; }
+      #count { font-size: 0.8rem; color: #666; }
+      #count.over { color: #b00020; font-weight: 600; }
+      .grid4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0 0.75rem; }
+      @media (max-width: 640px) { .grid4 { grid-template-columns: 1fr 1fr; } }
+      #status { font-size: 0.9rem; color: #666; margin-left: 0.5rem; }
+      .player { display: flex; gap: 0.75rem; align-items: center; flex-wrap: wrap; }
+      .player audio { flex: 1; min-width: 260px; }
+      .player .actions { display: flex; gap: 0.4rem; flex-wrap: wrap; }
+      .player .actions a, .player .actions button { margin: 0; padding: 0.35rem 0.7rem; font-size: 0.85rem; }
+      .meta { font-size: 0.85rem; color: #555; margin: 0.6rem 0 0; }
+      .warn { background: #fff4d6; border: 1px solid #e0b000; color: #6b5200; padding: 0.5rem 0.7rem; border-radius: 6px; margin-top: 0.6rem; font-size: 0.9rem; }
+      #transcript { margin-top: 1rem; line-height: 1.9; font-size: 1.05rem; }
+      #transcript .turn { margin: 0 0 0.4rem; }
+      #transcript .who { display: inline-block; min-width: 2.2rem; font-size: 0.75rem; font-weight: 700; border-radius: 4px; padding: 0 0.3rem; margin-right: 0.35rem; text-align: center; color: #fff; }
+      #transcript .s1 .who { background: #1f6feb; }
+      #transcript .s2 .who { background: #b54708; }
+      #transcript .w { cursor: pointer; border-radius: 3px; padding: 0 1px; }
+      #transcript .w:hover { background: #f1f1f1; }
+      #transcript .w.current { background: #ffe58a; }
+      #history { list-style: none; padding: 0; margin: 0; }
+      #history li { display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; padding: 0.35rem 0; border-bottom: 1px solid #f0f0f0; font-size: 0.85rem; }
+      #history li.active { font-weight: 600; }
+      #history li button, #history li a { margin: 0; padding: 0.15rem 0.5rem; font-size: 0.8rem; }
+  body
+    include ../_nav
+    h1 Listening audio (Dia2)
+    p.hint
+      | Test bench for
+      code  tts-service-listening
+      |  through the gateway (
+      code /api/listening
+      | ). Dia2 speaks English dialogue from a script with
+      code  [S1]
+      |  /
+      code  [S2]
+      |  speaker tags; max ~2 minutes per generation. Without reference voices it invents new voices every time.
+
+    if serviceError
+      .error= serviceError
+
+    section
+      form#form
+        label(for="script") Script
+        textarea#script(spellcheck="false")
+          | [S1] Hi! Can I get a medium latte, please?
+          | [S2] Sure. Would you like it hot or iced?
+          | [S1] Hot, please. Oh, and could I have oat milk instead of regular milk?
+          | [S2] No problem. That'll be five fifty. <break time="0.5s"/> Is that for here or to go?
+          | [S1] To go, thanks. I'm running a little late. (laughs)
+          | [S2] Got it. It'll be ready in just a minute.
+        .toolbar
+          button(type="button" data-insert="\n[S1] ") + [S1]
+          button(type="button" data-insert="\n[S2] ") + [S2]
+          button(type="button" data-insert=' <break time="1s"/> ') + pause 1s
+          button(type="button" data-insert=" (laughs) ") + (laughs)
+          select#example(aria-label="Load an example")
+            option(value="") Load example…
+            option(value="cafe") Ordering coffee
+            option(value="directions") Asking for directions
+            option(value="interview") Job interview
+          span.spacer
+          span#count
+
+        .grid4
+          div
+            label(for="voice-s1") Voice S1
+            select#voice-s1
+              option(value="") Random
+              if voices
+                each v in voices
+                  option(value=v.id)= v.id + (v.duration ? ` (${v.duration}s)` : '')
+          div
+            label(for="voice-s2") Voice S2
+            select#voice-s2(disabled)
+              option(value="") Random
+              if voices
+                each v in voices
+                  option(value=v.id)= v.id + (v.duration ? ` (${v.duration}s)` : '')
+          div
+            label(for="format") Format
+            select#format
+              option(value="mp3" selected) mp3
+              option(value="wav") wav
+              option(value="opus") opus
+              option(value="flac") flac
+          div
+            label(for="seed") Seed
+            input#seed(type="number" min="0" max="2147483647" placeholder="random")
+        details
+          summary Advanced
+          .grid4
+            div
+              label(for="cfg") CFG scale
+              input#cfg(type="number" step="0.1" min="0.1" max="10" value="2.0")
+            div
+              label(for="temperature") Temperature
+              input#temperature(type="number" step="0.05" min="0.05" max="2" value="0.8")
+          p.hint Higher CFG follows the script more strictly; lower temperature is steadier but flatter. S2's voice can only be fixed when S1's is (Dia2 conditions speaker 2 after speaker 1).
+        .row
+          button#btn-generate(type="submit") Generate
+          span#status
+
+    #error.error.hidden
+
+    section#result.hidden
+      .player
+        audio#audio(controls preload="auto")
+        .actions
+          a#dl-audio(href="#" download) ⬇ Audio
+          a#dl-json(href="#" download) ⬇ Timestamps JSON
+          button#btn-reuse-seed(type="button" title="Put this seed in the form to regenerate the same take") Reuse seed
+      p.meta#meta
+      #truncated.warn.hidden ⚠ The audio reached Dia2's 2-minute limit, so the end of the script is cut off. Split the script into shorter parts.
+      #transcript
+
+    section#history-box.hidden
+      h2 This visit's takes
+      p.hint Kept in this page only — download the ones you want to keep.
+      ul#history
+
+    script.
+      const $ = (id) => document.getElementById(id);
+      const scriptEl = $('script');
+      const audio = $('audio');
+      const MAX = 5000;
+      const EXAMPLES = {
+        cafe: scriptEl.value,
+        directions: '[S1] Excuse me, could you tell me how to get to the train station?\n[S2] Sure! Go straight down this street for about two blocks.\n[S1] Two blocks, okay.\n[S2] Then turn left at the bank. The station is right across from the park.\n[S1] Is it far to walk?\n[S2] Not really. It takes about ten minutes. <break time="0.5s"/> You can\'t miss it.\n[S1] Great, thank you so much!',
+        interview: '[S1] Thanks for coming in today. Could you tell me a little about yourself?\n[S2] Of course. I\'ve worked in marketing for about five years, mostly on social media campaigns.\n[S1] What would you say is your biggest strength?\n[S2] I think I\'m good at getting a project off the ground quickly, even with a small team.\n[S1] That\'s great. And why are you interested in this position?\n[S2] Honestly, I\'ve been looking forward to working on bigger brands, and your company is a perfect fit.',
+      };
+
+      // ------------------------------------------------------------ editor
+      function updateCount() {
+        const n = scriptEl.value.length;
+        $('count').textContent = `${n} / ${MAX}`;
+        $('count').classList.toggle('over', n > MAX);
+      }
+      scriptEl.addEventListener('input', updateCount);
+      updateCount();
+
+      document.querySelectorAll('[data-insert]').forEach((button) => {
+        button.addEventListener('click', () => {
+          let text = button.dataset.insert;
+          const start = scriptEl.selectionStart ?? scriptEl.value.length;
+          const end = scriptEl.selectionEnd ?? start;
+          if (text.startsWith('\n') && (start === 0 || scriptEl.value[start - 1] === '\n')) text = text.slice(1);
+          scriptEl.setRangeText(text, start, end, 'end');
+          scriptEl.focus();
+          updateCount();
+        });
+      });
+      $('example').addEventListener('change', (e) => {
+        if (e.target.value) scriptEl.value = EXAMPLES[e.target.value];
+        e.target.value = '';
+        updateCount();
+      });
+
+      // S2's voice needs S1's (Dia2 conditions speaker 2 after speaker 1).
+      function syncVoices() {
+        const hasS1 = $('voice-s1').value !== '';
+        $('voice-s2').disabled = !hasS1;
+        if (!hasS1) $('voice-s2').value = '';
+      }
+      $('voice-s1').addEventListener('change', syncVoices);
+      syncVoices();
+
+      // ------------------------------------------------------------ generate
+      let busy = false;
+      $('form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        if (busy) return;
+        const script = scriptEl.value.trim();
+        if (!script) return showError('Write a script first.');
+        if (script.length > MAX) return showError(`The script is longer than ${MAX} characters.`);
+        const voices = {};
+        if ($('voice-s1').value) voices.s1 = $('voice-s1').value;
+        if ($('voice-s2').value) voices.s2 = $('voice-s2').value;
+        const body = { script, format: $('format').value };
+        if (Object.keys(voices).length) body.voices = voices;
+        if ($('seed').value !== '') body.seed = Number($('seed').value);
+        body.cfg_scale = Number($('cfg').value);
+        body.temperature = Number($('temperature').value);
+
+        busy = true;
+        showError('');
+        $('btn-generate').disabled = true;
+        const started = Date.now();
+        const timer = setInterval(() => {
+          const s = Math.floor((Date.now() - started) / 1000);
+          $('status').textContent = `Generating… ${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')} (a 2-minute dialogue can take a few minutes; the model may first need to reload)`;
+        }, 500);
+        try {
+          const res = await fetch('/admin/listening/generate', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body),
+          });
+          if (res.status === 401) { window.location.href = '/login?next=/admin/listening'; return; }
+          const result = await res.json().catch(() => ({}));
+          if (!res.ok) throw new Error(result.error || `HTTP ${res.status}`);
+          addTake(result);
+        } catch (error) {
+          showError(error.message);
+        } finally {
+          clearInterval(timer);
+          $('status').textContent = '';
+          $('btn-generate').disabled = false;
+          busy = false;
+        }
+      });
+
+      function showError(message) {
+        $('error').textContent = message;
+        $('error').classList.toggle('hidden', !message);
+      }
+
+      // ------------------------------------------------------------ takes
+      const takes = [];
+      let current = null;
+
+      function addTake(result) {
+        const bytes = Uint8Array.from(atob(result.audio.base64), (c) => c.charCodeAt(0));
+        const stamp = new Date().toISOString().replace(/[-:]/g, '').slice(0, 15);
+        const base = `listening-${stamp}-seed${result.seed}`;
+        const { audio: _audio, ...meta } = result;
+        const take = {
+          result,
+          base,
+          audioUrl: URL.createObjectURL(new Blob([bytes], { type: result.audio.mimeType })),
+          jsonUrl: URL.createObjectURL(new Blob([JSON.stringify({ ...meta, audioFile: `${base}.${result.format}` }, null, 1)], { type: 'application/json' })),
+          time: new Date().toLocaleTimeString(),
+        };
+        takes.unshift(take);
+        showTake(take);
+        renderHistory();
+      }
+
+      function showTake(take) {
+        current = take;
+        const r = take.result;
+        audio.src = take.audioUrl;
+        $('dl-audio').href = take.audioUrl;
+        $('dl-audio').download = `${take.base}.${r.format}`;
+        $('dl-json').href = take.jsonUrl;
+        $('dl-json').download = `${take.base}.json`;
+        const voiceText = (id) => id || 'random';
+        $('meta').textContent = `${r.duration.toFixed(1)} s audio · generated in ${r.generationSeconds} s · seed ${r.seed} · voices S1 ${voiceText(r.voices.s1)}, S2 ${voiceText(r.voices.s2)} · ${r.format}, ${r.sampleRate} Hz · ${r.words.length} words`;
+        $('truncated').classList.toggle('hidden', !r.truncated);
+        renderTranscript(r.words);
+        $('result').classList.remove('hidden');
+        renderHistory();
+      }
+
+      $('btn-reuse-seed').addEventListener('click', () => {
+        if (current) $('seed').value = current.result.seed;
+      });
+
+      function renderHistory() {
+        const list = $('history');
+        list.textContent = '';
+        takes.forEach((take) => {
+          const r = take.result;
+          const li = document.createElement('li');
+          li.classList.toggle('active', take === current);
+          const label = document.createElement('span');
+          label.textContent = `${take.time} · ${r.duration.toFixed(1)} s · seed ${r.seed} · S1 ${r.voices.s1 || 'random'} / S2 ${r.voices.s2 || 'random'}`;
+          const show = document.createElement('button');
+          show.type = 'button';
+          show.textContent = 'Show';
+          show.addEventListener('click', () => showTake(take));
+          const dl = document.createElement('a');
+          dl.href = take.audioUrl;
+          dl.download = `${take.base}.${r.format}`;
+          dl.textContent = '⬇';
+          li.append(label, show, dl);
+          list.append(li);
+        });
+        $('history-box').classList.toggle('hidden', takes.length < 2);
+      }
+
+      // ------------------------------------------------------------ read-along
+      let words = [];
+      let wordEls = [];
+      let active = -1;
+
+      function renderTranscript(list) {
+        words = list;
+        wordEls = [];
+        active = -1;
+        const box = $('transcript');
+        box.textContent = '';
+        let turn = null;
+        let speaker = null;
+        list.forEach((word, i) => {
+          const who = word.speaker || 1;
+          if (!turn || who !== speaker) {
+            speaker = who;
+            turn = document.createElement('p');
+            turn.className = `turn s${who}`;
+            const badge = document.createElement('span');
+            badge.className = 'who';
+            badge.textContent = word.speaker ? `S${who}` : '';
+            turn.append(badge);
+            box.append(turn);
+          }
+          const span = document.createElement('span');
+          span.className = 'w';
+          span.textContent = word.word;
+          span.dataset.i = i;
+          turn.append(span, ' ');
+          wordEls.push(span);
+        });
+      }
+
+      function wordAt(t) {
+        let lo = 0, hi = words.length - 1, found = -1;
+        while (lo <= hi) {
+          const mid = (lo + hi) >> 1;
+          if (words[mid].start <= t) { found = mid; lo = mid + 1; } else { hi = mid - 1; }
+        }
+        return found;
+      }
+      function highlight(i) {
+        if (i === active) return;
+        if (active !== -1) wordEls[active]?.classList.remove('current');
+        if (i !== -1) wordEls[i]?.classList.add('current');
+        active = i;
+      }
+      let frame = null;
+      function tick() {
+        highlight(wordAt(audio.currentTime));
+        frame = audio.paused ? null : requestAnimationFrame(tick);
+      }
+      audio.addEventListener('play', () => { if (!frame) frame = requestAnimationFrame(tick); });
+      audio.addEventListener('seeked', () => highlight(wordAt(audio.currentTime)));
+      audio.addEventListener('ended', () => highlight(-1));
+      $('transcript').addEventListener('click', (e) => {
+        const i = e.target.closest('.w')?.dataset.i;
+        if (i === undefined) return;
+        audio.currentTime = words[Number(i)].start;
+        highlight(Number(i));
+        audio.play();
+      });

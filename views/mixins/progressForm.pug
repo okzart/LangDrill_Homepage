@@ -1,5 +1,5 @@
-//- Shared by views/progress.pug (self-service) and
-//- views/admin/userProgress.pug (admin editing another user's record) -
+//- Used by views/admin/userProgress.pug (admin editing a user's record;
+//- /progress itself is a read-only dashboard) -
 //- same field set as ProgressStats' own admin.pug NUMERIC_FIELD_CONFIG,
 //- kept in sync server-side by src/services/progressForm.js. `progress`
 //- is the current record (from GET .../me or .../admin/users/:id);
@@ -10,7 +10,7 @@ mixin numberField(key, label, min, max, step)
     input(id=key type="number" name=key min=min max=max step=(step || '1') value=progress[key])
 
 mixin progressForm(progress, actionUrl)
-  form(method="POST" action=actionUrl)
+  form#progress-form(method="POST" action=actionUrl)
     h2 Gamification & stats
     .grid
       +numberField('xp', 'XP', 0)

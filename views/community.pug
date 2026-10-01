@@ -452,6 +452,10 @@ html(lang="en")
           }
           var items = getItems();
           if (editingIndex !== null) {
+            // Keep an uploaded clip (e.g. a Studio listening item) - the
+            // builder has no field for it, so it would otherwise be dropped.
+            var previous = items[editingIndex];
+            if (previous && previous.audioUrl && typeSelect.value !== 'vocab') result.item.audioUrl = previous.audioUrl;
             items[editingIndex] = result.item;
           } else {
             items.push(result.item);

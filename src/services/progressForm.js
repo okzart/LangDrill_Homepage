@@ -1,12 +1,9 @@
-// Shared between the self-service /progress page and the admin
-// /admin/users/:id/progress page (routes/progressRoutes.js and
-// routes/adminRoutes.js) - both submit the exact same field set to their
-// respective PATCH endpoint (/api/progress/me vs
-// /api/progress/admin/users/:id), which accept an identical body shape
-// (see LanguageDrill_ProgressStats/src/services/progressValidation.js).
-// One parser here means both routes and the shared form mixin
-// (views/mixins/progressForm.pug) stay in sync automatically instead of
-// three copies of the same field list drifting apart.
+// Used by the admin progress editor (/admin/users/:id/progress,
+// routes/adminRoutes.js), which submits the shared form mixin
+// (views/mixins/progressForm.pug) to PATCH /api/progress/admin/users/:id
+// (see LanguageDrill_ProgressStats/src/services/progressValidation.js for
+// the accepted body). /progress itself is a read-only dashboard now; one
+// field list here keeps the form and the parser in sync.
 const NUMERIC_FIELDS = [
   'xp', 'level', 'streakDays', 'totalSentences', 'totalStudyTime', 'averageAccuracy',
   'savedItemsCount', 'foldersCount', 'vocabAccuracy', 'listeningAccuracy',

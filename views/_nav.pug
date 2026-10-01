@@ -9,9 +9,11 @@ nav
     a(href="/community") Community
     a(href="/chat") Chat
     a(href="/passages") Passages
+    a(href="/studio") Studio
     if currentUser.role === 'admin'
       a(href="/admin/users") Admin
       a(href="/admin/audio") Audio
+      a(href="/admin/listening") Listening
   .spacer
   if currentUser
     span.user #{currentUser.email}

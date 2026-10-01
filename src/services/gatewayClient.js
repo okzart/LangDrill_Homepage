@@ -1,3 +1,4 @@
+const { fetch: undiciFetch, Agent } = require('undici');
 const { GatewayError } = require('../errors');
 
 // The one place this app talks HTTP to the outside world. Every feature
@@ -81,6 +82,29 @@ class GatewayClient {
     };
   }
 
+  // POSTs a JSON body to a slow endpoint and returns the parsed JSON. Node's
+  // built-in fetch gives up if no response headers arrive within 5 minutes;
+  // a long Dia2 generation (/api/listening/generate) can take longer, so this
+  // uses undici's fetch with its own timeouts (routes/listeningRoutes.js).
+  async postLong(path, body, token, timeoutMs = 15 * 60 * 1000) {
+    const headers = { 'Content-Type': 'application/json' };
+    if (token) headers.Authorization = `Bearer ${token}`;
+    const dispatcher = new Agent({ headersTimeout: timeoutMs, bodyTimeout: timeoutMs });
+    try {
+      const res = await undiciFetch(`${this.baseUrl}${path}`, { method: 'POST', headers, body: JSON.stringify(body), dispatcher });
+      let parsed = null;
+      try {
+        parsed = await res.json();
+      } catch {
+        parsed = null;
+      }
+      if (!res.ok) throw new GatewayError(res.status, parsed?.error || parsed?.message || res.statusText);
+      return parsed;
+    } finally {
+      dispatcher.close().catch(() => {});
+    }
+  }
+
   // POSTs multipart/form-data (e.g. an audio file for /api/stt) and returns
   // the parsed JSON, throwing GatewayError on a non-2xx status like
   // #request. `form` is a FormData; fetch sets the multipart boundary.
@@ -96,6 +120,52 @@ class GatewayClient {
     if (!res.ok) {
       throw new GatewayError(res.status, parsed?.error || parsed?.message || res.statusText);
     }
+    return parsed;
+  }
+
+  // Relays a raw request stream (e.g. the browser's multipart upload to
+  // /studio/transcribe) to a slow gateway endpoint without buffering it, and
+  // returns the parsed JSON. `contentType` must be the incoming header as-is
+  // so the multipart boundary survives. Long timeouts as in #postLong.
+  async postStream(path, stream, contentType, token, timeoutMs = 15 * 60 * 1000) {
+    const headers = { 'Content-Type': contentType };
+    if (token) headers.Authorization = `Bearer ${token}`;
+    const dispatcher = new Agent({ headersTimeout: timeoutMs, bodyTimeout: timeoutMs });
+    try {
+      const res = await undiciFetch(`${this.baseUrl}${path}`, { method: 'POST', headers, body: stream, duplex: 'half', dispatcher });
+      return await GatewayClient.parseJson(res);
+    } finally {
+      dispatcher.close().catch(() => {});
+    }
+  }
+
+  // POSTs raw bytes (e.g. an mp3 clip to /api/sets/clips) and returns the
+  // parsed JSON.
+  async postRaw(path, buffer, contentType, token) {
+    const headers = { 'Content-Type': contentType };
+    if (token) headers.Authorization = `Bearer ${token}`;
+    return GatewayClient.parseJson(await fetch(`${this.baseUrl}${path}`, { method: 'POST', headers, body: buffer }));
+  }
+
+  // POSTs multipart/form-data and returns the response body as a Buffer
+  // plus its headers (e.g. a cropped clip from /api/split/cut).
+  async postMultipartBinary(path, form, token) {
+    const headers = token ? { Authorization: `Bearer ${token}` } : {};
+    const res = await fetch(`${this.baseUrl}${path}`, { method: 'POST', headers, body: form });
+    if (!res.ok) await GatewayClient.parseJson(res);
+    return { buffer: Buffer.from(await res.arrayBuffer()), headers: res.headers };
+  }
+
+  // Parses a JSON response, throwing GatewayError on a non-2xx status.
+  // Fastify services put the reason in `error` or `message`.
+  static async parseJson(res) {
+    let parsed = null;
+    try {
+      parsed = await res.json();
+    } catch {
+      parsed = null;
+    }
+    if (!res.ok) throw new GatewayError(res.status, parsed?.error || parsed?.message || res.statusText);
     return parsed;
   }
 

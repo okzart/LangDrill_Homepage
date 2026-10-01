@@ -1,18 +1,30 @@
+//- The caller's own progress as a dashboard (views/mixins/progressCharts.pug).
+//- Read-only: progress is recorded by the app as you practice. Admins get an
+//- Edit button that opens the admin editor for their own record.
 doctype html
 html(lang="en")
   head
     meta(charset="UTF-8")
+    meta(name="viewport" content="width=device-width, initial-scale=1")
     title LanguageDrill — Progress
     include _style
+    style.
+      .page-head { display: flex; align-items: center; gap: 1rem; flex-wrap: wrap; }
+      .page-head h1 { margin-right: auto; }
+      .page-head .btn { margin: 0; }
+      .muted { color: #898781; font-size: 0.85rem; }
   body
     include _nav
-    include mixins/progressForm
-    h1 Your progress
+    include mixins/progressCharts
+    .page-head
+      h1 Your progress
+      if isAdmin
+        a.btn(href=`/admin/users/${encodeURIComponent(userId)}/progress`) Edit
+    p.muted
+      | Updated as you practice in the app.
+      if progress.lastStudyDate
+        |  Last studied #{new Date(progress.lastStudyDate).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })}.
+      if progress.targetLanguage
+        |  Learning: #{progress.targetLanguage}.
 
-    if error
-      .error= error
-    if saved
-      .success Saved.
-
-    section
-      +progressForm(progress, '/progress')
+    +progressCharts(progress)
