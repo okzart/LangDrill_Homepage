@@ -1,61 +1,60 @@
-//- Shared nav bar. `currentUser` and `currentPath` come from res.locals (see
-//- src/middleware/currentUser.js), so every page that includes this gets
-//- them automatically without passing them explicitly. Styled in _style.pug
-//- (floating glass bar; the links become a swipeable strip on phones).
+//- Shared top bar, social-network style (styles in _style.pug): logo +
+//- search on the left, icon tabs in the middle (the current page gets an
+//- underline; on phones they become a bottom tab bar), round buttons on the
+//- right. `currentUser`, `currentPath`, `lang`, `langReturn` and `t` come
+//- from res.locals (src/middleware/currentUser.js, src/i18n/index.js).
 include mixins/icons
 - var here = currentPath || ''
 - var isActive = function (prefix) { return here === prefix || here.indexOf(prefix + '/') === 0; }
 //- EN / 한국어 switch: shows the language you'd switch TO.
 mixin langSwitch
   - var other = lang === 'ko' ? 'en' : 'ko'
-  a.lang-switch(href=`/lang/${other}?next=${encodeURIComponent(langReturn || '/dashboard')}` hreflang=other lang=other title=(other === 'ko' ? '한국어로 보기' : 'View in English'))= other === 'ko' ? '한국어' : 'EN'
+  a.lang-switch(href=`/lang/${other}?next=${encodeURIComponent(langReturn || '/dashboard')}` hreflang=other lang=other title=(other === 'ko' ? '한국어로 보기' : 'View in English'))= other === 'ko' ? '한' : 'EN'
+mixin tab(href, icon, label, active)
+  a.tab(href=href class=active ? 'active' : '' title=label aria-label=label aria-current=(active ? 'page' : false))
+    +icon(icon, 24)
+    span.tab-label= label
 nav.site(aria-label=t('Main'))
-  a.brand(href="/dashboard")
-    +brandMark(28)
-    span Language#[em Drill]
+  .nav-left
+    a.brand(href="/dashboard" aria-label="LanguageDrill")
+      +brandMark(34)
+      span.wordmark Language#[em Drill]
+    if currentUser
+      form.nav-search(method="GET" action="/community" role="search")
+        input(type="hidden" name="tab" value="list")
+        input(type="search" name="q" placeholder=t('Search sets') aria-label=t('Search sets'))
+        +icon('search', 17)
   if currentUser
     .links
-      a(href="/dashboard" class=isActive('/dashboard') || here === '/' ? 'active' : '' aria-current=(isActive('/dashboard') ? 'page' : false) title=t('Home') aria-label=t('Home'))
-        +icon('home', 17)
-        span.label-long= t('Home')
-      a(href="/progress" class=isActive('/progress') ? 'active' : '')
-        +icon('chart', 17)
-        span= t('Progress')
-      a(href="/community" class=isActive('/community') ? 'active' : '')
-        +icon('users', 17)
-        span= t('Community')
-      a(href="/chat" class=isActive('/chat') ? 'active' : '')
-        +icon('chat', 17)
-        span= t('Chat')
-      a(href="/passages" class=isActive('/passages') ? 'active' : '')
-        +icon('book', 17)
-        span= t('Passages')
-      a(href="/studio" class=isActive('/studio') ? 'active' : '')
-        +icon('studio', 17)
-        span= t('Studio')
+      +tab('/dashboard', 'home', t('Home'), isActive('/dashboard') || here === '/')
+      +tab('/community', 'users', t('Community'), isActive('/community'))
+      +tab('/studio', 'studio', t('Studio'), isActive('/studio'))
+      +tab('/chat', 'chat', t('Chat'), isActive('/chat'))
+      +tab('/passages', 'book', t('Passages'), isActive('/passages'))
+      +tab('/progress', 'chart', t('Progress'), isActive('/progress'))
     .me
+      +langSwitch
       if currentUser.role === 'admin'
         details.admin-menu
-          summary(class=isActive('/admin') ? 'active' : '')
-            +icon('shield', 17)
+          summary(class=isActive('/admin') ? 'active' : '' title=t('Admin'))
+            +icon('shield', 18)
             span= t('Admin')
           .menu
             a(href="/admin/users" class=isActive('/admin/users') ? 'active' : '')
-              +icon('users', 17)
+              +icon('users', 18)
               = t('Users & progress')
             a(href="/admin/audio" class=isActive('/admin/audio') ? 'active' : '')
-              +icon('volume', 17)
+              +icon('volume', 18)
               = t('Vocab audio')
             a(href="/admin/listening" class=isActive('/admin/listening') ? 'active' : '')
-              +icon('headphones', 17)
+              +icon('headphones', 18)
               = t('Listening (Dia2)')
-      +langSwitch
       a.avatar(href="/profile" title=t('Profile - {email}', { email: currentUser.email }) aria-label=t('Profile - {email}', { email: currentUser.email }))= (currentUser.email || '?').charAt(0)
       form.inline(method="POST" action="/logout")
         button.link(type="submit" title=t('Log out') aria-label=t('Log out'))
-          +icon('logout', 17)
+          +icon('logout', 18)
   else
-    .spacer
+    span
     .me
       +langSwitch
       a.logout(href="/login")= t('Log in')

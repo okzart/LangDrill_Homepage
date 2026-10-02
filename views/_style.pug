@@ -10,9 +10,12 @@ link(rel="preconnect" href="https://fonts.googleapis.com")
 link(rel="preconnect" href="https://fonts.gstatic.com" crossorigin)
 link(rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,500;0,9..144,650;1,9..144,500&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap")
 meta(name="theme-color" content="#1b1838")
+//- Hangul: Fraunces / Jakarta have none. Korean content (author names, meanings)
+//- appears in English mode too, so Noto Sans KR always loads; Google serves it
+//- in unicode-range slices, so only the characters a page uses are downloaded.
+link(rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;600;700&display=swap")
 if lang === 'ko'
-  //- Hangul: Fraunces / Jakarta have none, so Korean glyphs come from Noto Serif KR / Noto Sans KR.
-  link(rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;600;700&family=Noto+Serif+KR:wght@500;700&display=swap")
+  link(rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Serif+KR:wght@500;700&display=swap")
 include _i18n
 style.
   :root {
@@ -21,11 +24,13 @@ style.
     --text: #2a2740;
     --muted: #6c6884;
     --faint: #9a96ad;
-    --canvas: #f8f5ef;       /* page background */
+    --canvas: #f2f2f6;       /* page background */
+    --chip: #eef0f4;         /* round buttons, search field */
+    --chip-hover: #e3e6ec;
     --surface: #ffffff;
-    --surface-2: #fbf9f5;
-    --line: #e9e3d8;
-    --line-strong: #d9d1c3;
+    --surface-2: #f8f8fb;
+    --line: #e4e5ea;
+    --line-strong: #d3d5dc;
     --violet: #6d5ce8;
     --violet-2: #8b7cf6;
     --violet-soft: #efecfd;
@@ -42,7 +47,7 @@ style.
     --shadow-sm: 0 1px 2px rgba(27, 24, 56, 0.06), 0 1px 1px rgba(27, 24, 56, 0.04);
     --shadow: 0 1px 2px rgba(27, 24, 56, 0.05), 0 8px 24px -8px rgba(27, 24, 56, 0.14);
     --shadow-lg: 0 2px 4px rgba(27, 24, 56, 0.06), 0 24px 48px -16px rgba(27, 24, 56, 0.28);
-    --font: 'Plus Jakarta Sans', system-ui, -apple-system, 'Segoe UI', 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif;
+    --font: 'Plus Jakarta Sans', 'Noto Sans KR', system-ui, -apple-system, 'Segoe UI', 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif;
     --display: 'Fraunces', 'Iowan Old Style', Georgia, serif;
   }
   /* Korean mode: Latin keeps Fraunces/Jakarta, Hangul falls through to Noto KR;
@@ -54,83 +59,106 @@ style.
   html[lang=ko] body { word-break: keep-all; overflow-wrap: break-word; }
   html[lang=ko] h1, html[lang=ko] h2, html[lang=ko] h3 { letter-spacing: -0.02em; }
   *, *::before, *::after { box-sizing: border-box; }
-  html { background: var(--canvas); }
+  html { background: var(--canvas); overflow-x: clip; }
   /* Two soft colour washes behind everything. */
   html::before {
     content: ""; position: fixed; inset: 0; z-index: -1; pointer-events: none;
     background:
-      radial-gradient(42rem 28rem at 8% -6%, rgba(139, 124, 246, 0.16), transparent 70%),
-      radial-gradient(36rem 26rem at 100% 0%, rgba(226, 167, 79, 0.14), transparent 70%);
+      radial-gradient(40rem 26rem at 0% 0%, rgba(139, 124, 246, 0.08), transparent 70%),
+      radial-gradient(34rem 24rem at 100% 0%, rgba(226, 167, 79, 0.07), transparent 70%);
   }
   body {
     font-family: var(--font); font-size: 15.5px; line-height: 1.6; color: var(--text);
     max-width: 980px; margin: 0 auto; padding: 0 20px 4rem;
     -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility;
   }
+  body.wide { max-width: 1320px; }
   ::selection { background: rgba(109, 92, 232, 0.22); }
   a { color: var(--violet); text-decoration-thickness: 1px; text-underline-offset: 3px; }
   a:hover { color: var(--ink-2); }
 
-  h1, h2, h3 { font-family: var(--display); color: var(--ink); font-weight: 650; letter-spacing: -0.01em; line-height: 1.2; }
-  h1 { font-size: clamp(1.8rem, 3.2vw, 2.4rem); margin: 1.6rem 0 1rem; }
-  h1::after { content: ""; display: block; width: 3rem; height: 3px; margin-top: 0.6rem; border-radius: 3px; background: var(--brand); }
+  h1, h2, h3 { font-family: var(--font); color: var(--ink); font-weight: 750; letter-spacing: -0.02em; line-height: 1.25; }
+  h1 { font-size: clamp(1.6rem, 2.8vw, 2.1rem); margin: 1.4rem 0 1rem; }
   h2 { font-size: 1.25rem; margin: 0 0 0.75rem; }
   h3 { font-size: 1.05rem; margin: 1rem 0 0.5rem; }
   p { margin: 0.5rem 0; }
   .icon { display: inline-block; vertical-align: middle; flex: none; }
 
-  /* ---- Nav: floating glass bar ------------------------------------- */
+  /* ---- Site nav: social-network top bar ----------------------------
+     White, edge to edge, sticky. Left: logo + search; centre: icon tabs
+     with an underline on the current page; right: round buttons (language,
+     admin menu, avatar, log out). On phones the tabs become a bottom tab
+     bar. No backdrop-filter: it would trap the fixed bottom bar. */
   nav.site {
-    position: sticky; top: 12px; z-index: 50;
-    display: flex; align-items: center; gap: 0.35rem;
-    margin: 14px 0 1.25rem; padding: 0.45rem 0.55rem 0.45rem 0.9rem;
-    background: rgba(27, 24, 56, 0.92); color: #fff;
-    -webkit-backdrop-filter: saturate(160%) blur(14px); backdrop-filter: saturate(160%) blur(14px);
-    border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 18px; box-shadow: var(--shadow-lg);
+    position: sticky; top: 0; z-index: 50;
+    display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; gap: 0.75rem;
+    height: 60px; margin: 0 calc(50% - 50vw) 1.25rem; padding: 0 max(16px, calc(50vw - 660px));
+    background: var(--surface); color: var(--text);
+    box-shadow: 0 1px 0 var(--line), 0 2px 10px -6px rgba(27, 24, 56, 0.18);
     font-size: 0.88rem;
   }
-  nav.site a { color: rgba(255, 255, 255, 0.78); text-decoration: none; }
-  nav.site .brand { display: flex; align-items: center; gap: 0.55rem; margin-right: 0.35rem; color: #fff; font-family: var(--display); font-size: 1.12rem; font-weight: 650; letter-spacing: -0.01em; white-space: nowrap; }
-  nav.site .brand em { font-style: italic; font-weight: 500; color: #d9cffd; }
-  nav.site .links { display: flex; align-items: center; gap: 0.15rem; flex: 1; min-width: 0; overflow-x: auto; scrollbar-width: none; }
-  nav.site .links::-webkit-scrollbar { display: none; }
-  nav.site .links a { display: flex; align-items: center; gap: 0.4rem; padding: 0.42rem 0.6rem; border-radius: 11px; white-space: nowrap; transition: background 0.15s, color 0.15s; }
-  nav.site .links a:hover { background: rgba(255, 255, 255, 0.08); color: #fff; }
-  nav.site .links a.active { background: rgba(255, 255, 255, 0.14); color: #fff; box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.1); }
-  nav.site .links a .icon { opacity: 0.85; }
-  nav.site .links .sep { width: 1px; align-self: stretch; margin: 0.35rem 0.35rem; background: rgba(255, 255, 255, 0.14); }
-  nav.site .links a.admin { color: #f1d39f; }
-  nav.site .me { display: flex; align-items: center; gap: 0.5rem; margin-left: 0.4rem; }
-  nav.site .avatar { display: grid; place-items: center; width: 32px; height: 32px; border-radius: 50%; background: var(--brand); color: #fff; font-weight: 700; font-size: 0.85rem; text-transform: uppercase; box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.15); }
-  nav.site form.inline button.link, nav.site .logout { display: flex; align-items: center; gap: 0.35rem; color: rgba(255, 255, 255, 0.78); text-decoration: none; padding: 0.42rem 0.6rem; border-radius: 11px; }
-  nav.site form.inline button.link:hover { background: rgba(255, 255, 255, 0.08); color: #fff; }
-  nav.site .cta { background: #fff; color: var(--ink) !important; font-weight: 600; padding: 0.45rem 0.9rem !important; border-radius: 11px; }
-  nav.site .spacer { flex: 1; }
-  nav.site .lang-switch { padding: 0.32rem 0.6rem; border-radius: 9px; border: 1px solid rgba(255, 255, 255, 0.2); color: rgba(255, 255, 255, 0.85) !important; font-size: 0.78rem; font-weight: 600; white-space: nowrap; }
-  nav.site .lang-switch:hover { background: rgba(255, 255, 255, 0.1); color: #fff !important; }
-  nav.site .links a .label-long { display: none; } /* Home is icon-only; the logo goes home too */
-  /* Admin menu: a <details> dropdown, outside .links so it isn't clipped. */
-  nav.site details.admin-menu { position: relative; }
-  nav.site details.admin-menu summary { display: flex; align-items: center; gap: 0.35rem; padding: 0.42rem 0.65rem; border-radius: 11px; color: #f1d39f; cursor: pointer; list-style: none; white-space: nowrap; }
-  nav.site details.admin-menu summary::-webkit-details-marker { display: none; }
-  nav.site details.admin-menu summary::after { content: ""; width: 6px; height: 6px; margin-left: 0.1rem; border-right: 1.5px solid currentColor; border-bottom: 1.5px solid currentColor; transform: rotate(45deg) translateY(-2px); }
-  nav.site details.admin-menu summary:hover, nav.site details.admin-menu[open] summary, nav.site details.admin-menu summary.active { background: rgba(255, 255, 255, 0.1); }
-  nav.site .admin-menu .menu { position: absolute; right: 0; top: calc(100% + 10px); min-width: 210px; padding: 0.4rem; background: var(--ink); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 14px; box-shadow: var(--shadow-lg); display: grid; gap: 0.1rem; }
-  nav.site .admin-menu .menu a { display: flex; align-items: center; gap: 0.55rem; padding: 0.5rem 0.65rem; border-radius: 10px; color: rgba(255, 255, 255, 0.85); }
-  nav.site .admin-menu .menu a:hover, nav.site .admin-menu .menu a.active { background: rgba(255, 255, 255, 0.1); color: #fff; }
-  nav.site .admin-menu .menu a .icon { color: #f1d39f; }
-  @media (max-width: 640px) {
-    nav.site { flex-wrap: wrap; top: 8px; padding: 0.5rem 0.6rem; }
-    nav.site .brand { order: 1; flex: 1; }
-    nav.site .me { order: 2; }
-    nav.site .spacer { display: none; }
-    nav.site details.admin-menu summary span { display: none; }
-    nav.site .me { gap: 0.25rem; margin-left: 0; }
-    nav.site .links { order: 3; flex-basis: 100%; padding-top: 0.35rem; margin-top: 0.15rem; border-top: 1px solid rgba(255, 255, 255, 0.1); }
+  nav.site a { text-decoration: none; }
+  nav.site .nav-left { display: flex; align-items: center; gap: 0.75rem; min-width: 0; }
+  nav.site .brand { display: flex; align-items: center; gap: 0.5rem; color: var(--ink); font-family: 'Fraunces', var(--display); font-size: 1.2rem; font-weight: 650; letter-spacing: -0.01em; white-space: nowrap; }
+  nav.site .brand em { font-style: italic; font-weight: 500; color: var(--violet); }
+  nav.site .nav-search { position: relative; flex: 0 1 250px; min-width: 0; margin: 0; }
+  nav.site .nav-search input { margin: 0; height: 40px; padding: 0 1rem 0 2.4rem; border: 0; border-radius: 999px; background: var(--chip); font-size: 0.88rem; }
+  nav.site .nav-search input:focus { box-shadow: 0 0 0 3px rgba(109, 92, 232, 0.22); background: var(--surface); }
+  nav.site .nav-search .icon { position: absolute; left: 0.85rem; top: 50%; transform: translateY(-50%); color: var(--muted); pointer-events: none; }
+  nav.site .links { display: flex; align-items: center; gap: 0.25rem; height: 100%; }
+  nav.site .links a.tab { position: relative; display: grid; place-items: center; width: clamp(56px, 7vw, 96px); height: 50px; border-radius: 10px; color: var(--muted); transition: background 0.15s, color 0.15s; }
+  nav.site .links a.tab:hover { background: var(--chip); color: var(--ink); }
+  nav.site .links a.tab.active { color: var(--violet); }
+  nav.site .links a.tab.active::after { content: ""; position: absolute; left: 6px; right: 6px; bottom: -5px; height: 3px; border-radius: 3px 3px 0 0; background: var(--violet); }
+  nav.site .links .tab-label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+  nav.site .me { justify-self: end; display: flex; align-items: center; gap: 0.5rem; }
+  nav.site .round, nav.site details.admin-menu summary, nav.site form.inline button.link, nav.site .lang-switch {
+    display: grid; place-items: center; min-width: 40px; height: 40px; padding: 0 0.7rem; border-radius: 999px;
+    background: var(--chip); color: var(--ink) !important; border: 0; font-size: 0.8rem; font-weight: 700; text-decoration: none; cursor: pointer; transition: background 0.15s;
   }
+  nav.site form.inline button.link { padding: 0; width: 40px; }
+  nav.site .round:hover, nav.site details.admin-menu summary:hover, nav.site details.admin-menu[open] summary, nav.site form.inline button.link:hover, nav.site .lang-switch:hover { background: var(--chip-hover); }
+  nav.site details.admin-menu { position: relative; }
+  nav.site details.admin-menu summary { display: flex; gap: 0.35rem; list-style: none; color: #94621a !important; background: var(--gold-soft); }
+  nav.site details.admin-menu summary::-webkit-details-marker { display: none; }
+  nav.site details.admin-menu summary.active { box-shadow: inset 0 0 0 2px #f1d39f; }
+  nav.site .admin-menu .menu { position: absolute; right: 0; top: calc(100% + 8px); min-width: 230px; padding: 0.45rem; display: grid; gap: 0.1rem; background: var(--surface); border: 1px solid var(--line); border-radius: 14px; box-shadow: var(--shadow-lg); }
+  nav.site .admin-menu .menu a { display: flex; align-items: center; gap: 0.6rem; padding: 0.55rem 0.65rem; border-radius: 10px; color: var(--ink); font-weight: 600; }
+  nav.site .admin-menu .menu a:hover, nav.site .admin-menu .menu a.active { background: var(--chip); }
+  nav.site .admin-menu .menu a .icon { color: #c08a2c; }
+  nav.site .avatar { display: grid; place-items: center; width: 40px; height: 40px; border-radius: 50%; background: var(--brand); color: #fff !important; font-weight: 700; font-size: 0.95rem; text-transform: uppercase; }
+  nav.site .cta { display: inline-flex; align-items: center; height: 40px; padding: 0 1.05rem; border-radius: 999px; background: var(--violet); color: #fff !important; font-weight: 700; }
+  nav.site .logout { color: var(--ink); font-weight: 600; padding: 0 0.6rem; }
+  nav.site .spacer { display: none; }
+  @media (max-width: 1080px) { nav.site .nav-search { flex-basis: 40px; } nav.site .nav-search input { width: 40px; padding: 0; color: transparent; cursor: pointer; } nav.site .nav-search input:focus { width: 220px; padding: 0 1rem 0 2.4rem; color: var(--text); position: relative; z-index: 2; } nav.site .nav-search .icon { z-index: 3; left: 11px; } }
+  @media (max-width: 760px) {
+    nav.site { grid-template-columns: minmax(0, 1fr) auto; height: 56px; }
+    nav.site .nav-search { display: none; }
+    nav.site details.admin-menu summary span { display: none; }
+    /* Bottom tab bar, Instagram-style */
+    nav.site .links {
+      position: fixed; left: 0; right: 0; bottom: 0; z-index: 60; height: auto; justify-content: space-around; gap: 0;
+      padding: 0.3rem 0.25rem calc(0.3rem + env(safe-area-inset-bottom)); background: var(--surface); border-top: 1px solid var(--line);
+      box-shadow: 0 -4px 16px -10px rgba(27, 24, 56, 0.25);
+    }
+    nav.site .links a.tab { width: auto; flex: 1; height: 50px; gap: 0.1rem; align-content: center; }
+    nav.site .links .tab-label { position: static; width: auto; height: auto; overflow: visible; clip: auto; font-size: 0.66rem; font-weight: 600; }
+    nav.site .links a.tab.active::after { top: -0.3rem; bottom: auto; left: 30%; right: 30%; border-radius: 0 0 3px 3px; }
+    body:has(nav.site .links) { padding-bottom: 76px; }
+  }
+  @media (max-width: 400px) { nav.site .brand .wordmark { display: none; } }
+
+  /* ---- Avatars & tone gradients (feed, rails, stories, shortcuts) ---- */
+  .av { display: inline-grid; place-items: center; flex: none; width: var(--av, 40px); height: var(--av, 40px); border-radius: 50%; color: #fff; font-weight: 700; font-size: calc(var(--av, 40px) * 0.42); line-height: 1; }
+  .tone-violet { background: linear-gradient(135deg, #6d5ce8, #a08ff9); }
+  .tone-gold { background: linear-gradient(135deg, #d8952f, #f0c26f); }
+  .tone-rose { background: linear-gradient(135deg, #c2415b, #ec8297); }
+  .tone-teal { background: linear-gradient(135deg, #177e7a, #45bdae); }
+  .tone-blue { background: linear-gradient(135deg, #2a63c9, #63a0f0); }
+  .tone-ink { background: linear-gradient(135deg, #1b1838, #514196); }
 
   /* ---- Surfaces ---------------------------------------------------- */
-  section { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 1.35rem 1.4rem; margin-bottom: 1.25rem; box-shadow: var(--shadow); }
+  section { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 1.3rem 1.35rem; margin-bottom: 1.1rem; box-shadow: var(--shadow-sm); }
   .card { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 0.95rem 1.1rem; margin-bottom: 0.75rem; box-shadow: var(--shadow-sm); transition: box-shadow 0.2s, transform 0.2s, border-color 0.2s; }
   .card:hover { box-shadow: var(--shadow); border-color: var(--line-strong); }
   .card h3 { margin: 0 0 0.25rem; font-size: 1.05rem; }

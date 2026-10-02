@@ -1,0 +1,5 @@
+//- The next page of feed posts, fetched by the home page's "Load more"
+//- (GET /feed?type=&offset= - see src/routes/dashboardRoutes.js#feedPage).
+include mixins/feed
+each post in posts
+  +feedPost(post)

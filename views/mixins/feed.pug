@@ -1,0 +1,101 @@
+//- Social-feed building blocks for the home page (views/dashboard.pug) and
+//- its "Load more" fragment (views/feed-posts.pug): +avatar, +feedPost.
+//- A post is a community drill set (card + `preview`, its first few items -
+//- see src/routes/dashboardRoutes.js).
+include icons
+-
+  // Stable gradient per name, so the same author always gets the same colour.
+  var LD_TONES = ['tone-violet', 'tone-gold', 'tone-rose', 'tone-teal', 'tone-blue', 'tone-ink'];
+  function ldTone(name) {
+    var h = 0;
+    for (var i = 0; i < String(name || '').length; i++) h = (h * 31 + String(name).charCodeAt(i)) >>> 0;
+    return LD_TONES[h % LD_TONES.length];
+  }
+  // "3 hours ago" / "3시간 전"
+  function ldTimeAgo(ms, language) {
+    if (!ms) return '';
+    var rtf = new Intl.RelativeTimeFormat(language === 'ko' ? 'ko' : 'en', { numeric: 'auto' });
+    var s = Math.round((Number(ms) - Date.now()) / 1000);
+    var steps = [[60, 'second'], [60, 'minute'], [24, 'hour'], [7, 'day'], [4.35, 'week'], [12, 'month'], [Infinity, 'year']];
+    for (var j = 0; j < steps.length; j++) {
+      if (Math.abs(s) < steps[j][0]) return rtf.format(s, steps[j][1]);
+      s = Math.round(s / steps[j][0]);
+    }
+    return '';
+  }
+  // Split an answer into text / word parts, flagging blanked words (the
+  // apps count blanks over [A-Za-z']+ tokens).
+  function ldParts(text, blanks) {
+    var blankAt = {};
+    (blanks || []).forEach(function (b) { blankAt[b.at] = true; });
+    var parts = [], at = 0, last = 0, m, re = /[A-Za-z']+/g, str = String(text || '');
+    while ((m = re.exec(str)) !== null) {
+      parts.push({ text: str.slice(last, m.index) });
+      parts.push({ text: m[0], blank: !!blankAt[at] });
+      last = m.index + m[0].length;
+      at++;
+    }
+    parts.push({ text: str.slice(last) });
+    return parts;
+  }
+
+mixin avatar(name, size)
+  span.av(class=ldTone(name) style=`--av:${size || 40}px` aria-hidden="true")= String(name || '?').trim().charAt(0).toUpperCase() || '?'
+
+mixin answer(text, blanks)
+  span.en
+    each part in ldParts(text, blanks)
+      if part.blank
+        mark= part.text
+      else
+        = part.text
+
+mixin feedPost(post)
+  - var url = `/community/${encodeURIComponent(post.id)}`
+  article.post(data-type=post.type)
+    header.post-head
+      +avatar(post.author, 42)
+      .who
+        .name= post.author
+        .sub
+          = t('shared a {type} set', { type: t(post.type) })
+          |  ·
+          time(datetime=post.sharedAt ? new Date(post.sharedAt).toISOString() : null title=post.sharedAt ? new Date(post.sharedAt).toLocaleString(lang === 'ko' ? 'ko-KR' : 'en-US') : null)= ldTimeAgo(post.sharedAt, lang)
+      span.type-pill(class=`type-${post.type}`)= t(post.type)
+    a.post-title(href=url)= post.name
+    if post.desc
+      p.post-desc= post.desc
+    if post.preview && post.preview.length
+      ul.post-items
+        each item in post.preview
+          li
+            if post.type === 'writing'
+              if item.ko || item.prompt
+                span.ko= item.ko || item.prompt
+              if item.model
+                span.en= item.model
+            else
+              +answer(item.answer, item.blanks)
+              if item.ko
+                span.ko= item.ko
+            if item.audioUrl
+              button.play(type="button" data-src=`/community/audio/${String(item.audioUrl).replace('/audio/', '')}` title=t('Play') aria-label=t('Play'))
+                span.play-ico(aria-hidden="true") ▶
+      if post.count > post.preview.length
+        a.more(href=url)= t('See all {n} items', { n: post.count })
+    .post-stats
+      span
+        +icon('download', 15)
+        = (post.downloads === 1 ? t('{n} download', { n: 1 }) : t('{n} downloads', { n: post.downloads || 0 }))
+      span= post.count === 1 ? t('{n} item', { n: 1 }) : t('{n} items', { n: post.count })
+    .post-actions
+      a.act(href=url)
+        +icon('eye', 19)
+        = t('Open')
+      form.inline(method="POST" action=`${url}/download`)
+        button.act(type="submit")
+          +icon('download', 19)
+          = t('Download')
+      button.act.share(type="button" data-url=url)
+        +icon('share', 19)
+        = t('Share')

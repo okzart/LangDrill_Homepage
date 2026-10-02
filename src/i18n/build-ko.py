@@ -560,6 +560,56 @@ KO = {
     "tts-service-listening is not reachable through the gateway (is it running? scripts/gpu-services.sh status)": "게이트웨이를 통해 tts-service-listening에 연결할 수 없습니다 (실행 중인가요? scripts/gpu-services.sh status)",
 }
 
+KO.update({
+    # --- social home ----------------------------------------------------------
+    "Home": "홈",
+    "Search sets": "세트 검색",
+    "Shortcuts": "바로가기",
+    "Quick actions": "빠른 실행",
+    "AI tutor": "AI 튜터",
+    "Make a drill": "문제 만들기",
+    "Passage": "지문",
+    "My streak": "연속 학습",
+    "Vocab sets": "어휘 세트",
+    "What do you want to practise today, {name}?": "{name}님, 오늘은 무엇을 연습할까요?",
+    "{greeting}, {name} - what do you want to practise today?": "{name}님, {greeting} 오늘은 무엇을 연습할까요?",
+    "All": "전체",
+    "Filter the feed": "피드 필터",
+    "shared a {type} set": "{type} 세트를 공유했어요",
+    "Play": "재생",
+    "See all {n} items": "문항 {n}개 모두 보기",
+    "{n} downloads": "다운로드 {n}회",
+    "Download": "내려받기",
+    "Share": "공유",
+    "No sets here yet": "아직 세트가 없어요",
+    "Be the first to share one - make a listening drill in Studio or publish a set.": "가장 먼저 공유해 보세요. 스튜디오에서 듣기 문제를 만들거나 세트를 게시할 수 있어요.",
+    "Publish a set": "세트 게시하기",
+    "Load more": "더 보기",
+    "See all": "모두 보기",
+    "day streak": "일 연속",
+    "Progress is unavailable right now.": "지금은 학습 현황을 불러올 수 없어요.",
+    "Trending sets": "인기 세트",
+    "{type} · {n} downloads": "{type} · 다운로드 {n}회",
+    "Top creators": "인기 제작자",
+    "{n} sets · {d} downloads": "세트 {n}개 · 다운로드 {d}회",
+    "Could not play this clip.": "이 클립을 재생할 수 없어요.",
+    "Link copied": "링크를 복사했어요",
+    "Copy this link": "이 링크를 복사하세요",
+    "Could not load more posts.": "게시물을 더 불러오지 못했어요.",
+})
+# The Korean greeting reads better without a trailing comma.
+KO.update({"Good morning": "좋은 아침이에요.", "Good afternoon": "좋은 오후예요.", "Good evening": "좋은 저녁이에요."})
+
+KO.update({
+    "{n} download": "다운로드 {n}회",
+    "{n} item": "문항 {n}개",
+    "{type} · {n} download": "{type} · 다운로드 {n}회",
+    "1 set": "세트 1개",
+    "{n} sets": "세트 {n}개",
+    "1 download": "다운로드 1회",
+    "{d} downloads": "다운로드 {d}회",
+})
+
 PATTERNS = [
     [r"wrong code or password - (\d+) tries left", "코드 또는 비밀번호가 틀렸습니다. 남은 기회: $1번"],
     [r"wrong code or password - 1 try left", "코드 또는 비밀번호가 틀렸습니다. 남은 기회: 1번"],
