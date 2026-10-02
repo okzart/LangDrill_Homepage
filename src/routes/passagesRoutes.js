@@ -50,12 +50,12 @@ class PassagesRoutes {
   // #generate. Items without a usable expression (no blanks) are skipped.
   async setItems(req, res) {
     if (!req.auth) {
-      return res.status(401).json({ error: 'Not logged in' });
+      return res.status(401).json({ error: req.t('Not logged in') });
     }
     try {
       const set = await this.gatewayClient.get(`/api/sets/${encodeURIComponent(req.params.id)}`, req.auth.token);
       if (set.type !== 'vocab') {
-        return res.status(400).json({ error: 'Only vocab drill sets can be used for passages' });
+        return res.status(400).json({ error: req.t('Only vocab drill sets can be used for passages') });
       }
       const items = (set.items || []).map(fromVocabItem).filter((item) => item.expression);
       res.json({ id: set.id, name: set.name, items });
@@ -73,7 +73,7 @@ class PassagesRoutes {
   // validation is left to Content Sharing, whose messages are shown as-is.
   async generate(req, res) {
     if (!req.auth) {
-      return res.status(401).json({ error: 'Not logged in' });
+      return res.status(401).json({ error: req.t('Not logged in') });
     }
     const { expressions, level, voice } = req.body || {};
     try {

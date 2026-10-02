@@ -21,6 +21,8 @@ function currentUser(req, res, next) {
     }
   }
   res.locals.currentUser = req.auth?.user;
+  // For the nav's "you are here" highlight (views/_nav.pug).
+  res.locals.currentPath = req.path;
   next();
 }
 

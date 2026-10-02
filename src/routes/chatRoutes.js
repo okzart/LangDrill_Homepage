@@ -92,11 +92,11 @@ class ChatRoutes {
   // redirect/error-page responses.
   async complete(req, res) {
     if (!req.auth) {
-      return res.status(401).json({ error: 'Not logged in' });
+      return res.status(401).json({ error: req.t('Not logged in') });
     }
     const { messages } = req.body || {};
     if (!Array.isArray(messages) || messages.length === 0) {
-      return res.status(400).json({ error: 'messages must be a non-empty array' });
+      return res.status(400).json({ error: req.t('messages must be a non-empty array') });
     }
     await this.pipeFromGateway(req, res, '/api/llm/chat/completions', { messages, stream: true }, 'text/event-stream');
   }
@@ -106,14 +106,14 @@ class ChatRoutes {
   // in transit - unlike Content Sharing's cached vocab mp3s.
   async speech(req, res) {
     if (!req.auth) {
-      return res.status(401).json({ error: 'Not logged in' });
+      return res.status(401).json({ error: req.t('Not logged in') });
     }
     const { text, voice } = req.body || {};
     if (typeof text !== 'string' || text.trim() === '' || text.length > MAX_SPEECH_CHARS) {
-      return res.status(400).json({ error: `text must be 1-${MAX_SPEECH_CHARS} characters` });
+      return res.status(400).json({ error: req.t('text must be 1-{max} characters', { max: MAX_SPEECH_CHARS }) });
     }
     if (voice !== undefined && (typeof voice !== 'string' || !VOICE_ID.test(voice))) {
-      return res.status(400).json({ error: 'voice must be a tts voice id, e.g. "af_heart"' });
+      return res.status(400).json({ error: req.t('voice must be a tts voice id, e.g. "af_heart"') });
     }
     await this.pipeFromGateway(
       req,
@@ -131,10 +131,10 @@ class ChatRoutes {
   // audio is only relayed, never stored.
   async transcribe(req, res) {
     if (!req.auth) {
-      return res.status(401).json({ error: 'Not logged in' });
+      return res.status(401).json({ error: req.t('Not logged in') });
     }
     if (!Buffer.isBuffer(req.body) || req.body.length === 0) {
-      return res.status(400).json({ error: 'Send the recording as an audio/* request body' });
+      return res.status(400).json({ error: req.t('Send the recording as an audio/* request body') });
     }
     const type = (req.get('content-type') || 'application/octet-stream').split(';')[0].trim();
     const form = new FormData();
@@ -148,7 +148,7 @@ class ChatRoutes {
     } catch (err) {
       if (!(err instanceof GatewayError)) {
         console.error(err);
-        return res.status(502).json({ error: 'Speech recognition is unavailable right now' });
+        return res.status(502).json({ error: req.t('Speech recognition is unavailable right now') });
       }
       if (err.status === 401) Session.clearToken(res);
       // 502/503/504: stt-service not running or still loading its model.
@@ -176,7 +176,7 @@ class ChatRoutes {
         return res.status(err.status).json({ error: err.message });
       }
       console.error(err);
-      return res.status(502).json({ error: 'Service unreachable' });
+      return res.status(502).json({ error: req.t('Service unreachable') });
     }
 
     res.set('Content-Type', contentType);

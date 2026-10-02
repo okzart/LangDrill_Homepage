@@ -3,31 +3,31 @@
 //- (views/mixins/progressForm.pug). The charts redraw live from the form as
 //- values are edited; nothing is stored until Save.
 doctype html
-html(lang="en")
+html(lang=lang || "en")
   head
     meta(charset="UTF-8")
     meta(name="viewport" content="width=device-width, initial-scale=1")
-    title LanguageDrill — Admin: User Progress
+    title= 'LanguageDrill — ' + t('Admin: User Progress')
     include ../_style
   body
     include ../_nav
     include ../mixins/progressCharts
     include ../mixins/progressForm
-    h1 Progress for #{userId}
+    h1= t('Progress for {user}', { user: userId })
 
     if error
-      .error= error
+      .error= t(error)
     if saved
-      .success Saved.
+      .success= t('Saved.')
 
-    +progressCharts(progress, { liveForm: '#progress-form', previewNote: 'Preview: the charts update as you edit the fields below. Nothing is stored until you press Save.' })
+    +progressCharts(progress, { liveForm: '#progress-form', previewNote: t('Preview: the charts update as you edit the fields below. Nothing is stored until you press Save.') })
 
     section
-      h2 Edit
+      h2= t('Edit')
       +progressForm(progress, `/admin/users/${userId}/progress`)
 
     form(method="POST" action=`/admin/users/${userId}/progress/delete`)
-      button.danger(type="submit") Delete this progress record
+      button.danger(type="submit")= t('Delete this progress record')
 
     p
-      a(href="/admin/users") ← Back to Users
+      a(href="/admin/users")= t('← Back to Users')

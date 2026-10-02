@@ -62,13 +62,13 @@ class StudioRoutes {
   // JSON ({ error } on failure, 401 included - the page sends the user to
   // /login itself).
   async transcribe(req, res) {
-    if (!req.auth) return res.status(401).json({ error: 'Not logged in' });
+    if (!req.auth) return res.status(401).json({ error: req.t('Not logged in') });
     const contentType = req.get('content-type') || '';
     if (!contentType.startsWith('multipart/form-data')) {
-      return res.status(400).json({ error: 'Send the file as multipart/form-data' });
+      return res.status(400).json({ error: req.t('Send the file as multipart/form-data') });
     }
     if (Number(req.get('content-length')) > MAX_UPLOAD_BYTES) {
-      return res.status(413).json({ error: `Files up to ${MAX_UPLOAD_BYTES / 1024 / 1024} MB` });
+      return res.status(413).json({ error: req.t('Files up to {mb} MB', { mb: MAX_UPLOAD_BYTES / 1024 / 1024 }) });
     }
     try {
       const result = await this.gatewayClient.postStream('/api/split/transcribe', req, contentType, req.auth.token);
@@ -83,17 +83,17 @@ class StudioRoutes {
   // Crops through audio-split-service, stores the clip in content-sharing,
   // and answers { audioUrl, duration }.
   async clip(req, res) {
-    if (!req.auth) return res.status(401).json({ error: 'Not logged in' });
+    if (!req.auth) return res.status(401).json({ error: req.t('Not logged in') });
     if (!Buffer.isBuffer(req.body) || req.body.length === 0) {
-      return res.status(400).json({ error: 'Send the audio as the request body' });
+      return res.status(400).json({ error: req.t('Send the audio as the request body') });
     }
     const start = Number(req.query.start);
     const end = Number(req.query.end);
     if (!Number.isFinite(start) || !Number.isFinite(end) || start < 0 || end <= start) {
-      return res.status(400).json({ error: 'start and end (seconds) are required, with start < end' });
+      return res.status(400).json({ error: req.t('start and end (seconds) are required, with start < end') });
     }
     if (end - start > MAX_CLIP_SECONDS) {
-      return res.status(400).json({ error: `A clip can be at most ${MAX_CLIP_SECONDS} s` });
+      return res.status(400).json({ error: req.t('A clip can be at most {max} s', { max: MAX_CLIP_SECONDS }) });
     }
     const form = new FormData();
     form.append('file', new Blob([req.body], { type: 'audio/mpeg' }), 'source.mp3');
@@ -113,14 +113,14 @@ class StudioRoutes {
 
   // Body (JSON): { name, desc, author, items }. Answers { id } of the new set.
   async publish(req, res) {
-    if (!req.auth) return res.status(401).json({ error: 'Not logged in' });
+    if (!req.auth) return res.status(401).json({ error: req.t('Not logged in') });
     const { name, desc, author } = req.body || {};
-    if (typeof name !== 'string' || !name.trim()) return res.status(400).json({ error: 'Give the set a name' });
+    if (typeof name !== 'string' || !name.trim()) return res.status(400).json({ error: req.t('Give the set a name') });
     let items;
     try {
       items = StudioRoutes.cleanItems(req.body?.items);
     } catch (err) {
-      return res.status(400).json({ error: err.message });
+      return res.status(400).json({ error: err.i18n ? req.t(...err.i18n) : req.t(err.message) });
     }
     try {
       const card = await this.gatewayClient.post(
@@ -142,7 +142,7 @@ class StudioRoutes {
 
   // ?q= → up to 20 listening set cards, newest first.
   async searchSets(req, res) {
-    if (!req.auth) return res.status(401).json({ error: 'Not logged in' });
+    if (!req.auth) return res.status(401).json({ error: req.t('Not logged in') });
     const qs = new URLSearchParams({ type: 'listening' });
     const q = typeof req.query.q === 'string' ? req.query.q.trim() : '';
     if (q) qs.set('q', q);
@@ -156,10 +156,10 @@ class StudioRoutes {
 
   // One listening set with its items, for the page to show and extend.
   async loadSet(req, res) {
-    if (!req.auth) return res.status(401).json({ error: 'Not logged in' });
+    if (!req.auth) return res.status(401).json({ error: req.t('Not logged in') });
     try {
       const set = await this.gatewayClient.get(`/api/sets/${encodeURIComponent(req.params.id)}`, req.auth.token);
-      if (set?.type !== 'listening') return res.status(400).json({ error: 'That is not a listening set' });
+      if (set?.type !== 'listening') return res.status(400).json({ error: req.t('That is not a listening set') });
       res.json({ id: set.id, name: set.name, desc: set.desc, author: set.author, items: set.items || [] });
     } catch (err) {
       this.fail(res, err, 'Content sharing is unavailable right now');
@@ -173,13 +173,13 @@ class StudioRoutes {
   // are the new Studio items, appended after them. Owner-only - the
   // service answers 403 for anyone else.
   async updateSet(req, res) {
-    if (!req.auth) return res.status(401).json({ error: 'Not logged in' });
+    if (!req.auth) return res.status(401).json({ error: req.t('Not logged in') });
     const id = req.params.id;
     const { name, desc, author } = req.body || {};
-    if (typeof name !== 'string' || !name.trim()) return res.status(400).json({ error: 'Give the set a name' });
+    if (typeof name !== 'string' || !name.trim()) return res.status(400).json({ error: req.t('Give the set a name') });
     try {
       const set = await this.gatewayClient.get(`/api/sets/${encodeURIComponent(id)}`, req.auth.token);
-      if (set?.type !== 'listening') return res.status(400).json({ error: 'That is not a listening set' });
+      if (set?.type !== 'listening') return res.status(400).json({ error: req.t('That is not a listening set') });
       const current = set.items || [];
       const keep = (Array.isArray(req.body?.keep) ? req.body.keep : [])
         .map(Number)
@@ -190,12 +190,12 @@ class StudioRoutes {
         try {
           added = StudioRoutes.cleanItems(req.body.items);
         } catch (err) {
-          return res.status(400).json({ error: err.message });
+          return res.status(400).json({ error: err.i18n ? req.t(...err.i18n) : req.t(err.message) });
         }
       }
       const items = keep.map((i) => current[i]).concat(added);
-      if (!items.length) return res.status(400).json({ error: 'A set needs at least one item' });
-      if (items.length > MAX_ITEMS) return res.status(400).json({ error: `At most ${MAX_ITEMS} items per set` });
+      if (!items.length) return res.status(400).json({ error: req.t('A set needs at least one item') });
+      if (items.length > MAX_ITEMS) return res.status(400).json({ error: req.t('At most {max} items per set', { max: MAX_ITEMS }) });
       await this.gatewayClient.patch(
         `/api/sets/${encodeURIComponent(id)}`,
         {
@@ -209,7 +209,7 @@ class StudioRoutes {
       res.json({ id });
     } catch (err) {
       if (err instanceof GatewayError && err.status === 403) {
-        return res.status(403).json({ error: 'Only the person who published this set can add to it - publish your items as a new set instead.' });
+        return res.status(403).json({ error: req.t('Only the person who published this set can add to it - publish your items as a new set instead.') });
       }
       this.fail(res, err, 'Content sharing is unavailable right now');
     }
@@ -217,15 +217,22 @@ class StudioRoutes {
 
   // Rebuilds each item from known fields only, so the page can't publish
   // anything but a well-formed dictation/full listening item.
+  // Errors carry `i18n: [english, vars]` so the caller can translate them.
+  static itemError(text, vars) {
+    const err = new Error(text.replace(/\{(\w+)\}/g, (m, k) => vars?.[k] ?? m));
+    err.i18n = [text, vars];
+    return err;
+  }
+
   static cleanItems(raw) {
-    if (!Array.isArray(raw) || raw.length === 0) throw new Error('Add at least one item');
-    if (raw.length > MAX_ITEMS) throw new Error(`At most ${MAX_ITEMS} items per set`);
+    if (!Array.isArray(raw) || raw.length === 0) throw StudioRoutes.itemError('Add at least one item');
+    if (raw.length > MAX_ITEMS) throw StudioRoutes.itemError('At most {max} items per set', { max: MAX_ITEMS });
     return raw.map((it, i) => {
       const n = i + 1;
-      if (!it || !ITEM_TYPES.includes(it.type)) throw new Error(`Item ${n}: type must be dictation or full`);
+      if (!it || !ITEM_TYPES.includes(it.type)) throw StudioRoutes.itemError('Item {n}: type must be dictation or full', { n });
       const answer = typeof it.answer === 'string' ? it.answer.trim() : '';
-      if (!answer) throw new Error(`Item ${n}: the answer text is empty`);
-      if (typeof it.audioUrl !== 'string' || !CLIP_URL.test(it.audioUrl)) throw new Error(`Item ${n}: missing its audio clip`);
+      if (!answer) throw StudioRoutes.itemError('Item {n}: the answer text is empty', { n });
+      if (typeof it.audioUrl !== 'string' || !CLIP_URL.test(it.audioUrl)) throw StudioRoutes.itemError('Item {n}: missing its audio clip', { n });
       const item = { type: it.type, answer, audioUrl: it.audioUrl };
       if (typeof it.ko === 'string' && it.ko.trim()) item.ko = it.ko.trim();
       if (it.type === 'dictation') {
@@ -235,7 +242,7 @@ class StudioRoutes {
           .filter((at, k, all) => Number.isInteger(at) && at >= 0 && at < words.length && all.indexOf(at) === k)
           .sort((a, b) => a - b)
           .map((at) => ({ at, word: words[at] }));
-        if (blanks.length === 0) throw new Error(`Item ${n}: pick at least one word to blank out`);
+        if (blanks.length === 0) throw StudioRoutes.itemError('Item {n}: pick at least one word to blank out', { n });
         item.blanks = blanks;
       }
       return item;
@@ -243,16 +250,17 @@ class StudioRoutes {
   }
 
   fail(res, err, unavailableMessage) {
+    const t = res.locals.t || ((s) => s);
     if (!(err instanceof GatewayError)) {
       console.error(err);
-      return res.status(502).json({ error: unavailableMessage });
+      return res.status(502).json({ error: t(unavailableMessage) });
     }
     if (err.status === 401) Session.clearToken(res);
     // 502/504 come from the gateway's proxy when the service isn't running;
     // a 404 means an audio-split-service build older than /v1/transcribe and /v1/cut.
-    let message = err.status === 502 || err.status === 504 ? unavailableMessage : err.message;
+    let message = err.status === 502 || err.status === 504 ? t(unavailableMessage) : t(err.message);
     if (err.status === 404 && /route .* not found|^not found$/i.test(err.message)) {
-      message = 'audio-split-service is an older build without the Studio endpoints - rebuild it on the GPU host: cd services/audio-split-service && docker compose up -d --build';
+      message = t('audio-split-service is an older build without the Studio endpoints - rebuild it on the GPU host: cd services/audio-split-service && docker compose up -d --build');
     }
     res.status(err.status).json({ error: message });
   }

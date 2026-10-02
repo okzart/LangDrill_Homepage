@@ -1,0 +1,37 @@
+//- Step 2 of registering: enter the 6-digit code Authentication emailed
+//- (see src/routes/authRoutes.js#register). `password` rides along in a
+//- hidden field because confirming needs it too; this page is never cached.
+doctype html
+html(lang=lang || "en")
+  head
+    meta(charset="UTF-8")
+    meta(name="viewport" content="width=device-width, initial-scale=1")
+    title= 'LanguageDrill — ' + t('Confirm your email')
+    include _style
+    style.
+      #code { display: block; font-family: var(--display); font-size: 2rem; font-weight: 650; letter-spacing: 0.5em; text-align: center; padding: 0.6rem 0 0.6rem 0.5em; }
+      .resend { margin-top: 0.9rem; text-align: center; font-size: 0.9rem; }
+      .mailbox { display: grid; place-items: center; width: 52px; height: 52px; margin-bottom: 1rem; border-radius: 16px; color: #fff; background: var(--brand); box-shadow: 0 10px 22px -10px rgba(109, 92, 232, 0.8); }
+  body
+    include _nav
+    include mixins/authShell
+    +authShell(t('Check your inbox'), null)
+      .mailbox
+        +icon('mail', 24)
+      if info
+        .success= t(info)
+      if error
+        .error= t(error)
+      form(method="POST" action="/register/verify")
+        input(type="hidden" name="email" value=email)
+        input(type="hidden" name="password" value=password)
+        label(for="code")= t('Code sent to {email}', { email: email })
+        input#code(type="text" name="code" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9 ]{6,7}" maxlength="7" required autofocus placeholder="······")
+        button(type="submit")= t('Confirm and create my account')
+      p.hint(style="font-size:0.85rem;margin-top:1rem")= t("You can also open the link in the email instead. Can't find it? Check your spam folder.")
+      form.resend(method="POST" action="/register/resend")
+        input(type="hidden" name="email" value=email)
+        input(type="hidden" name="password" value=password)
+        button.link(type="submit")= t('Send me a new code')
+      p.alt
+        a(href="/register")= t('Start over with a different email')

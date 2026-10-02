@@ -1,40 +1,131 @@
 doctype html
-html(lang="en")
+html(lang=lang || "en")
   head
     meta(charset="UTF-8")
-    title LanguageDrill — Dashboard
+    meta(name="viewport" content="width=device-width, initial-scale=1")
+    title= 'LanguageDrill — ' + t('Dashboard')
     include _style
+    style.
+      .hero {
+        position: relative; overflow: hidden; margin: 0.5rem 0 1.75rem; padding: 2.4rem 2.4rem 2.2rem;
+        border-radius: 24px; color: #fff; background: var(--brand-ink); box-shadow: var(--shadow-lg);
+      }
+      .hero::before, .hero::after { content: ""; position: absolute; border-radius: 50%; filter: blur(2px); pointer-events: none; }
+      .hero::before { width: 26rem; height: 26rem; right: -7rem; top: -11rem; background: radial-gradient(circle, rgba(139, 124, 246, 0.55), transparent 65%); }
+      .hero::after { width: 20rem; height: 20rem; right: 9rem; bottom: -13rem; background: radial-gradient(circle, rgba(226, 167, 79, 0.45), transparent 65%); }
+      .hero > * { position: relative; }
+      .eyebrow { display: inline-flex; align-items: center; gap: 0.4rem; padding: 0.25rem 0.7rem; border-radius: 999px; background: rgba(255, 255, 255, 0.1); border: 1px solid rgba(255, 255, 255, 0.14); font-size: 0.78rem; font-weight: 600; letter-spacing: 0.04em; color: #e9e4ff; }
+      .hero h1 { color: #fff; font-size: clamp(2rem, 4.4vw, 3rem); margin: 0.9rem 0 0.5rem; max-width: 34rem; }
+      .hero h1::after { display: none; }
+      .hero h1 em { font-style: italic; font-weight: 500; background: linear-gradient(90deg, #cfc6ff, #f3cf8f); -webkit-background-clip: text; background-clip: text; color: transparent; }
+      .hero p { color: rgba(255, 255, 255, 0.78); max-width: 34rem; font-size: 1.02rem; }
+      .hero .actions { display: flex; flex-wrap: wrap; gap: 0.6rem; margin-top: 1.4rem; }
+      .hero .actions .btn { margin: 0; }
+      .btn.light { background: #fff; color: var(--ink); box-shadow: 0 8px 20px -8px rgba(0, 0, 0, 0.5); }
+      .btn.light:hover { background: #f3f0ff; color: var(--ink); }
+      .btn.ghost { background: rgba(255, 255, 255, 0.08); color: #fff; border: 1px solid rgba(255, 255, 255, 0.22); box-shadow: none; }
+      .btn.ghost:hover { background: rgba(255, 255, 255, 0.16); color: #fff; }
+      .section-title { display: flex; align-items: baseline; justify-content: space-between; gap: 1rem; margin: 2rem 0 0.9rem; }
+      .section-title h2 { margin: 0; font-size: 1.35rem; }
+      .section-title span { color: var(--muted); font-size: 0.85rem; }
+      .features { display: grid; grid-template-columns: repeat(auto-fill, minmax(270px, 1fr)); gap: 1rem; }
+      a.feature {
+        position: relative; display: flex; flex-direction: column; gap: 0.5rem; padding: 1.3rem 1.3rem 1.15rem;
+        background: var(--surface); border: 1px solid var(--line); border-radius: 18px; box-shadow: var(--shadow);
+        color: var(--text); text-decoration: none; transition: transform 0.2s, box-shadow 0.2s, border-color 0.2s;
+      }
+      a.feature:hover { transform: translateY(-3px); box-shadow: var(--shadow-lg); border-color: var(--line-strong); color: var(--text); }
+      .feature .tile { display: grid; place-items: center; width: 46px; height: 46px; border-radius: 14px; color: #fff; box-shadow: 0 8px 18px -8px currentColor; }
+      .feature .tile .icon { color: #fff; }
+      .feature h3 { margin: 0.35rem 0 0; font-size: 1.15rem; }
+      .feature p { margin: 0; color: var(--muted); font-size: 0.9rem; flex: 1; }
+      .feature .go { display: inline-flex; align-items: center; gap: 0.35rem; margin-top: 0.5rem; font-size: 0.85rem; font-weight: 700; color: var(--violet); }
+      .feature .go .icon { transition: transform 0.2s; }
+      a.feature:hover .go .icon { transform: translateX(3px); }
+      .feature .badge { position: absolute; top: 1rem; right: 1rem; padding: 0.15rem 0.55rem; border-radius: 999px; font-size: 0.7rem; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; background: var(--gold-soft); color: #94621a; }
+      .t-violet { background: linear-gradient(135deg, #6d5ce8, #9b8cf8); color: #6d5ce8; }
+      .t-gold { background: linear-gradient(135deg, #d8952f, #efc06e); color: #d8952f; }
+      .t-rose { background: linear-gradient(135deg, #c2415b, #e57a8f); color: #c2415b; }
+      .t-teal { background: linear-gradient(135deg, #177e7a, #3fb8a9); color: #177e7a; }
+      .t-ink { background: linear-gradient(135deg, #1b1838, #4a3a8f); color: #1b1838; }
+      .t-blue { background: linear-gradient(135deg, #2a63c9, #5b93ec); color: #2a63c9; }
+      .admin-row a.feature { background: linear-gradient(180deg, #fff, #fdfaf4); }
+      @media (max-width: 560px) { .hero { padding: 1.7rem 1.3rem; border-radius: 20px; } }
   body
     include _nav
-    h1 Welcome, #{currentUser.email}
+    include mixins/icons
 
-    .cards
-      section
-        h2 Profile
-        p View your account details.
-        a.btn(href="/profile") Open
-      section
-        h2 Progress
-        p Your XP, streak, weekly activity and accuracy at a glance.
-        a.btn(href="/progress") Open
-      section
-        h2 Community
-        p Browse, publish, download, and unpublish shared drill sets.
-        a.btn(href="/community") Open
-      section
-        h2 Chat
-        p Practice with the self-hosted AI language tutor.
-        a.btn(href="/chat") Open
-      section
-        h2 Passages
-        p Turn your expressions into a short story, then listen and read along.
-        a.btn(href="/passages") Open
-      section
-        h2 Studio
-        p Upload audio or video (or record yourself), then crop sentences into listening drills.
-        a.btn(href="/studio") Open
-      if currentUser.role === 'admin'
-        section
-          h2 Admin
-          p Manage user accounts and their progress records.
-          a.btn(href="/admin/users") Open
+    - var name = (currentUser.email || '').split('@')[0]
+    header.hero
+      span.eyebrow
+        +icon('sparkle', 14)
+        = t('Your language studio')
+      h1
+        span#greeting= t('Welcome back')
+        = t(', ')
+        em= name
+      p= t('Practice with your AI tutor, turn real audio into drills, and share sets with the community - all in one place.')
+      .actions
+        a.btn.light(href="/chat")
+          +icon('chat', 18)
+          = t('Start a conversation')
+        a.btn.ghost(href="/studio")
+          +icon('studio', 18)
+          = t('Open Studio')
+
+    -
+      var features = [
+        { href: '/progress', icon: 'chart', tone: 't-blue', title: t('Progress'), text: t('Your XP, streak, weekly activity and accuracy at a glance.') },
+        { href: '/community', icon: 'users', tone: 't-teal', title: t('Community'), text: t('Browse, publish, download and unpublish shared drill sets.') },
+        { href: '/chat', icon: 'chat', tone: 't-violet', title: t('Chat'), text: t('Practice with the self-hosted AI tutor - type or speak, and hear replies aloud.') },
+        { href: '/passages', icon: 'book', tone: 't-gold', title: t('Passages'), text: t('Turn your expressions into a short story, then listen and read along.') },
+        { href: '/studio', icon: 'studio', tone: 't-rose', title: t('Studio'), text: t('Upload audio or video (or record yourself), then crop sentences into listening drills.'), badge: t('New') },
+        { href: '/profile', icon: 'user', tone: 't-ink', title: t('Profile'), text: t('Your account details.') },
+      ];
+    .section-title
+      h2= t('Everything you can do')
+      span= t('{n} tools', { n: features.length })
+    .features
+      each f in features
+        a.feature(href=f.href)
+          if f.badge
+            span.badge= f.badge
+          span.tile(class=f.tone)
+            +icon(f.icon, 22)
+          h3= f.title
+          p= f.text
+          span.go #{t('Open')}
+            +icon('arrow', 16)
+
+    if currentUser.role === 'admin'
+      .section-title
+        h2= t('Administration')
+        span= t('Admins only')
+      .features.admin-row
+        a.feature(href="/admin/users")
+          span.tile.t-ink
+            +icon('shield', 22)
+          h3= t('Users')
+          p= t('Manage user accounts and their progress records.')
+          span.go #{t('Open')}
+            +icon('arrow', 16)
+        a.feature(href="/admin/audio")
+          span.tile.t-gold
+            +icon('volume', 22)
+          h3= t('Audio')
+          p= t('Vocabulary audio cache and narration voices.')
+          span.go #{t('Open')}
+            +icon('arrow', 16)
+        a.feature(href="/admin/listening")
+          span.tile.t-violet
+            +icon('headphones', 22)
+          h3= t('Listening')
+          p= t('Generate two-speaker listening dialogues with Dia2.')
+          span.go #{t('Open')}
+            +icon('arrow', 16)
+
+    script.
+      (function () {
+        var h = new Date().getHours();
+        document.getElementById('greeting').textContent = t(h < 5 ? 'Good evening' : h < 12 ? 'Good morning' : h < 18 ? 'Good afternoon' : 'Good evening');
+      })();

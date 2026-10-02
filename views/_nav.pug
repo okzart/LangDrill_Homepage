@@ -1,23 +1,70 @@
-//- Shared nav bar. `currentUser` comes from res.locals (see
+//- Shared nav bar. `currentUser` and `currentPath` come from res.locals (see
 //- src/middleware/currentUser.js), so every page that includes this gets
-//- it automatically without passing it explicitly.
-nav
-  a(href="/dashboard") LanguageDrill
+//- them automatically without passing them explicitly. Styled in _style.pug
+//- (floating glass bar; the links become a swipeable strip on phones).
+include mixins/icons
+- var here = currentPath || ''
+- var isActive = function (prefix) { return here === prefix || here.indexOf(prefix + '/') === 0; }
+//- EN / 한국어 switch: shows the language you'd switch TO.
+mixin langSwitch
+  - var other = lang === 'ko' ? 'en' : 'ko'
+  a.lang-switch(href=`/lang/${other}?next=${encodeURIComponent(langReturn || '/dashboard')}` hreflang=other lang=other title=(other === 'ko' ? '한국어로 보기' : 'View in English'))= other === 'ko' ? '한국어' : 'EN'
+nav.site(aria-label=t('Main'))
+  a.brand(href="/dashboard")
+    +brandMark(28)
+    span Language#[em Drill]
   if currentUser
-    a(href="/profile") Profile
-    a(href="/progress") Progress
-    a(href="/community") Community
-    a(href="/chat") Chat
-    a(href="/passages") Passages
-    a(href="/studio") Studio
-    if currentUser.role === 'admin'
-      a(href="/admin/users") Admin
-      a(href="/admin/audio") Audio
-      a(href="/admin/listening") Listening
-  .spacer
-  if currentUser
-    span.user #{currentUser.email}
-    form.inline(method="POST" action="/logout")
-      button.link(type="submit") Log out
+    .links
+      a(href="/dashboard" class=isActive('/dashboard') || here === '/' ? 'active' : '' aria-current=(isActive('/dashboard') ? 'page' : false) title=t('Home') aria-label=t('Home'))
+        +icon('home', 17)
+        span.label-long= t('Home')
+      a(href="/progress" class=isActive('/progress') ? 'active' : '')
+        +icon('chart', 17)
+        span= t('Progress')
+      a(href="/community" class=isActive('/community') ? 'active' : '')
+        +icon('users', 17)
+        span= t('Community')
+      a(href="/chat" class=isActive('/chat') ? 'active' : '')
+        +icon('chat', 17)
+        span= t('Chat')
+      a(href="/passages" class=isActive('/passages') ? 'active' : '')
+        +icon('book', 17)
+        span= t('Passages')
+      a(href="/studio" class=isActive('/studio') ? 'active' : '')
+        +icon('studio', 17)
+        span= t('Studio')
+    .me
+      if currentUser.role === 'admin'
+        details.admin-menu
+          summary(class=isActive('/admin') ? 'active' : '')
+            +icon('shield', 17)
+            span= t('Admin')
+          .menu
+            a(href="/admin/users" class=isActive('/admin/users') ? 'active' : '')
+              +icon('users', 17)
+              = t('Users & progress')
+            a(href="/admin/audio" class=isActive('/admin/audio') ? 'active' : '')
+              +icon('volume', 17)
+              = t('Vocab audio')
+            a(href="/admin/listening" class=isActive('/admin/listening') ? 'active' : '')
+              +icon('headphones', 17)
+              = t('Listening (Dia2)')
+      +langSwitch
+      a.avatar(href="/profile" title=t('Profile - {email}', { email: currentUser.email }) aria-label=t('Profile - {email}', { email: currentUser.email }))= (currentUser.email || '?').charAt(0)
+      form.inline(method="POST" action="/logout")
+        button.link(type="submit" title=t('Log out') aria-label=t('Log out'))
+          +icon('logout', 17)
   else
-    a(href="/login") Log in
+    .spacer
+    .me
+      +langSwitch
+      a.logout(href="/login")= t('Log in')
+      a.cta(href="/register")= t('Get started')
+//- Close the admin menu on an outside click or Escape.
+script.
+  (function () {
+    var menu = document.querySelector('nav.site details.admin-menu');
+    if (!menu) return;
+    document.addEventListener('click', function (e) { if (menu.open && !menu.contains(e.target)) menu.open = false; });
+    document.addEventListener('keydown', function (e) { if (e.key === 'Escape') menu.open = false; });
+  })();

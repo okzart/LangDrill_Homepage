@@ -1,0 +1,28 @@
+//- The link in the confirmation email lands here (GET /register/confirm?token=).
+//- Confirming is a POST with the registration's password, so a mail scanner
+//- that prefetches the link can't use it up (see src/routes/authRoutes.js).
+doctype html
+html(lang=lang || "en")
+  head
+    meta(charset="UTF-8")
+    meta(name="viewport" content="width=device-width, initial-scale=1")
+    title= 'LanguageDrill — ' + t('Confirm your email')
+    include _style
+  body
+    include _nav
+    include mixins/authShell
+    +authShell(t('Confirm your email'), token ? t('Enter the password you chose when registering to finish creating your account.') : null)
+      if error
+        .error= t(error)
+      if token
+        form(method="POST" action="/register/confirm")
+          input(type="hidden" name="token" value=token)
+          .field
+            label(for="password")= t('Password')
+            input#password(type="password" name="password" autocomplete="current-password" required autofocus placeholder="••••••••")
+            +icon('lock', 17)
+          button(type="submit")= t('Confirm and create my account')
+      else
+        .error= t('This confirmation link is incomplete - open it again from the email, or enter the code instead.')
+      p.alt
+        a(href="/register")= t('Register again')

@@ -1,0 +1,13 @@
+//- window.t(text, vars) for page scripts - same contract as the server-side
+//- t() (src/i18n/index.js): look the English text up in the page's
+//- dictionary (Korean mode only), fall back to the English, fill {vars}.
+//- Included from _style.pug, so it's in <head> on every page.
+- var dictJson = JSON.stringify(clientDict || {}).replace(/</g, '\\u003c')
+script.
+  window.LD_LANG = !{JSON.stringify(lang || 'en')};
+  (function (dict) {
+    window.t = function (text, vars) {
+      var s = (dict && dict[text]) || text;
+      return vars ? s.replace(/\{(\w+)\}/g, function (m, k) { return vars[k] !== undefined && vars[k] !== null ? String(vars[k]) : m; }) : s;
+    };
+  })(!{dictJson});

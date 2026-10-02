@@ -5,6 +5,7 @@ const express = require('express');
 const cookieParser = require('cookie-parser');
 const GatewayClient = require('./services/gatewayClient');
 const currentUser = require('./middleware/currentUser');
+const i18n = require('./i18n');
 const errorHandler = require('./middleware/errorHandler');
 const AuthRoutes = require('./routes/authRoutes');
 const DashboardRoutes = require('./routes/dashboardRoutes');
@@ -52,6 +53,9 @@ app.set('view engine', 'pug');
 // Runs before every route - decodes the session cookie (if any) into
 // req.auth / res.locals.currentUser (see middleware/currentUser.js).
 app.use(currentUser);
+// UI language (EN/KO): res.locals.t / lang for views, req.t for routes.
+app.use(i18n.middleware);
+app.get('/lang/:code', i18n.switchRoute);
 
 app.use(authRoutes.router);
 app.use(dashboardRoutes.router);
@@ -65,6 +69,10 @@ app.use(studioRoutes.router);
 
 // Simple liveness check, useful for uptime monitors / load balancers
 app.get('/health', (req, res) => res.json({ status: 'ok' }));
+
+// Anything no route matched: the styled error page instead of Express's
+// plain "Cannot GET /x".
+app.use((req, res) => res.status(404).render('error', { status: 404, message: `There's no page at ${req.path}.` }));
 
 // Must be registered after every route - Express recognizes error-handling
 // middleware by its 4-argument signature and only invokes it when

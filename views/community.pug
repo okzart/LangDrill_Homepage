@@ -1,5 +1,5 @@
 doctype html
-html(lang="en")
+html(lang=lang || "en")
   head
     meta(charset="UTF-8")
     title LanguageDrill — Community
@@ -20,41 +20,42 @@ html(lang="en")
       #itemBuilder .field[hidden] { display: none; }
       .ai-prompt { white-space: pre-wrap; font-family: monospace; font-size: 0.75rem; line-height: 1.4; background: #fff; border: 1px solid #ddd; border-radius: 6px; padding: 0.75rem; max-height: 320px; overflow-y: auto; }
       .copy-status { margin-left: 0.6rem; font-size: 0.8rem; color: #2c9c4a; }
-      .tabs { display: flex; gap: 0.25rem; margin-bottom: 1rem; border-bottom: 1px solid #ddd; }
-      .tabs a { padding: 0.5rem 1rem; text-decoration: none; color: #666; border-bottom: 2px solid transparent; margin-bottom: -1px; }
-      .tabs a.active { color: #222; border-bottom-color: #2c6bd9; font-weight: 600; }
+      .tabs { display: inline-flex; gap: 0.25rem; margin-bottom: 1.1rem; padding: 0.3rem; background: var(--surface-2); border: 1px solid var(--line); border-radius: 14px; }
+      .tabs a { padding: 0.45rem 1.1rem; text-decoration: none; color: var(--muted); font-weight: 600; font-size: 0.9rem; border-radius: 10px; transition: background 0.15s, color 0.15s; }
+      .tabs a:hover { color: var(--ink); }
+      .tabs a.active { color: var(--ink); background: var(--surface); box-shadow: var(--shadow-sm), inset 0 0 0 1px var(--line); }
       .card .card-actions { margin-top: 0.5rem; display: flex; gap: 0.5rem; }
       .card .card-actions form { margin: 0; }
       .pager { justify-content: center; margin-top: 1rem; font-size: 0.9rem; }
       .pager span { color: #666; }
   body
     include _nav
-    h1 Community sets
+    h1= t('Community sets')
 
     if error
-      .error= error
+      .error= t(error)
     if published
-      .success Published.
+      .success= t('Published.')
     if deleted
-      .success Unpublished.
+      .success= t('Unpublished.')
     if updated
-      .success Updated.
+      .success= t('Updated.')
 
     section
       nav.tabs
-        a(href="/community?tab=list" class=(tab === 'list' ? 'active' : '')) List
-        a(href="/community?tab=create" class=(tab === 'create' ? 'active' : '')) Create
+        a(href="/community?tab=list" class=(tab === 'list' ? 'active' : ''))= t('List')
+        a(href="/community?tab=create" class=(tab === 'create' ? 'active' : ''))= t('Create')
 
       if tab === 'list'
         form.row(method="GET" action="/community")
           input(type="hidden" name="tab" value="list")
           select(name="type")
-            option(value="" selected=(type === '')) All types
-            option(value="vocab" selected=(type === 'vocab')) vocab
-            option(value="listening" selected=(type === 'listening')) listening
-            option(value="writing" selected=(type === 'writing')) writing
-          input(type="text" name="q" placeholder="search name/author/desc" value=q)
-          button(type="submit") Search
+            option(value="" selected=(type === ''))= t('All types')
+            option(value="vocab" selected=(type === 'vocab'))= t('vocab')
+            option(value="listening" selected=(type === 'listening'))= t('listening')
+            option(value="writing" selected=(type === 'writing'))= t('writing')
+          input(type="text" name="q" placeholder=t('search name/author/desc') value=q)
+          button(type="submit")= t('Search')
 
       //- List tab: browse/search, each row with inline Update/Delete
       //- buttons. Ownership isn't exposed to the client (see
@@ -62,20 +63,20 @@ html(lang="en")
       //- any visible set - the server enforces who actually owns it.
       if tab === 'list'
         if editError
-          .error= editError
+          .error= t(editError)
         if editSet
-          h2 Editing: #{editSet.name || editSet.id}
-          +itemBuilder(`/community/${editSet.id}/update`, editSet, 'Save changes')
+          h2= t('Editing: {name}', { name: editSet.name || editSet.id })
+          +itemBuilder(`/community/${editSet.id}/update`, editSet, t('Save changes'))
           p
-            a(href=`/community?${returnTo}`) ← Back to list
+            a(href=`/community?${returnTo}`)= t('← Back to list')
         else
           if sets.length === 0
-            p No sets found.
+            p= t('No sets found.')
           each set in sets
             .card
               h3
                 a(href=`/community/${set.id}`)= set.name
-              .meta #{set.type} · by #{set.author} · #{set.downloads} downloads · #{set.count} items
+              .meta= t('{type} · by {author} · {downloads} downloads · {count} items', { type: t(set.type), author: set.author, downloads: set.downloads, count: set.count })
               p= set.desc
               .card-actions
                 form.inline(method="GET" action="/community")
@@ -85,22 +86,22 @@ html(lang="en")
                   input(type="hidden" name="page" value=page)
                   input(type="hidden" name="limit" value=limit)
                   input(type="hidden" name="editId" value=set.id)
-                  button(type="submit") Update
-                form.inline(method="POST" action=`/community/${set.id}/delete` onsubmit="return confirm('Unpublish this set? This cannot be undone.')")
+                  button(type="submit")= t('Update')
+                form.inline(method="POST" action=`/community/${set.id}/delete` onsubmit=`return confirm(${JSON.stringify(t('Unpublish this set? This cannot be undone.'))})`)
                   input(type="hidden" name="returnTo" value=returnTo)
-                  button.danger(type="submit") Delete
+                  button.danger(type="submit")= t('Delete')
           if total > 0
             .row.pager
               if page > 1
-                a(href=`/community?${pagerBase}&page=${page - 1}`) ← Prev
-              span Page #{page} of #{totalPages} (#{total} set#{total === 1 ? '' : 's'} total)
+                a(href=`/community?${pagerBase}&page=${page - 1}`)= t('← Prev')
+              span= t('Page {page} of {pages} ({total} sets total)', { page: page, pages: totalPages, total: total })
               if page < totalPages
-                a(href=`/community?${pagerBase}&page=${page + 1}`) Next →
+                a(href=`/community?${pagerBase}&page=${page + 1}`)= t('Next →')
 
       //- Create tab: publish a brand-new set via the visual item builder.
       if tab === 'create'
-        h2 Publish a new set
-        +itemBuilder('/community/publish', editSet, 'Publish')
+        h2= t('Publish a new set')
+        +itemBuilder('/community/publish', editSet, t('Publish'))
 
     script.
       (function () {
@@ -195,13 +196,13 @@ html(lang="en")
             span.textContent = summarize(item);
             var editBtn = document.createElement('button');
             editBtn.type = 'button';
-            editBtn.textContent = 'Edit';
+            editBtn.textContent = t('Edit');
             editBtn.addEventListener('click', function () {
               startEditing(index);
             });
             var removeBtn = document.createElement('button');
             removeBtn.type = 'button';
-            removeBtn.textContent = 'Remove';
+            removeBtn.textContent = t('Remove');
             removeBtn.addEventListener('click', function () {
               var current = getItems();
               current.splice(index, 1);
@@ -236,7 +237,7 @@ html(lang="en")
           cfg.subtypes.forEach(function (s) {
             var opt = document.createElement('option');
             opt.value = s;
-            opt.textContent = s;
+            opt.textContent = t(s);
             subtypeSelect.appendChild(opt);
           });
         }
@@ -373,14 +374,14 @@ html(lang="en")
           clearError();
           editingIndex = index;
           populateFieldsFromItem(item);
-          addItemBtn.textContent = 'Save changes to item';
+          addItemBtn.textContent = t('Save changes to item');
           cancelEditBtn.hidden = false;
           renderItemList(getItems());
         }
 
         function stopEditing() {
           editingIndex = null;
-          addItemBtn.textContent = '+ Add item';
+          addItemBtn.textContent = t('+ Add item');
           cancelEditBtn.hidden = true;
           clearBuilderFields();
         }
@@ -393,7 +394,7 @@ html(lang="en")
           };
 
           if (type === 'vocab') {
-            if (!val('ko') || !val('answer')) return { error: 'Korean prompt and answer are required.' };
+            if (!val('ko') || !val('answer')) return { error: t('Korean prompt and answer are required.') };
             var item = { ko: val('ko'), answer: val('answer') };
             if (val('keyko')) item.keyKo = val('keyko');
             var blanks = collectBlanks();
@@ -404,7 +405,7 @@ html(lang="en")
 
           if (type === 'listening') {
             var subtype = subtypeSelect.value;
-            if (!val('answer')) return { error: 'Answer is required.' };
+            if (!val('answer')) return { error: t('Answer is required.') };
             var litem = { type: subtype, answer: val('answer') };
             if (val('ko')) litem.ko = val('ko');
             if (subtype === 'dictation') {
@@ -416,7 +417,7 @@ html(lang="en")
                 .split('\n')
                 .map(function (s) { return s.trim(); })
                 .filter(Boolean);
-              if (options.length < 2) return { error: 'Add at least two options (one per line).' };
+              if (options.length < 2) return { error: t('Add at least two options (one per line).') };
               litem.options = options;
             }
             return { item: litem };
@@ -424,13 +425,13 @@ html(lang="en")
 
           if (type === 'writing') {
             var wsubtype = subtypeSelect.value;
-            if (!val('model')) return { error: 'Model answer is required.' };
+            if (!val('model')) return { error: t('Model answer is required.') };
             var witem = { type: wsubtype, model: val('model') };
             if ((wsubtype === 'compose' || wsubtype === 'guided' || wsubtype === 'passage') && val('ko')) {
               witem.ko = val('ko');
             }
             if (wsubtype === 'correct') {
-              if (!val('prompt')) return { error: 'The incorrect sentence to fix is required.' };
+              if (!val('prompt')) return { error: t('The incorrect sentence to fix is required.') };
               witem.prompt = val('prompt');
             }
             if (val('keyvocab')) {
@@ -440,7 +441,7 @@ html(lang="en")
             return { item: witem };
           }
 
-          return { error: 'Unknown type.' };
+          return { error: t('Unknown type.') };
         }
 
         addItemBtn.addEventListener('click', function () {
@@ -485,12 +486,12 @@ html(lang="en")
           try {
             parsed = JSON.parse(bulkItemsTextarea.value || '');
           } catch (e) {
-            showBulkError('Invalid JSON: ' + e.message);
+            showBulkError(t('Invalid JSON: {message}', { message: e.message }));
             return;
           }
           var isPlainObject = function (v) { return typeof v === 'object' && v !== null && !Array.isArray(v); };
           if (!Array.isArray(parsed) || !parsed.length || !parsed.every(isPlainObject)) {
-            showBulkError('Must be a non-empty JSON array of item objects.');
+            showBulkError(t('Must be a non-empty JSON array of item objects.'));
             return;
           }
           setItems(getItems().concat(parsed));
@@ -505,11 +506,11 @@ html(lang="en")
           }
           if (navigator.clipboard && navigator.clipboard.writeText) {
             navigator.clipboard.writeText(text).then(
-              function () { showStatus('Copied!'); },
-              function () { showStatus('Could not copy automatically — select the text above and copy it manually.'); }
+              function () { showStatus(t('Copied!')); },
+              function () { showStatus(t('Could not copy automatically — select the text above and copy it manually.')); }
             );
           } else {
-            showStatus('Select the text above and copy it manually (Ctrl/Cmd+C).');
+            showStatus(t('Select the text above and copy it manually (Ctrl/Cmd+C).'));
           }
         });
 
@@ -520,7 +521,7 @@ html(lang="en")
 
         typeSelect.addEventListener('change', function () {
           var items = getItems();
-          if (items.length && !confirm('Changing type clears the items you already added. Continue?')) {
+          if (items.length && !confirm(t('Changing type clears the items you already added. Continue?'))) {
             return;
           }
           updateSubtypeOptions();

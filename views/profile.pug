@@ -1,24 +1,46 @@
 doctype html
-html(lang="en")
+html(lang=lang || "en")
   head
     meta(charset="UTF-8")
-    title LanguageDrill — Profile
+    meta(name="viewport" content="width=device-width, initial-scale=1")
+    title= 'LanguageDrill — ' + t('Profile')
     include _style
+    style.
+      .profile { display: grid; grid-template-columns: auto 1fr; gap: 1.5rem; align-items: center; padding: 1.8rem; }
+      .profile .big-avatar { display: grid; place-items: center; width: 88px; height: 88px; border-radius: 28px; background: var(--brand); color: #fff; font-family: var(--display); font-size: 2.4rem; font-weight: 650; text-transform: uppercase; box-shadow: 0 16px 30px -14px rgba(109, 92, 232, 0.8); }
+      .profile h2 { margin: 0; font-size: 1.5rem; word-break: break-all; }
+      .pill { display: inline-flex; align-items: center; gap: 0.35rem; margin-top: 0.45rem; padding: 0.2rem 0.65rem; border-radius: 999px; font-size: 0.75rem; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; background: var(--violet-soft); color: var(--violet); }
+      .pill.admin { background: var(--gold-soft); color: #94621a; }
+      .facts { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 0.9rem; }
+      .fact { padding: 1rem 1.1rem; border: 1px solid var(--line); border-radius: 14px; background: var(--surface-2); }
+      .fact .k { font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
+      .fact .v { margin-top: 0.25rem; font-size: 0.95rem; color: var(--ink); word-break: break-all; }
+      @media (max-width: 520px) { .profile { grid-template-columns: 1fr; text-align: center; justify-items: center; } }
   body
     include _nav
-    h1 Profile
-
+    include mixins/icons
+    .page-head
+      h1= t('Profile')
+    section.profile
+      .big-avatar= (profile.email || '?').charAt(0)
+      div
+        h2= profile.email
+        span.pill(class=profile.role === 'admin' ? 'admin' : '')
+          +icon(profile.role === 'admin' ? 'shield' : 'user', 14)
+          = t(profile.role)
     section
-      table
-        tr
-          th ID
-          td= profile.id
-        tr
-          th Email
-          td= profile.email
-        tr
-          th Role
-          td= profile.role
-        tr
-          th Created
-          td= profile.createdAt
+      h2= t('Account details')
+      .facts
+        .fact
+          .k= t('Email')
+          .v= profile.email
+        .fact
+          .k= t('Role')
+          .v= t(profile.role)
+        .fact
+          .k= t('Member since')
+          .v= profile.createdAt ? new Date(profile.createdAt).toLocaleDateString(lang === 'ko' ? 'ko-KR' : 'en-US', { year: 'numeric', month: 'long', day: 'numeric' }) : '—'
+        .fact
+          .k= t('User ID')
+          .v
+            code= profile.id

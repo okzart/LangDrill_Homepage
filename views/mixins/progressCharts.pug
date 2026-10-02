@@ -18,43 +18,44 @@ mixin progressCharts(progress, options)
     .pc-tiles
     .pc-grid
       section.pc-card
-        h2 Daily goal
+        h2= t('Daily goal')
         .pc-goal
       section.pc-card
-        h2 This week's activity
-        p.pc-sub Activity per day, Monday to Sunday
-        .pc-week(role="group" aria-label="Weekly activity by day")
+        h2= t("This week's activity")
+        p.pc-sub= t('Activity per day, Monday to Sunday')
+        .pc-week(role="group" aria-label=t('Weekly activity by day'))
       section.pc-card.pc-wide
-        h2 Accuracy by drill type
-        p.pc-sub Percent correct; the line marks the overall average
-        .pc-acc(role="group" aria-label="Accuracy by drill type")
+        h2= t('Accuracy by drill type')
+        p.pc-sub= t('Percent correct; the line marks the overall average')
+        .pc-acc(role="group" aria-label=t('Accuracy by drill type'))
       section.pc-card.pc-wide
-        h2 Badges
+        h2= t('Badges')
         .pc-badges
     details.pc-table-wrap
-      summary Show all numbers as a table
+      summary= t('Show all numbers as a table')
       table.pc-table
     .pc-tooltip(role="tooltip" hidden)
     script.pc-data(type="application/json")!= json
 
   style.
-    .pc-root { --pc-surface: #ffffff; --pc-ink: #222; --pc-ink-2: #52514e; --pc-muted: #898781;
-      --pc-grid: #e1e0d9; --pc-base: #c3c2b7; --pc-series: #2a78d6; --pc-series-hover: #3987e5;
-      --pc-track: #cde2fb; --pc-good: #006300; position: relative; }
-    .pc-note { font-size: 0.85rem; color: var(--pc-ink-2); background: #f4f8fe; border: 1px solid var(--pc-track); border-radius: 6px; padding: 0.4rem 0.7rem; }
+    /* One data colour: the brand violet (see _style.pug). */
+    .pc-root { --pc-surface: #ffffff; --pc-ink: #1b1838; --pc-ink-2: #514d6b; --pc-muted: #8a86a0;
+      --pc-grid: #ebe6dd; --pc-base: #cfc7b8; --pc-series: #6d5ce8; --pc-series-hover: #8070ef;
+      --pc-track: #e6e2fb; --pc-good: #23885b; position: relative; }
+    .pc-note { font-size: 0.85rem; color: var(--pc-ink-2); background: #f6f4fe; border: 1px solid var(--pc-track); border-radius: 10px; padding: 0.5rem 0.8rem; }
     .pc-tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 0.75rem; margin-bottom: 1rem; }
-    .pc-tile { border: 1px solid #ddd; border-radius: 8px; padding: 0.7rem 0.85rem; }
+    .pc-tile { background: var(--pc-surface); border: 1px solid var(--line, #e9e3d8); border-radius: 14px; padding: 0.85rem 1rem; box-shadow: var(--shadow-sm, none); }
     .pc-tile .pc-label { font-size: 0.8rem; color: var(--pc-ink-2); }
-    .pc-tile .pc-value { font-size: 1.6rem; font-weight: 600; color: var(--pc-ink); line-height: 1.25; margin-top: 0.15rem; }
+    .pc-tile .pc-value { font-family: var(--display, inherit); font-size: 1.75rem; font-weight: 650; color: var(--pc-ink); line-height: 1.25; margin-top: 0.15rem; }
     .pc-tile .pc-value small { font-size: 0.85rem; font-weight: 500; color: var(--pc-ink-2); margin-left: 0.2rem; }
     .pc-tile .pc-detail { font-size: 0.78rem; color: var(--pc-muted); margin-top: 0.1rem; }
     .pc-grid { display: grid; grid-template-columns: 1fr 1.4fr; gap: 0 1rem; align-items: start; }
     .pc-grid .pc-wide { grid-column: 1 / -1; }
     @media (max-width: 640px) { .pc-grid { grid-template-columns: 1fr; } }
     .pc-card h2 { margin: 0 0 0.2rem; }
-    .pc-sub { font-size: 0.8rem; color: var(--pc-muted); margin: 0 0 0.6rem; }
+    .pc-sub { font-size: 0.8rem; color: var(--pc-muted); margin: 0 0 1.4rem; }
     /* meter */
-    .pc-goal .pc-big { font-size: 1.6rem; font-weight: 600; color: var(--pc-ink); }
+    .pc-goal .pc-big { font-family: var(--display, inherit); font-size: 1.75rem; font-weight: 650; color: var(--pc-ink); }
     .pc-goal .pc-big small { font-size: 0.9rem; font-weight: 500; color: var(--pc-ink-2); }
     .pc-meter { height: 10px; background: var(--pc-track); border-radius: 5px; margin: 0.5rem 0 0.35rem; overflow: hidden; }
     .pc-meter > div { height: 100%; background: var(--pc-series); border-radius: 5px; }
@@ -101,8 +102,8 @@ mixin progressCharts(progress, options)
 
   script.
     window.ProgressCharts = window.ProgressCharts || (() => {
-      const DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-      const TYPES = [['vocabAccuracy', 'Vocab'], ['listeningAccuracy', 'Listening'], ['writingAccuracy', 'Writing'], ['youtubeAccuracy', 'YouTube']];
+      const DAYS = [t('Mon'), t('Tue'), t('Wed'), t('Thu'), t('Fri'), t('Sat'), t('Sun')];
+      const TYPES = [['vocabAccuracy', t('Vocab')], ['listeningAccuracy', t('Listening')], ['writingAccuracy', t('Writing')], ['youtubeAccuracy', t('YouTube')]];
       const num = (v) => (Number.isFinite(Number(v)) ? Number(v) : 0);
       const fmt = (v) => Math.round(num(v)).toLocaleString();
       const el = (tag, cls, text) => {
@@ -148,20 +149,20 @@ mixin progressCharts(progress, options)
         box.textContent = '';
         const hours = num(p.totalStudyTime) / 3600;
         const items = [
-          ['Level', fmt(p.level || 1), '', `${fmt(p.xp)} XP`],
-          ['Study streak', fmt(p.streakDays), num(p.streakDays) === 1 ? 'day' : 'days', `Longest ${fmt(p.longestStreak)} days`],
-          ['Study time', hours >= 10 ? hours.toFixed(0) : hours.toFixed(1), 'h', `${fmt(num(p.totalStudyTime) / 60)} minutes in total`],
-          ['Sentences practiced', fmt(p.totalSentences), '', ''],
-          ['Average accuracy', fmt(p.averageAccuracy), '%', ''],
-          ['Saved items', fmt(p.savedItemsCount), '', `in ${fmt(p.foldersCount)} folder${num(p.foldersCount) === 1 ? '' : 's'}`],
+          [t('Level'), fmt(p.level || 1), '', t('{n} XP', { n: fmt(p.xp) })],
+          [t('Study streak'), fmt(p.streakDays), num(p.streakDays) === 1 ? t('day') : t('days'), t('Longest {n} days', { n: fmt(p.longestStreak) })],
+          [t('Study time'), hours >= 10 ? hours.toFixed(0) : hours.toFixed(1), t('h'), t('{n} minutes in total', { n: fmt(num(p.totalStudyTime) / 60) })],
+          [t('Sentences practiced'), fmt(p.totalSentences), '', ''],
+          [t('Average accuracy'), fmt(p.averageAccuracy), '%', ''],
+          [t('Saved items'), fmt(p.savedItemsCount), '', num(p.foldersCount) === 1 ? t('in 1 folder') : t('in {n} folders', { n: fmt(p.foldersCount) })],
         ];
         for (const [label, value, unit, detail] of items) {
-          const t = el('div', 'pc-tile');
+          const tile = el('div', 'pc-tile');
           const v = el('div', 'pc-value', value);
           if (unit) v.append(el('small', null, unit));
-          t.append(el('div', 'pc-label', label), v);
-          if (detail) t.append(el('div', 'pc-detail', detail));
-          box.append(t);
+          tile.append(el('div', 'pc-label', label), v);
+          if (detail) tile.append(el('div', 'pc-detail', detail));
+          box.append(tile);
         }
       }
 
@@ -171,19 +172,19 @@ mixin progressCharts(progress, options)
         const target = num(p.dailyGoal);
         const done = num(p.dailyGoalProgress);
         const big = el('div', 'pc-big', fmt(done));
-        big.append(el('small', null, ` / ${fmt(target)} sentences today`));
+        big.append(el('small', null, ' ' + t('/ {n} sentences today', { n: fmt(target) })));
         const meter = el('div', 'pc-meter');
         meter.setAttribute('role', 'meter');
         meter.setAttribute('aria-valuemin', '0');
         meter.setAttribute('aria-valuemax', String(target));
         meter.setAttribute('aria-valuenow', String(done));
-        meter.setAttribute('aria-label', 'Daily goal progress');
+        meter.setAttribute('aria-label', t('Daily goal progress'));
         const fill = el('div');
         fill.style.width = `${target > 0 ? Math.min(100, (done / target) * 100) : 0}%`;
         meter.append(fill);
         const reached = target > 0 && done >= target;
         const state = el('div', reached ? 'pc-state done' : 'pc-state',
-          target <= 0 ? 'No daily goal set' : reached ? '✓ Goal reached' : `${fmt(target - done)} to go · ${Math.round((done / target) * 100)}%`);
+          target <= 0 ? t('No daily goal set') : reached ? t('✓ Goal reached') : t('{n} to go · {pct}%', { n: fmt(target - done), pct: Math.round((done / target) * 100) }));
         box.append(big, meter, state);
       }
 
@@ -219,7 +220,7 @@ mixin progressCharts(progress, options)
             cap.style.bottom = `calc(${(v / max) * 100}% + 4px)`; // just above the bar's top
             col.append(cap);
           }
-          tooltip(root, col, fmt(v), DAYS[i] + (i === todayIndex() ? ' (today)' : ''));
+          tooltip(root, col, fmt(v), DAYS[i] + (i === todayIndex() ? ' ' + t('(today)') : ''));
           plot.append(col);
         });
         const x = el('div', 'pc-xaxis');
@@ -231,16 +232,16 @@ mixin progressCharts(progress, options)
         const box = root.querySelector('.pc-acc');
         box.textContent = '';
         const grid = el('div', 'pc-accgrid');
-        for (const t of [0, 25, 50, 75, 100]) {
+        for (const tick of [0, 25, 50, 75, 100]) {
           const v = el('div', 'pc-v');
-          v.style.left = `${t}%`;
-          v.append(el('span', null, `${t}%`));
+          v.style.left = `${tick}%`;
+          v.append(el('span', null, `${tick}%`));
           grid.append(v);
         }
         const avg = Math.max(0, Math.min(100, num(p.averageAccuracy)));
         const avgLine = el('div', 'pc-avg');
         avgLine.style.left = `${avg}%`;
-        avgLine.append(el('span', null, `avg ${fmt(avg)}%`));
+        avgLine.append(el('span', null, t('avg {n}%', { n: fmt(avg) })));
         grid.append(avgLine);
         const rows = el('div', 'pc-accrows');
         for (const [key, name] of TYPES) {
@@ -257,7 +258,7 @@ mixin progressCharts(progress, options)
           tip.style.left = `${value}%`;
           plot.append(bar, tip);
           row.append(el('span', 'pc-name', name), plot);
-          tooltip(root, row, `${fmt(value)}%`, `${name} accuracy`);
+          tooltip(root, row, `${fmt(value)}%`, t('{name} accuracy', { name }));
           rows.append(row);
         }
         box.append(grid, rows);
@@ -266,28 +267,28 @@ mixin progressCharts(progress, options)
       function badges(root, p) {
         const box = root.querySelector('.pc-badges');
         box.textContent = '';
-        if (!p.badges.length) box.append(el('span', 'pc-none', 'No badges yet'));
+        if (!p.badges.length) box.append(el('span', 'pc-none', t('No badges yet')));
         for (const b of p.badges) box.append(el('span', null, b));
       }
 
       function table(root, p) {
-        const t = root.querySelector('.pc-table');
-        t.textContent = '';
+        const tbl = root.querySelector('.pc-table');
+        tbl.textContent = '';
         const rows = [
-          ['Level', fmt(p.level || 1)], ['XP', fmt(p.xp)], ['Study streak (days)', fmt(p.streakDays)],
-          ['Longest streak (days)', fmt(p.longestStreak)], ['Study time (hours)', (num(p.totalStudyTime) / 3600).toFixed(1)],
-          ['Sentences practiced', fmt(p.totalSentences)], ['Average accuracy (%)', fmt(p.averageAccuracy)],
-          ...TYPES.map(([k, n]) => [`${n} accuracy (%)`, fmt(p[k])]),
-          ['Daily goal (sentences)', fmt(p.dailyGoal)], ['Today toward goal', fmt(p.dailyGoalProgress)],
-          ...DAYS.map((d, i) => [`Activity ${d}`, fmt(p.weeklyActivity[i])]),
-          ['Saved items', fmt(p.savedItemsCount)], ['Folders', fmt(p.foldersCount)],
-          ['Badges', p.badges.join(', ') || '—'], ['Target language', p.targetLanguage || '—'],
-          ['Last studied', p.lastStudyDate ? new Date(p.lastStudyDate).toLocaleString() : 'never'],
+          [t('Level'), fmt(p.level || 1)], ['XP', fmt(p.xp)], [t('Study streak (days)'), fmt(p.streakDays)],
+          [t('Longest streak (days)'), fmt(p.longestStreak)], [t('Study time (hours)'), (num(p.totalStudyTime) / 3600).toFixed(1)],
+          [t('Sentences practiced'), fmt(p.totalSentences)], [t('Average accuracy (%)'), fmt(p.averageAccuracy)],
+          ...TYPES.map(([k, n]) => [t('{name} accuracy (%)', { name: n }), fmt(p[k])]),
+          [t('Daily goal (sentences)'), fmt(p.dailyGoal)], [t('Today toward goal'), fmt(p.dailyGoalProgress)],
+          ...DAYS.map((d, i) => [t('Activity {day}', { day: d }), fmt(p.weeklyActivity[i])]),
+          [t('Saved items'), fmt(p.savedItemsCount)], [t('Folders'), fmt(p.foldersCount)],
+          [t('Badges'), p.badges.join(', ') || '—'], [t('Target language'), p.targetLanguage || '—'],
+          [t('Last studied'), p.lastStudyDate ? new Date(p.lastStudyDate).toLocaleString(LD_LANG === 'ko' ? 'ko-KR' : undefined) : t('never')],
         ];
         for (const [k, v] of rows) {
           const tr = el('tr');
           tr.append(el('td', null, k), el('td', null, v));
-          t.append(tr);
+          tbl.append(tr);
         }
       }
 

@@ -1,0 +1,61 @@
+//- Split layout for the logged-out pages (login, register, email
+//- confirmation): a brand panel on the left, the form card on the right.
+//- Usage: +authShell('Log in', 'Welcome back.') then the form as the block.
+include icons
+mixin authShell(title, subtitle)
+  style.
+    .auth { display: grid; grid-template-columns: 1.05fr 1fr; margin: 1.25rem 0 2rem; border-radius: 24px; overflow: hidden; background: var(--surface); border: 1px solid var(--line); box-shadow: var(--shadow-lg); }
+    .auth-brand { position: relative; overflow: hidden; padding: 2.6rem 2.4rem; color: #fff; background: var(--brand-ink); display: flex; flex-direction: column; }
+    .auth-brand::before { content: ""; position: absolute; width: 24rem; height: 24rem; right: -9rem; top: -9rem; border-radius: 50%; background: radial-gradient(circle, rgba(139, 124, 246, 0.55), transparent 65%); }
+    .auth-brand::after { content: ""; position: absolute; width: 20rem; height: 20rem; left: -8rem; bottom: -10rem; border-radius: 50%; background: radial-gradient(circle, rgba(226, 167, 79, 0.4), transparent 65%); }
+    .auth-brand > * { position: relative; }
+    .auth-brand .quote { font-family: var(--display); font-size: clamp(1.6rem, 3vw, 2.2rem); line-height: 1.2; margin: 1.6rem 0 0.8rem; letter-spacing: -0.01em; }
+    .auth-brand .quote em { font-style: italic; font-weight: 500; background: linear-gradient(90deg, #cfc6ff, #f3cf8f); -webkit-background-clip: text; background-clip: text; color: transparent; }
+    .auth-brand p { color: rgba(255, 255, 255, 0.75); }
+    .auth-brand ul { list-style: none; padding: 0; margin: 1.4rem 0 0; display: grid; gap: 0.7rem; }
+    .auth-brand li { display: flex; gap: 0.7rem; align-items: center; color: rgba(255, 255, 255, 0.88); font-size: 0.92rem; }
+    .auth-brand li .dot { display: grid; place-items: center; width: 32px; height: 32px; border-radius: 10px; background: rgba(255, 255, 255, 0.1); border: 1px solid rgba(255, 255, 255, 0.14); }
+    .auth-brand .logo { display: flex; align-items: center; gap: 0.6rem; font-family: var(--display); font-size: 1.2rem; font-weight: 650; }
+    .auth-brand .logo em { font-style: italic; font-weight: 500; color: #d9cffd; }
+    .auth-form { padding: 2.6rem 2.4rem; display: flex; flex-direction: column; justify-content: center; }
+    .auth-form h1 { margin: 0; font-size: 2rem; }
+    .auth-form h1::after { width: 2.4rem; }
+    .auth-form .sub { color: var(--muted); margin: 0.75rem 0 1.1rem; }
+    .auth-form button[type=submit]:not(.link) { width: 100%; margin-top: 1.25rem; padding: 0.75rem 1rem; font-size: 0.95rem; }
+    .auth-form .alt { margin-top: 1.25rem; color: var(--muted); font-size: 0.9rem; text-align: center; }
+    .auth-form .alt a { font-weight: 600; }
+    .field { position: relative; }
+    .field .icon { position: absolute; left: 0.8rem; bottom: 0.72rem; color: var(--faint); pointer-events: none; }
+    .field input { padding-left: 2.4rem; }
+    @media (max-width: 760px) {
+      .auth { grid-template-columns: 1fr; }
+      .auth-brand { padding: 1.6rem 1.4rem; }
+      .auth-brand .quote { margin: 1rem 0 0.4rem; font-size: 1.5rem; }
+      .auth-brand ul, .auth-brand p { display: none; }
+      .auth-form { padding: 1.6rem 1.4rem 1.8rem; }
+    }
+  .auth
+    aside.auth-brand
+      .logo
+        +brandMark(30)
+        span Language#[em Drill]
+      .quote!= t('Learn a language by <em>using it</em>.')
+      p= t('Short drills, real conversations, and your own audio - one sentence at a time.')
+      ul
+        li
+          span.dot
+            +icon('chat', 17)
+          = t('Talk with a self-hosted AI tutor')
+        li
+          span.dot
+            +icon('studio', 17)
+          = t('Turn any recording into listening drills')
+        li
+          span.dot
+            +icon('users', 17)
+          = t('Share sets with the community')
+    .auth-form
+      h1= title
+      if subtitle
+        p.sub= subtitle
+      block

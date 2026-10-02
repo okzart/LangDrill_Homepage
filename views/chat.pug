@@ -9,11 +9,11 @@
 //- transcript in the message box. Nothing is stored: the conversation lives
 //- only in this page and audio only in memory while it's played or sent.
 doctype html
-html(lang="en")
+html(lang=lang || "en")
   head
     meta(charset="UTF-8")
     meta(name="viewport" content="width=device-width, initial-scale=1")
-    title LanguageDrill — Chat
+    title= 'LanguageDrill — ' + t('Chat')
     include _style
     style.
       .meta { font-size: 0.85rem; color: #666; margin-top: -0.5rem; }
@@ -45,52 +45,52 @@ html(lang="en")
       .spacer { flex: 1; }
   body
     include _nav
-    h1 Chat
+    h1= t('Chat')
     if model
-      p.meta Model: #{model}
+      p.meta= t('Model: {model}', { model: model })
     else if modelError
-      .error LLM service unavailable: #{modelError}
+      .error= t('LLM service unavailable: {error}', { error: t(modelError) })
 
     section
       details
-        summary System prompt
-        textarea#system-prompt You are a friendly, concise language tutor. When the user writes in a language they are learning, gently correct mistakes and explain briefly.
+        summary= t('System prompt')
+        textarea#system-prompt= t('You are a friendly, concise language tutor. When the user writes in a language they are learning, gently correct mistakes and explain briefly.')
 
     section.speech
       if voiceGroups
         label
           input#speak-toggle(type="checkbox")
-          | 🔊 Speak replies
+          = t('🔊 Speak replies')
         label
-          | Voice
+          = t('Voice')
           select#voice
             each group in voiceGroups
               optgroup(label=group.language)
                 each voice in group.voices
                   option(value=voice.id selected=voice.id === defaultVoice)= voice.label
-        span.hint Pick a voice in the language the tutor replies in (no Korean voices).
+        span.hint= t('Pick a voice in the language the tutor replies in (no Korean voices).')
       else
-        span.hint 🔇 Speech unavailable: tts-service can't be reached through the gateway.
+        span.hint= t("🔇 Speech unavailable: tts-service can't be reached through the gateway.")
 
     section
       #messages
-        p.empty Say something to start the conversation.
+        p.empty= t('Say something to start the conversation.')
 
-    textarea#prompt(placeholder="Type a message (Enter to send, Shift+Enter for a new line) — or press 🎤 and speak.")
+    textarea#prompt(placeholder=t('Type a message (Enter to send, Shift+Enter for a new line) — or press 🎤 and speak.'))
     .composer-row
-      button#btn-send(type="button") Send
-      button#btn-mic(type="button" title="Speak: click to start, click again to stop (max 60 s)") 🎤 Speak
-      select#stt-lang(title="Language you will speak" aria-label="Language you will speak")
-        option(value="en") English
+      button#btn-send.primary(type="button")= t('Send')
+      button#btn-mic(type="button" title=t('Speak: click to start, click again to stop (max 60 s)'))= t('🎤 Speak')
+      select#stt-lang(title=t('Language you will speak') aria-label=t('Language you will speak'))
+        option(value="en")= t('English')
         option(value="ko") 한국어
-        option(value="auto") Auto-detect
-      label(title="Send the transcript right away instead of leaving it in the box")
+        option(value="auto")= t('Auto-detect')
+      label(title=t('Send the transcript right away instead of leaving it in the box'))
         input#auto-send(type="checkbox" checked)
-        | Send after speaking
+        = t('Send after speaking')
       span#mic-status
       span.spacer
-      button#btn-stop.hidden(type="button") Stop
-      button#btn-clear(type="button") New chat
+      button#btn-stop.hidden(type="button")= t('Stop')
+      button#btn-clear(type="button")= t('New chat')
 
     script.
       const $ = (id) => document.getElementById(id);
@@ -118,7 +118,7 @@ html(lang="en")
         actions.className = 'msg-actions';
         const button = document.createElement('button');
         button.type = 'button';
-        button.textContent = '🔊 Replay';
+        button.textContent = t('🔊 Replay');
         button.addEventListener('click', () => {
           speech.stop();
           splitSentences(text).forEach((sentence) => speech.enqueue(sentence));
@@ -440,7 +440,7 @@ html(lang="en")
           } else {
             replyEl.remove();
             conversation.pop();
-            addMessage('error', `Error: ${error.message}`);
+            addMessage('error', t('Error: {message}', { message: error.message }));
           }
         } finally {
           abortController = null;
@@ -458,7 +458,11 @@ html(lang="en")
         abortController?.abort();
         speech.stop();
         history = [];
-        messagesEl.innerHTML = '<p class="empty">Say something to start the conversation.</p>';
+        messagesEl.innerHTML = '';
+        const empty = document.createElement('p');
+        empty.className = 'empty';
+        empty.textContent = t('Say something to start the conversation.');
+        messagesEl.append(empty);
         promptEl.focus();
       });
       promptEl.addEventListener('keydown', (e) => {
@@ -490,9 +494,9 @@ html(lang="en")
       if (!micSupported) {
         micButton.disabled = true;
         micButton.title = window.isSecureContext
-          ? 'This browser cannot record audio.'
-          : 'The microphone only works over HTTPS or on localhost. Open this page via https:// (or localhost) to speak.';
-        setMicStatus(window.isSecureContext ? '' : '🎤 needs HTTPS or localhost');
+          ? t('This browser cannot record audio.')
+          : t('The microphone only works over HTTPS or on localhost. Open this page via https:// (or localhost) to speak.');
+        setMicStatus(window.isSecureContext ? '' : t('🎤 needs HTTPS or localhost'));
       }
 
       // webm/opus where supported (Chrome, Firefox, Edge), else mp4 (Safari).
@@ -508,7 +512,7 @@ html(lang="en")
         try {
           stream = await navigator.mediaDevices.getUserMedia({ audio: true });
         } catch (error) {
-          setMicStatus(error.name === 'NotAllowedError' ? 'Microphone permission denied.' : `Microphone unavailable: ${error.message}`, true);
+          setMicStatus(error.name === 'NotAllowedError' ? t('Microphone permission denied.') : t('Microphone unavailable: {message}', { message: error.message }), true);
           return;
         }
         speech.stop(); // don't record the tutor's own voice
@@ -520,7 +524,7 @@ html(lang="en")
           stream.getTracks().forEach((t) => t.stop());
           clearInterval(recordTimer);
           micButton.classList.remove('recording');
-          micButton.textContent = '🎤 Speak';
+          micButton.textContent = t('🎤 Speak');
           const blob = new Blob(chunks, { type: (recorder.mimeType || type || 'audio/webm').split(';')[0] });
           recorder = null;
           transcribe(blob);
@@ -530,12 +534,12 @@ html(lang="en")
         micButton.classList.add('recording');
         const tick = () => {
           const s = Math.floor((Date.now() - started) / 1000);
-          micButton.textContent = `⏹ Stop 0:${String(s).padStart(2, '0')}`;
+          micButton.textContent = t('⏹ Stop {time}', { time: `0:${String(s).padStart(2, '0')}` });
           if (Date.now() - started >= MAX_RECORDING_MS) stopRecording();
         };
         tick();
         recordTimer = setInterval(tick, 250);
-        setMicStatus('Listening…');
+        setMicStatus(t('Listening…'));
       }
 
       function stopRecording() {
@@ -543,8 +547,8 @@ html(lang="en")
       }
 
       async function transcribe(blob) {
-        if (blob.size === 0) { setMicStatus('Nothing was recorded.', true); return; }
-        setMicStatus('Transcribing…');
+        if (blob.size === 0) { setMicStatus(t('Nothing was recorded.'), true); return; }
+        setMicStatus(t('Transcribing…'));
         micButton.disabled = true;
         try {
           const res = await fetch(`/chat/transcribe?language=${encodeURIComponent($('stt-lang').value)}`, {
@@ -556,7 +560,7 @@ html(lang="en")
           const body = await res.json().catch(() => ({}));
           if (!res.ok) throw new Error(body.error || `HTTP ${res.status}`);
           const text = (body.text || '').trim();
-          if (!text) { setMicStatus('No speech recognized — try again, a little closer to the mic.', true); return; }
+          if (!text) { setMicStatus(t('No speech recognized — try again, a little closer to the mic.'), true); return; }
           setMicStatus('');
           const wasEmpty = promptEl.value.trim() === '';
           promptEl.value = wasEmpty ? text : `${promptEl.value.trimEnd()} ${text}`;
@@ -564,7 +568,7 @@ html(lang="en")
           if ($('auto-send').checked && wasEmpty && !abortController) send();
           else promptEl.focus();
         } catch (error) {
-          setMicStatus(`Couldn't transcribe: ${error.message}`, true);
+          setMicStatus(t("Couldn't transcribe: {message}", { message: error.message }), true);
         } finally {
           micButton.disabled = false;
         }

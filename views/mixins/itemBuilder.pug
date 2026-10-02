@@ -11,16 +11,16 @@ mixin itemBuilder(formAction, prefill, submitLabel)
   form(method="POST" action=formAction)
     if p.returnTo
       input(type="hidden" name="returnTo" value=p.returnTo)
-    label(for="type") Type
+    label(for="type")= t('Type')
     select#type(name="type")
-      option(value="vocab" selected=(p.type === 'vocab' || !p.type)) vocab
-      option(value="listening" selected=(p.type === 'listening')) listening
-      option(value="writing" selected=(p.type === 'writing')) writing
-    label(for="name") Name
+      option(value="vocab" selected=(p.type === 'vocab' || !p.type))= t('vocab')
+      option(value="listening" selected=(p.type === 'listening'))= t('listening')
+      option(value="writing" selected=(p.type === 'writing'))= t('writing')
+    label(for="name")= t('Name')
     input#name(type="text" name="name" required value=p.name)
-    label(for="desc") Description
+    label(for="desc")= t('Description')
     input#desc(type="text" name="desc" value=p.desc)
-    label(for="author") Author (display name)
+    label(for="author")= t('Author (display name)')
     input#author(type="text" name="author" value=p.author placeholder=currentUser.email)
 
     //- Vocab only: the tts voice every item's answer sentence is narrated
@@ -30,73 +30,73 @@ mixin itemBuilder(formAction, prefill, submitLabel)
     .field#w-voice(hidden=(p.type && p.type !== 'vocab'))
       if voiceOptions
         - var selectedVoice = p.voice || voiceOptions.default
-        label(for="voice") Audio voice
+        label(for="voice")= t('Audio voice')
         select#voice(name="voice")
           each v in voiceOptions.voices
-            option(value=v.id selected=(v.id === selectedVoice))= v.label + (v.id === voiceOptions.default ? ' — default' : '')
-        p.hint Every item's answer sentence is narrated in this voice. Changing it regenerates audio for the whole set on save.
+            option(value=v.id selected=(v.id === selectedVoice))= v.label + (v.id === voiceOptions.default ? ' — ' + t('default') : '')
+        p.hint= t("Every item's answer sentence is narrated in this voice. Changing it regenerates audio for the whole set on save.")
       else if p.voice
-        p.hint Audio voice: #{p.voice}. The voice list is unavailable right now, so it can't be changed; saving keeps this voice.
+        p.hint= t("Audio voice: {voice}. The voice list is unavailable right now, so it can't be changed; saving keeps this voice.", { voice: p.voice })
       else
-        p.hint Audio voice: the voice list is unavailable right now, so the default voice will be used.
+        p.hint= t('Audio voice: the voice list is unavailable right now, so the default voice will be used.')
 
-    h3 Items
-    p.hint Fill in the fields below for one item, then click "Add item". Repeat for every item — no JSON needed.
+    h3= t('Items')
+    p.hint= t('Fill in the fields below for one item, then click "Add item". Repeat for every item — no JSON needed.')
 
     #itemBuilder.card
       .field#w-subtype(hidden)
-        label(for="f-subtype") Item type
+        label(for="f-subtype")= t('Item type')
         select#f-subtype
 
       .field#w-ko
-        label(for="f-ko") Korean prompt
+        label(for="f-ko")= t('Korean prompt')
         input#f-ko(type="text")
 
       .field#w-answer
-        label(for="f-answer") Answer / correct sentence
+        label(for="f-answer")= t('Answer / correct sentence')
         input#f-answer(type="text")
 
       .field#w-blanks(hidden)
-        label Click the words to hide as blanks (optional)
+        label= t('Click the words to hide as blanks (optional)')
         #blankPicker.word-picker
 
       .field#w-keyko(hidden)
-        label(for="f-keyko") Key Korean keyword (optional)
+        label(for="f-keyko")= t('Key Korean keyword (optional)')
         input#f-keyko(type="text")
 
       .field#w-source(hidden)
-        label(for="f-source") Source (optional)
+        label(for="f-source")= t('Source (optional)')
         input#f-source(type="text")
 
       .field#w-options(hidden)
-        label(for="f-options") Options — one per line, include the correct answer too
+        label(for="f-options")= t('Options — one per line, include the correct answer too')
         textarea#f-options
 
       .field#w-model(hidden)
-        label(for="f-model") Model answer (gold standard)
+        label(for="f-model")= t('Model answer (gold standard)')
         input#f-model(type="text")
 
       .field#w-prompt(hidden)
-        label(for="f-prompt") Incorrect sentence to fix
+        label(for="f-prompt")= t('Incorrect sentence to fix')
         input#f-prompt(type="text")
 
       .field#w-keyvocab(hidden)
-        label(for="f-keyvocab") Must-use words (comma-separated, optional)
+        label(for="f-keyvocab")= t('Must-use words (comma-separated, optional)')
         input#f-keyvocab(type="text")
 
       .field#w-tip(hidden)
-        label(for="f-tip") Grammar tip (optional)
+        label(for="f-tip")= t('Grammar tip (optional)')
         input#f-tip(type="text")
 
       #itemsError.error(hidden)
-      button#addItemBtn(type="button") + Add item
-      button#cancelEditBtn.link(type="button" hidden) Cancel edit
+      button#addItemBtn(type="button")= t('+ Add item')
+      button#cancelEditBtn.link(type="button" hidden)= t('Cancel edit')
 
     ol#itemList
 
     details#aiPromptDetails
-      summary Generate items with AI first (optional)
-      p.hint Copy this prompt into any AI chat tool, paste your own source text (an article, word list, topic) at the bottom of it, then paste the JSON array it returns into "Bulk add via JSON" below.
+      summary= t('Generate items with AI first (optional)')
+      p.hint= t('Copy this prompt into any AI chat tool, paste your own source text (an article, word list, topic) at the bottom of it, then paste the JSON array it returns into "Bulk add via JSON" below.')
       pre#aiPromptText.ai-prompt.
         You will generate vocabulary/sentence-drill items for a Korean-to-English
         language learning app, as a single JSON array. Output ONLY the JSON array —
@@ -172,19 +172,19 @@ mixin itemBuilder(formAction, prefill, submitLabel)
         CONTENT:
         [PASTE YOUR SOURCE TEXT, ARTICLE, WORD LIST, OR TOPIC HERE]
       .row
-        button#copyAiPromptBtn(type="button") Copy prompt
+        button#copyAiPromptBtn(type="button")= t('Copy prompt')
         span#copyAiPromptStatus.copy-status
 
     details
-      summary Advanced: bulk add via JSON
-      label(for="bulkItems") Paste a JSON array of new items — merged onto the list above, your existing items are kept
+      summary= t('Advanced: bulk add via JSON')
+      label(for="bulkItems")= t('Paste a JSON array of new items — merged onto the list above, your existing items are kept')
       textarea#bulkItems(placeholder='[{"ko": "...", "answer": "..."}]')
       #bulkItemsError.error(hidden)
-      button#mergeBulkBtn(type="button") Merge into list
+      button#mergeBulkBtn(type="button")= t('Merge into list')
 
     details(open=(p.itemsRaw !== undefined))
-      summary Advanced: edit raw JSON directly
-      label(for="items") Items (JSON array — see docs/13.community_content_formats.md in LangDrillApp for the schema per type)
+      summary= t('Advanced: edit raw JSON directly')
+      label(for="items")= t('Items (JSON array — see docs/13.community_content_formats.md in LangDrillApp for the schema per type)')
       textarea#items(name="items")= itemsJson
 
-    button(type="submit")= submitLabel || 'Save'
+    button(type="submit")= submitLabel || t('Save')

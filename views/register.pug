@@ -1,23 +1,26 @@
 doctype html
-html(lang="en")
+html(lang=lang || "en")
   head
     meta(charset="UTF-8")
-    title LanguageDrill — Register
+    meta(name="viewport" content="width=device-width, initial-scale=1")
+    title= 'LanguageDrill — ' + t('Register')
     include _style
   body
     include _nav
-    h1 Create an account
-
-    if error
-      .error= error
-
-    section
+    include mixins/authShell
+    +authShell(t('Create your account'), t("We'll email you a 6-digit code to confirm the address."))
+      if error
+        .error= t(error)
       form(method="POST" action="/register")
-        label(for="email") Email
-        input#email(type="email" name="email" required value=email autofocus)
-        label(for="password") Password
-        input#password(type="password" name="password" required)
-        button(type="submit") Register
-    p
-      | Already have an account?
-      a(href="/login")  Log in
+        .field
+          label(for="email")= t('Email')
+          input#email(type="email" name="email" required value=email autofocus autocomplete="email" placeholder="you@example.com")
+          +icon('mail', 17)
+        .field
+          label(for="password")= t('Password')
+          input#password(type="password" name="password" required minlength="8" autocomplete="new-password" placeholder=t('At least 8 characters'))
+          +icon('lock', 17)
+        button(type="submit")= t('Register')
+      p.alt
+        = t('Already have an account?') + ' '
+        a(href="/login")= t('Log in')

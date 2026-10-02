@@ -44,8 +44,8 @@ class ListeningRoutes {
 
   // Called by the page's fetch(): JSON in, JSON out (errors as { error }).
   async generate(req, res) {
-    if (!req.auth) return res.status(401).json({ error: 'Not logged in' });
-    if (req.auth.user.role !== 'admin') return res.status(403).json({ error: 'Admin privileges required.' });
+    if (!req.auth) return res.status(401).json({ error: req.t('Not logged in') });
+    if (req.auth.user.role !== 'admin') return res.status(403).json({ error: req.t('Admin privileges required.') });
     const body = { response: 'json' };
     for (const key of FORWARDED) {
       if (req.body?.[key] !== undefined && req.body[key] !== null && req.body[key] !== '') body[key] = req.body[key];
@@ -63,10 +63,10 @@ class ListeningRoutes {
         return res.status(err.status).json({ error: message });
       }
       if (err.name === 'TimeoutError' || err.code === 'UND_ERR_HEADERS_TIMEOUT' || err.cause?.code === 'UND_ERR_HEADERS_TIMEOUT') {
-        return res.status(504).json({ error: 'Generation took longer than 15 minutes' });
+        return res.status(504).json({ error: req.t('Generation took longer than 15 minutes') });
       }
       console.error(err);
-      return res.status(502).json({ error: 'Could not reach the gateway' });
+      return res.status(502).json({ error: req.t('Could not reach the gateway') });
     }
   }
 }

@@ -6,12 +6,12 @@
 //- `actionUrl` is where the form POSTs.
 mixin numberField(key, label, min, max, step)
   div
-    label(for=key)= label
+    label(for=key)= t(label)
     input(id=key type="number" name=key min=min max=max step=(step || '1') value=progress[key])
 
 mixin progressForm(progress, actionUrl)
   form#progress-form(method="POST" action=actionUrl)
-    h2 Gamification & stats
+    h2= t('Gamification & stats')
     .grid
       +numberField('xp', 'XP', 0)
       +numberField('level', 'Level', 1)
@@ -25,26 +25,26 @@ mixin progressForm(progress, actionUrl)
       +numberField('dailyGoal', 'Daily goal', 0)
       +numberField('dailyGoalProgress', 'Daily goal progress', 0)
 
-    h2 Accuracy by drill type (%)
+    h2= t('Accuracy by drill type (%)')
     .grid
       +numberField('vocabAccuracy', 'Vocab', 0, 100)
       +numberField('listeningAccuracy', 'Listening', 0, 100)
       +numberField('writingAccuracy', 'Writing', 0, 100)
       +numberField('youtubeAccuracy', 'YouTube', 0, 100)
 
-    h2 Other
-    label(for="badges") Badges (comma-separated)
+    h2= t('Other')
+    label(for="badges")= t('Badges (comma-separated)')
     input#badges(type="text" name="badges" value=(progress.badges || []).join(', '))
-    label(for="targetLanguage") Target language
+    label(for="targetLanguage")= t('Target language')
     input#targetLanguage(type="text" name="targetLanguage" value=progress.targetLanguage)
-    label(for="lastStudyDate") Last study date
+    label(for="lastStudyDate")= t('Last study date')
     - var lastStudyLocal = progress.lastStudyDate ? new Date(progress.lastStudyDate).toISOString().slice(0, 16) : ''
     input#lastStudyDate(type="datetime-local" name="lastStudyDate" value=lastStudyLocal)
-    label Weekly activity (Mon–Sun)
+    label= t('Weekly activity (Mon–Sun)')
     .grid
       each day, i in ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
         div
-          label(for=`weekly-${i}`)= day
+          label(for=`weekly-${i}`)= t(day)
           input(id=`weekly-${i}` type="number" name="weeklyActivity[]" min="0" step="1" value=(progress.weeklyActivity || [])[i] || 0)
 
-    button(type="submit") Save
+    button(type="submit")= t('Save')

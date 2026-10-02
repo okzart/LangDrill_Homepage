@@ -2,11 +2,11 @@
 //- Read-only: progress is recorded by the app as you practice. Admins get an
 //- Edit button that opens the admin editor for their own record.
 doctype html
-html(lang="en")
+html(lang=lang || "en")
   head
     meta(charset="UTF-8")
     meta(name="viewport" content="width=device-width, initial-scale=1")
-    title LanguageDrill — Progress
+    title= 'LanguageDrill — ' + t('Progress')
     include _style
     style.
       .page-head { display: flex; align-items: center; gap: 1rem; flex-wrap: wrap; }
@@ -17,14 +17,14 @@ html(lang="en")
     include _nav
     include mixins/progressCharts
     .page-head
-      h1 Your progress
+      h1= t('Your progress')
       if isAdmin
-        a.btn(href=`/admin/users/${encodeURIComponent(userId)}/progress`) Edit
+        a.btn(href=`/admin/users/${encodeURIComponent(userId)}/progress`)= t('Edit')
     p.muted
-      | Updated as you practice in the app.
+      = t('Updated as you practice in the app.')
       if progress.lastStudyDate
-        |  Last studied #{new Date(progress.lastStudyDate).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })}.
+        = ' ' + t('Last studied {date}.', { date: new Date(progress.lastStudyDate).toLocaleDateString(lang === 'ko' ? 'ko-KR' : 'en-US', { year: 'numeric', month: 'short', day: 'numeric' }) })
       if progress.targetLanguage
-        |  Learning: #{progress.targetLanguage}.
+        = ' ' + t('Learning: {lang}.', { lang: progress.targetLanguage })
 
     +progressCharts(progress)

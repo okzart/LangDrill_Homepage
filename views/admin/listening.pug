@@ -4,11 +4,11 @@
 //- reached. Generated audio lives only in this page (blob URLs) until the
 //- admin downloads it; the history list is in memory for this visit only.
 doctype html
-html(lang="en")
+html(lang=lang || "en")
   head
     meta(charset="UTF-8")
     meta(name="viewport" content="width=device-width, initial-scale=1")
-    title LanguageDrill — Admin: Listening audio
+    title= 'LanguageDrill — ' + t('Admin: Listening audio')
     include ../_style
     style.
       .hint { font-size: 0.8rem; color: #666; margin: 0.25rem 0 0; }
@@ -42,24 +42,15 @@ html(lang="en")
       #history li button, #history li a { margin: 0; padding: 0.15rem 0.5rem; font-size: 0.8rem; }
   body
     include ../_nav
-    h1 Listening audio (Dia2)
-    p.hint
-      | Test bench for
-      code  tts-service-listening
-      |  through the gateway (
-      code /api/listening
-      | ). Dia2 speaks English dialogue from a script with
-      code  [S1]
-      |  /
-      code  [S2]
-      |  speaker tags; max ~2 minutes per generation. Without reference voices it invents new voices every time.
+    h1= t('Listening audio (Dia2)')
+    p.hint!= t('Test bench for <code>tts-service-listening</code> through the gateway (<code>/api/listening</code>). Dia2 speaks English dialogue from a script with <code>[S1]</code> / <code>[S2]</code> speaker tags; max ~2 minutes per generation. Without reference voices it invents new voices every time.')
 
     if serviceError
-      .error= serviceError
+      .error= t(serviceError)
 
     section
       form#form
-        label(for="script") Script
+        label(for="script")= t('Script')
         textarea#script(spellcheck="false")
           | [S1] Hi! Can I get a medium latte, please?
           | [S2] Sure. Would you like it hot or iced?
@@ -70,53 +61,53 @@ html(lang="en")
         .toolbar
           button(type="button" data-insert="\n[S1] ") + [S1]
           button(type="button" data-insert="\n[S2] ") + [S2]
-          button(type="button" data-insert=' <break time="1s"/> ') + pause 1s
-          button(type="button" data-insert=" (laughs) ") + (laughs)
-          select#example(aria-label="Load an example")
-            option(value="") Load example…
-            option(value="cafe") Ordering coffee
-            option(value="directions") Asking for directions
-            option(value="interview") Job interview
+          button(type="button" data-insert=' <break time="1s"/> ')= t('+ pause 1s')
+          button(type="button" data-insert=" (laughs) ")= t('+ (laughs)')
+          select#example(aria-label=t('Load an example'))
+            option(value="")= t('Load example…')
+            option(value="cafe")= t('Ordering coffee')
+            option(value="directions")= t('Asking for directions')
+            option(value="interview")= t('Job interview')
           span.spacer
           span#count
 
         .grid4
           div
-            label(for="voice-s1") Voice S1
+            label(for="voice-s1")= t('Voice S1')
             select#voice-s1
-              option(value="") Random
+              option(value="")= t('Random')
               if voices
                 each v in voices
                   option(value=v.id)= v.id + (v.duration ? ` (${v.duration}s)` : '')
           div
-            label(for="voice-s2") Voice S2
+            label(for="voice-s2")= t('Voice S2')
             select#voice-s2(disabled)
-              option(value="") Random
+              option(value="")= t('Random')
               if voices
                 each v in voices
                   option(value=v.id)= v.id + (v.duration ? ` (${v.duration}s)` : '')
           div
-            label(for="format") Format
+            label(for="format")= t('Format')
             select#format
-              option(value="mp3" selected) mp3
-              option(value="wav") wav
-              option(value="opus") opus
-              option(value="flac") flac
+              option(value="mp3" selected)= t('mp3')
+              option(value="wav")= t('wav')
+              option(value="opus")= t('opus')
+              option(value="flac")= t('flac')
           div
-            label(for="seed") Seed
-            input#seed(type="number" min="0" max="2147483647" placeholder="random")
+            label(for="seed")= t('Seed')
+            input#seed(type="number" min="0" max="2147483647" placeholder=t('random'))
         details
-          summary Advanced
+          summary= t('Advanced')
           .grid4
             div
-              label(for="cfg") CFG scale
+              label(for="cfg")= t('CFG scale')
               input#cfg(type="number" step="0.1" min="0.1" max="10" value="2.0")
             div
-              label(for="temperature") Temperature
+              label(for="temperature")= t('Temperature')
               input#temperature(type="number" step="0.05" min="0.05" max="2" value="0.8")
-          p.hint Higher CFG follows the script more strictly; lower temperature is steadier but flatter. S2's voice can only be fixed when S1's is (Dia2 conditions speaker 2 after speaker 1).
+          p.hint= t('Higher CFG follows the script more strictly; lower temperature is steadier but flatter. S2\'s voice can only be fixed when S1\'s is (Dia2 conditions speaker 2 after speaker 1).')
         .row
-          button#btn-generate(type="submit") Generate
+          button#btn-generate(type="submit")= t('Generate')
           span#status
 
     #error.error.hidden
@@ -125,16 +116,16 @@ html(lang="en")
       .player
         audio#audio(controls preload="auto")
         .actions
-          a#dl-audio(href="#" download) ⬇ Audio
-          a#dl-json(href="#" download) ⬇ Timestamps JSON
-          button#btn-reuse-seed(type="button" title="Put this seed in the form to regenerate the same take") Reuse seed
+          a#dl-audio(href="#" download)= t('⬇ Audio')
+          a#dl-json(href="#" download)= t('⬇ Timestamps JSON')
+          button#btn-reuse-seed(type="button" title=t('Put this seed in the form to regenerate the same take'))= t('Reuse seed')
       p.meta#meta
-      #truncated.warn.hidden ⚠ The audio reached Dia2's 2-minute limit, so the end of the script is cut off. Split the script into shorter parts.
+      #truncated.warn.hidden= t('⚠ The audio reached Dia2\'s 2-minute limit, so the end of the script is cut off. Split the script into shorter parts.')
       #transcript
 
     section#history-box.hidden
-      h2 This visit's takes
-      p.hint Kept in this page only — download the ones you want to keep.
+      h2= t('This visit\'s takes')
+      p.hint= t('Kept in this page only — download the ones you want to keep.')
       ul#history
 
     script.
@@ -189,8 +180,8 @@ html(lang="en")
         e.preventDefault();
         if (busy) return;
         const script = scriptEl.value.trim();
-        if (!script) return showError('Write a script first.');
-        if (script.length > MAX) return showError(`The script is longer than ${MAX} characters.`);
+        if (!script) return showError(t('Write a script first.'));
+        if (script.length > MAX) return showError(t('The script is longer than {max} characters.', { max: MAX }));
         const voices = {};
         if ($('voice-s1').value) voices.s1 = $('voice-s1').value;
         if ($('voice-s2').value) voices.s2 = $('voice-s2').value;
@@ -206,7 +197,7 @@ html(lang="en")
         const started = Date.now();
         const timer = setInterval(() => {
           const s = Math.floor((Date.now() - started) / 1000);
-          $('status').textContent = `Generating… ${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')} (a 2-minute dialogue can take a few minutes; the model may first need to reload)`;
+          $('status').textContent = t('Generating… {time} (a 2-minute dialogue can take a few minutes; the model may first need to reload)', { time: `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}` });
         }, 500);
         try {
           const res = await fetch('/admin/listening/generate', {
@@ -262,8 +253,8 @@ html(lang="en")
         $('dl-audio').download = `${take.base}.${r.format}`;
         $('dl-json').href = take.jsonUrl;
         $('dl-json').download = `${take.base}.json`;
-        const voiceText = (id) => id || 'random';
-        $('meta').textContent = `${r.duration.toFixed(1)} s audio · generated in ${r.generationSeconds} s · seed ${r.seed} · voices S1 ${voiceText(r.voices.s1)}, S2 ${voiceText(r.voices.s2)} · ${r.format}, ${r.sampleRate} Hz · ${r.words.length} words`;
+        const voiceText = (id) => id || t('random');
+        $('meta').textContent = t('{dur} s audio · generated in {gen} s · seed {seed} · voices S1 {s1}, S2 {s2} · {format}, {rate} Hz · {n} words', { dur: r.duration.toFixed(1), gen: r.generationSeconds, seed: r.seed, s1: voiceText(r.voices.s1), s2: voiceText(r.voices.s2), format: r.format, rate: r.sampleRate, n: r.words.length });
         $('truncated').classList.toggle('hidden', !r.truncated);
         renderTranscript(r.words);
         $('result').classList.remove('hidden');
@@ -282,10 +273,10 @@ html(lang="en")
           const li = document.createElement('li');
           li.classList.toggle('active', take === current);
           const label = document.createElement('span');
-          label.textContent = `${take.time} · ${r.duration.toFixed(1)} s · seed ${r.seed} · S1 ${r.voices.s1 || 'random'} / S2 ${r.voices.s2 || 'random'}`;
+          label.textContent = `${take.time} · ${r.duration.toFixed(1)} s · ` + t('seed {seed}', { seed: r.seed }) + ` · S1 ${voiceText(r.voices.s1)} / S2 ${voiceText(r.voices.s2)}`;
           const show = document.createElement('button');
           show.type = 'button';
-          show.textContent = 'Show';
+          show.textContent = t('Show');
           show.addEventListener('click', () => showTake(take));
           const dl = document.createElement('a');
           dl.href = take.audioUrl;

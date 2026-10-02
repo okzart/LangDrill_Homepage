@@ -6,7 +6,8 @@
   "type": "commonjs",
   "scripts": {
     "start": "node src/server.js",
-    "dev": "node --watch src/server.js"
+    "dev": "node --watch src/server.js",
+    "i18n:check": "node scripts/i18n-check.js"
   },
   "dependencies": {
     "cookie-parser": "^1.4.6",

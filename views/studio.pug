@@ -10,11 +10,11 @@
 //- The extracted mp3 stays in this page's memory only; every crop request
 //- sends it back, so nothing about the source is stored on any server.
 doctype html
-html(lang="en")
+html(lang=lang || "en")
   head
     meta(charset="UTF-8")
     meta(name="viewport" content="width=device-width, initial-scale=1")
-    title LanguageDrill — Studio
+    title= 'LanguageDrill — ' + t('Studio')
     include _style
     style.
       .hint { font-size: 0.8rem; color: #666; margin: 0.25rem 0 0; }
@@ -85,116 +85,116 @@ html(lang="en")
       @media (max-width: 560px) { .grid2, .times { grid-template-columns: 1fr; } #items li { flex-wrap: wrap; } #items li audio { width: 100%; } }
   body
     include _nav
-    h1 Studio
-    p.hint Turn your own audio or video into listening drills: transcribe it, pick a sentence (or part of one), crop the audio, and publish the items as a listening set.
+    h1= t('Studio')
+    p.hint= t('Turn your own audio or video into listening drills: transcribe it, pick a sentence (or part of one), crop the audio, and publish the items as a listening set.')
 
     #error.error(hidden)
 
     section
-      h2 1. Source
+      h2= t('1. Source')
       .source-row
         div
-          label(for="file") Audio or video file
+          label(for="file")= t('Audio or video file')
           input#file(type="file" accept="audio/*,video/*,.mp3,.m4a,.wav,.ogg,.webm,.mp4,.mov,.mkv")
         div
-          label(for="language") Spoken language
+          label(for="language")= t('Spoken language')
           select#language
-            option(value="en" selected) English
-            option(value="ko") Korean
-            option(value="auto") Detect automatically
+            option(value="en" selected)= t('English')
+            option(value="ko")= t('Korean')
+            option(value="auto")= t('Detect automatically')
       .actions
-        button#rec-btn(type="button") ● Record my voice
+        button#rec-btn(type="button")= t('● Record my voice')
         span#rec-time
-        button#transcribe-btn(type="button" disabled) Transcribe
+        button#transcribe-btn.primary(type="button" disabled)= t('Transcribe')
       p#rec-hint.hint(hidden)
-      p.hint Up to 300 MB and 30 minutes. From a video only the sound is used.
+      p.hint= t('Up to 300 MB and 30 minutes. From a video only the sound is used.')
       #tx-progress(hidden)
         .top
           span#tx-label(aria-live="polite")
-          button#tx-cancel(type="button") Cancel
-        .bar(role="progressbar" aria-label="Upload and transcription progress" aria-valuemin="0" aria-valuemax="100")
+          button#tx-cancel(type="button")= t('Cancel')
+        .bar(role="progressbar" aria-label=t('Upload and transcription progress') aria-valuemin="0" aria-valuemax="100")
           .fill
         .steps
-          span(data-step="upload") 1 Upload
-          span(data-step="work") 2 Extract &amp; transcribe
-          span(data-step="receive") 3 Receive
+          span(data-step="upload")= t('1 Upload')
+          span(data-step="work")= t('2 Extract & transcribe')
+          span(data-step="receive")= t('3 Receive')
       #source-status.status
 
     section#editor(hidden)
-      h2 2. Pick the part to use
+      h2= t('2. Pick the part to use')
       audio#player(controls preload="auto")
-      p.hint Click the first word, then the last word (or use a whole sentence). Dotted words were hard to hear - check them.
+      p.hint= t('Click the first word, then the last word (or use a whole sentence). Dotted words were hard to hear - check them.')
       #transcript
 
       #sel-panel(hidden)
-        h3 Selection
+        h3= t('Selection')
         .times
           div
-            label(for="start") Start (s)
+            label(for="start")= t('Start (s)')
             .nudge
               button(type="button" data-nudge="start" data-by="-0.1") −
               input#start(type="number" step="0.05" min="0")
               button(type="button" data-nudge="start" data-by="0.1") +
           div
-            label(for="end") End (s)
+            label(for="end")= t('End (s)')
             .nudge
               button(type="button" data-nudge="end" data-by="-0.1") −
               input#end(type="number" step="0.05" min="0")
               button(type="button" data-nudge="end" data-by="0.1") +
         .actions
-          button#play-sel(type="button") ▶ Play selection
+          button#play-sel(type="button")= t('▶ Play selection')
           span#sel-len.hint
         .grid2
           div
-            label(for="item-type") Drill type
+            label(for="item-type")= t('Drill type')
             select#item-type
-              option(value="dictation" selected) Dictation (fill in blanks)
-              option(value="full") Full sentence (write it all)
+              option(value="dictation" selected)= t('Dictation (fill in blanks)')
+              option(value="full")= t('Full sentence (write it all)')
           div
-            label(for="ko") Korean meaning (optional)
+            label(for="ko")= t('Korean meaning (optional)')
             input#ko(type="text" placeholder="한국어 뜻")
-        label(for="answer") Answer text
+        label(for="answer")= t('Answer text')
         input#answer(type="text")
-        p.hint Fix any word the transcript got wrong - the learner is marked against this text.
+        p.hint= t('Fix any word the transcript got wrong - the learner is marked against this text.')
         #blanks-field
-          label Blanks - click the words the learner must fill in
+          label= t('Blanks - click the words the learner must fill in')
           #blank-chips.chips
         .actions
-          button#add-item(type="button") + Add as item
+          button#add-item.primary(type="button")= t('+ Add as item')
           span#clip-status.status
 
     section
-      h2 3. Your listening set
+      h2= t('3. Your listening set')
       .modes
         label
           input(type="radio" name="set-mode" value="new" checked)
-          |  Publish as a new set
+          = ' ' + t('Publish as a new set')
         label
           input(type="radio" name="set-mode" value="existing")
-          |  Add to an existing listening set
+          = ' ' + t('Add to an existing listening set')
       #existing-picker(hidden)
         #set-search-box
-          label(for="set-search") Find a listening set
-          input#set-search(type="search" placeholder="Search by name, author or description" autocomplete="off")
+          label(for="set-search")= t('Find a listening set')
+          input#set-search(type="search" placeholder=t('Search by name, author or description') autocomplete="off")
           ul#set-results
           p#set-results-note.hint
         #chosen-set(hidden)
           span#chosen-label
-          button#change-set.link(type="button") Change
-        p.hint Only the person who published a set can add to it.
+          button#change-set.link(type="button")= t('Change')
+        p.hint= t('Only the person who published a set can add to it.')
       ul#items
-        li.empty No items yet - add one from the transcript above.
+        li.empty= t('No items yet - add one from the transcript above.')
       .grid2
         div
-          label(for="set-name") Set name
-          input#set-name(type="text" placeholder="e.g. Ordering at a restaurant")
+          label(for="set-name")= t('Set name')
+          input#set-name(type="text" placeholder=t('e.g. Ordering at a restaurant'))
         div
-          label(for="set-author") Author (optional)
+          label(for="set-author")= t('Author (optional)')
           input#set-author(type="text")
-      label(for="set-desc") Description (optional)
+      label(for="set-desc")= t('Description (optional)')
       input#set-desc(type="text")
       .actions
-        button#publish(type="button" disabled) Publish listening set
+        button#publish.primary(type="button" disabled)= t('Publish listening set')
         span#publish-status.status
 
     script.
@@ -215,7 +215,7 @@ html(lang="en")
           return fetch(url, opts).then(function (res) {
             if (res.status === 401) { location.href = '/login?next=/studio'; throw new Error('Not logged in'); }
             return res.json().catch(function () { return {}; }).then(function (data) {
-              if (!res.ok) throw new Error(data.error || ('Request failed (' + res.status + ')'));
+              if (!res.ok) throw new Error(data.error || t('Request failed ({status})', { status: res.status }));
               return data;
             });
           });
@@ -237,7 +237,7 @@ html(lang="en")
         if (!window.isSecureContext || !navigator.mediaDevices || !window.MediaRecorder) {
           recBtn.disabled = true;
           recHint.hidden = false;
-          recHint.textContent = 'Recording needs the page on HTTPS (or localhost) - see guidebook chapter 13 (Tailscale HTTPS). You can still upload a file.';
+          recHint.textContent = t('Recording needs the page on HTTPS (or localhost) - see guidebook chapter 13 (Tailscale HTTPS). You can still upload a file.');
         }
         recBtn.addEventListener('click', function () {
           if (recorder && recorder.state === 'recording') { recorder.stop(); return; }
@@ -250,19 +250,19 @@ html(lang="en")
               stream.getTracks().forEach(function (t) { t.stop(); });
               clearInterval(recTimer);
               recBtn.classList.remove('recording');
-              recBtn.textContent = '● Record again';
+              recBtn.textContent = t('● Record again');
               var type = (recorder.mimeType || 'audio/webm').split(';')[0];
               var ext = type.indexOf('mp4') !== -1 ? 'm4a' : type.indexOf('ogg') !== -1 ? 'ogg' : 'webm';
               var blob = new Blob(recChunks, { type: type });
               source = { blob: blob, name: 'recording.' + ext };
               fileInput.value = '';
               transcribeBtn.disabled = false;
-              sourceStatus.textContent = 'Recording ready (' + fmt((Date.now() - recStarted) / 1000) + ') - click Transcribe.';
+              sourceStatus.textContent = t('Recording ready ({time}) - click Transcribe.', { time: fmt((Date.now() - recStarted) / 1000) });
             };
             recorder.start(1000);
             recStarted = Date.now();
             recBtn.classList.add('recording');
-            recBtn.textContent = '■ Stop recording';
+            recBtn.textContent = t('■ Stop recording');
             recTime.textContent = '0:00.0';
             recTimer = setInterval(function () {
               var secs = (Date.now() - recStarted) / 1000;
@@ -270,7 +270,7 @@ html(lang="en")
               if (secs >= MAX_RECORD_SECONDS) recorder.stop();
             }, 200);
           }).catch(function (err) {
-            showError('Could not use the microphone: ' + err.message);
+            showError(t('Could not use the microphone: {message}', { message: err.message }));
           });
         });
 
@@ -308,7 +308,7 @@ html(lang="en")
             this.bar.classList.add('working');
             this.fill.style.width = ''; // let the .working animation size it
             this.bar.removeAttribute('aria-valuenow');
-            var show = function () { self.label.textContent = text + ' ' + Math.round((Date.now() - started) / 1000) + ' s'; };
+            var show = function () { self.label.textContent = text + ' ' + t('{n} s', { n: Math.round((Date.now() - started) / 1000) }); };
             show();
             this.timer = setInterval(show, 1000);
           },
@@ -326,27 +326,27 @@ html(lang="en")
             xhr.open('POST', url);
             xhr.upload.onprogress = function (e) {
               if (!e.lengthComputable) return;
-              progress.percent(e.loaded / e.total * 100, 'Uploading… ' + Math.round(e.loaded / e.total * 100) + '% (' + mb(e.loaded) + ' / ' + mb(e.total) + ' MB)');
+              progress.percent(e.loaded / e.total * 100, t('Uploading… {pct}% ({done} / {total} MB)', { pct: Math.round(e.loaded / e.total * 100), done: mb(e.loaded), total: mb(e.total) }));
             };
             xhr.upload.onload = function () {
               progress.step('work');
-              progress.working(source && /^video\//.test(source.blob.type) ? 'Extracting the audio and transcribing…' : 'Transcribing…');
+              progress.working(source && /^video\//.test(source.blob.type) ? t('Extracting the audio and transcribing…') : t('Transcribing…'));
             };
             var receiving = false;
             xhr.onprogress = function (e) {
               if (!receiving) { receiving = true; progress.step('receive'); }
-              if (e.lengthComputable) progress.percent(e.loaded / e.total * 100, 'Receiving the transcript and audio… ' + Math.round(e.loaded / e.total * 100) + '%');
-              else progress.working('Receiving the transcript and audio… ' + mb(e.loaded) + ' MB,');
+              if (e.lengthComputable) progress.percent(e.loaded / e.total * 100, t('Receiving the transcript and audio… {pct}%', { pct: Math.round(e.loaded / e.total * 100) }));
+              else progress.working(t('Receiving the transcript and audio… {done} MB,', { done: mb(e.loaded) }));
             };
             xhr.onload = function () {
               if (xhr.status === 401) { location.href = '/login?next=/studio'; return reject(new Error('Not logged in')); }
               var body = {};
               try { body = JSON.parse(xhr.responseText); } catch (e) { body = {}; }
-              if (xhr.status < 200 || xhr.status >= 300) return reject(new Error(body.error || ('Request failed (' + xhr.status + ')')));
+              if (xhr.status < 200 || xhr.status >= 300) return reject(new Error(body.error || t('Request failed ({status})', { status: xhr.status })));
               resolve(body);
             };
-            xhr.onerror = function () { reject(new Error('The connection failed during the upload.')); };
-            xhr.onabort = function () { var err = new Error('Cancelled.'); err.cancelled = true; reject(err); };
+            xhr.onerror = function () { reject(new Error(t('The connection failed during the upload.'))); };
+            xhr.onabort = function () { var err = new Error(t('Cancelled.')); err.cancelled = true; reject(err); };
             xhr.send(form);
           });
         }
@@ -354,7 +354,7 @@ html(lang="en")
 
         transcribeBtn.addEventListener('click', function () {
           if (!source) return;
-          if (items.length && !confirm('Start over with a new source? Items already added stay in your set.')) return;
+          if (items.length && !confirm(t('Start over with a new source? Items already added stay in your set.'))) return;
           clearError();
           var form = new FormData();
           form.append('language', $('language').value);
@@ -363,10 +363,10 @@ html(lang="en")
           sourceStatus.textContent = '';
           progress.start();
           progress.step('upload');
-          progress.percent(0, 'Uploading… 0% (0 / ' + mb(source.blob.size) + ' MB)');
+          progress.percent(0, t('Uploading… {pct}% ({done} / {total} MB)', { pct: 0, done: 0, total: mb(source.blob.size) }));
           postWithProgress('/studio/transcribe', form)
             .then(function (result) { loadTranscript(result); })
-            .catch(function (err) { if (!err.cancelled) showError(err.message); sourceStatus.textContent = err.cancelled ? 'Cancelled.' : ''; })
+            .catch(function (err) { if (!err.cancelled) showError(err.message); sourceStatus.textContent = err.cancelled ? t('Cancelled.') : ''; })
             .then(function () { txXhr = null; progress.stop(); transcribeBtn.disabled = !source; });
         });
 
@@ -377,12 +377,12 @@ html(lang="en")
           audioBlob = new Blob([arr], { type: result.audio.mimeType || 'audio/mpeg' });
           if (player.src) URL.revokeObjectURL(player.src);
           player.src = URL.createObjectURL(audioBlob);
-          sourceStatus.textContent = (result.source.hadVideo ? 'Audio extracted from video · ' : '') +
-            fmt(result.duration) + ' · ' + result.sentences.length + ' sentences · language: ' + (result.language || '?');
+          sourceStatus.textContent = (result.source.hadVideo ? t('Audio extracted from video') + ' · ' : '') +
+            t('{duration} · {n} sentences · language: {lang}', { duration: fmt(result.duration), n: result.sentences.length, lang: result.language || '?' });
           renderTranscript();
           clearSelection();
           $('editor').hidden = false;
-          if (!result.words.length) showError('No speech was recognized in this file.');
+          if (!result.words.length) showError(t('No speech was recognized in this file.'));
         }
 
         function renderTranscript() {
@@ -392,9 +392,9 @@ html(lang="en")
           data.sentences.forEach(function (s) {
             var row = document.createElement('div');
             row.className = 'sentence';
-            var t = document.createElement('span');
-            t.className = 't';
-            t.textContent = fmt(s.start);
+            var ts = document.createElement('span');
+            ts.className = 't';
+            ts.textContent = fmt(s.start);
             var words = document.createElement('span');
             words.className = 'words';
             for (var i = s.firstWord; i <= s.lastWord; i++) {
@@ -411,17 +411,17 @@ html(lang="en")
             tools.className = 'tools';
             var play = document.createElement('button');
             play.type = 'button';
-            play.title = 'Play this sentence';
+            play.title = t('Play this sentence');
             play.textContent = '▶';
             play.addEventListener('click', function () { playRange(s.start, s.end); });
             var use = document.createElement('button');
             use.type = 'button';
-            use.textContent = 'Use';
-            use.title = 'Select this whole sentence';
+            use.textContent = t('Use');
+            use.title = t('Select this whole sentence');
             use.addEventListener('click', function () { select(s.firstWord, s.lastWord); });
             tools.appendChild(play);
             tools.appendChild(use);
-            row.appendChild(t);
+            row.appendChild(ts);
             row.appendChild(words);
             row.appendChild(tools);
             box.appendChild(row);
@@ -491,8 +491,8 @@ html(lang="en")
 
         function times() { return { start: Number($('start').value), end: Number($('end').value) }; }
         function updateLength() {
-          var t = times(), len = t.end - t.start;
-          $('sel-len').textContent = len > 0 ? len.toFixed(2) + ' s' + (len > MAX_CLIP ? ' - too long (max ' + MAX_CLIP + ' s)' : '') : 'end must be after start';
+          var tm = times(), len = tm.end - tm.start;
+          $('sel-len').textContent = len > 0 ? len.toFixed(2) + ' s' + (len > MAX_CLIP ? ' - ' + t('too long (max {max} s)', { max: MAX_CLIP }) : '') : t('end must be after start');
         }
         ['start', 'end'].forEach(function (id) { $(id).addEventListener('input', updateLength); });
         document.querySelectorAll('[data-nudge]').forEach(function (btn) {
@@ -502,9 +502,9 @@ html(lang="en")
             updateLength();
             // Hear the edge that moved: the start plays from the start, the
             // end plays its last 1.5 s.
-            var t = times();
-            if (btn.dataset.nudge === 'start') playRange(t.start, Math.min(t.end, t.start + 1.5));
-            else playRange(Math.max(t.start, t.end - 1.5), t.end);
+            var tm = times();
+            if (btn.dataset.nudge === 'start') playRange(tm.start, Math.min(tm.end, tm.start + 1.5));
+            else playRange(Math.max(tm.start, tm.end - 1.5), tm.end);
           });
         });
 
@@ -514,7 +514,7 @@ html(lang="en")
           player.currentTime = start;
           player.play();
         }
-        $('play-sel').addEventListener('click', function () { var t = times(); playRange(t.start, t.end); });
+        $('play-sel').addEventListener('click', function () { var tm = times(); playRange(tm.start, tm.end); });
         player.addEventListener('timeupdate', function () {
           if (stopAt !== null && player.currentTime >= stopAt) { player.pause(); stopAt = null; }
           highlightPlaying(player.currentTime);
@@ -559,21 +559,21 @@ html(lang="en")
 
         $('add-item').addEventListener('click', function () {
           clearError();
-          var t = times();
+          var tm = times();
           var type = $('item-type').value;
           var answer = $('answer').value.trim();
           var words = answerWords();
           var blanks = Object.keys(blankSet).map(Number).filter(function (at) { return at < words.length; })
             .sort(function (a, b) { return a - b; })
             .map(function (at) { return { at: at, word: words[at] }; });
-          if (!answer) return showError('The answer text is empty.');
-          if (!(t.end > t.start)) return showError('End must be after start.');
-          if (t.end - t.start > MAX_CLIP) return showError('A clip can be at most ' + MAX_CLIP + ' seconds.');
-          if (type === 'dictation' && !blanks.length) return showError('Pick at least one word to blank out (or choose "Full sentence").');
+          if (!answer) return showError(t('The answer text is empty.'));
+          if (!(tm.end > tm.start)) return showError(t('End must be after start.'));
+          if (tm.end - tm.start > MAX_CLIP) return showError(t('A clip can be at most {max} seconds.', { max: MAX_CLIP }));
+          if (type === 'dictation' && !blanks.length) return showError(t('Pick at least one word to blank out (or choose "Full sentence").'));
           var btn = $('add-item'), status = $('clip-status');
           btn.disabled = true;
-          status.textContent = 'Cropping and saving the clip…';
-          call('/studio/clip?start=' + t.start + '&end=' + t.end, { method: 'POST', headers: { 'Content-Type': 'audio/mpeg' }, body: audioBlob })
+          status.textContent = t('Cropping and saving the clip…');
+          call('/studio/clip?start=' + tm.start + '&end=' + tm.end, { method: 'POST', headers: { 'Content-Type': 'audio/mpeg' }, body: audioBlob })
             .then(function (clip) {
               var item = { type: type, answer: answer, audioUrl: clip.audioUrl };
               var ko = $('ko').value.trim();
@@ -581,7 +581,7 @@ html(lang="en")
               if (type === 'dictation') item.blanks = blanks;
               items.push(item);
               renderItems();
-              status.textContent = 'Added (' + clip.duration.toFixed(2) + ' s clip).';
+              status.textContent = t('Added ({n} s clip).', { n: clip.duration.toFixed(2) });
               clearSelection();
             })
             .catch(function (err) { showError(err.message); status.textContent = ''; })
@@ -608,13 +608,13 @@ html(lang="en")
           } else {
             audio = document.createElement('span');
             audio.className = 'noclip';
-            audio.textContent = '(no clip - read by the app)';
+            audio.textContent = t('(no clip - read by the app)');
           }
           var body = document.createElement('div');
           body.className = 'body';
           var kind = document.createElement('div');
           kind.className = 'kind';
-          kind.textContent = label + '. ' + (item.type || '');
+          kind.textContent = label + '. ' + t(item.type || '');
           var text = document.createElement('div');
           var answer = String(item.answer || '');
           var blankAt = {};
@@ -642,7 +642,7 @@ html(lang="en")
           var btn = document.createElement('button');
           btn.type = 'button';
           btn.className = removed ? '' : 'danger';
-          btn.textContent = removed ? 'Undo' : 'Remove';
+          btn.textContent = removed ? t('Undo') : t('Remove');
           btn.addEventListener('click', onToggle);
           li.appendChild(audio);
           li.appendChild(body);
@@ -663,8 +663,8 @@ html(lang="en")
             var empty = document.createElement('li');
             empty.className = 'empty';
             empty.textContent = target && target.items.length
-              ? 'No new items yet - add one from the transcript above.'
-              : 'No items yet - add one from the transcript above.';
+              ? t('No new items yet - add one from the transcript above.')
+              : t('No items yet - add one from the transcript above.');
             list.appendChild(empty);
           }
           items.forEach(function (item, index) {
@@ -682,10 +682,10 @@ html(lang="en")
         function updatePublishButton() {
           var btn = $('publish');
           if (mode === 'new') {
-            btn.textContent = 'Publish listening set';
+            btn.textContent = t('Publish listening set');
             btn.disabled = !items.length;
           } else {
-            btn.textContent = target ? 'Save to "' + target.name + '"' : 'Save to the chosen set';
+            btn.textContent = target ? t('Save to "{name}"', { name: target.name }) : t('Save to the chosen set');
             btn.disabled = !target || (keptIndexes().length + items.length === 0);
           }
         }
@@ -731,7 +731,7 @@ html(lang="en")
         function searchSets() {
           var seq = ++searchSeq;
           var q = $('set-search').value.trim();
-          $('set-results-note').textContent = 'Searching…';
+          $('set-results-note').textContent = t('Searching…');
           call('/studio/sets?q=' + encodeURIComponent(q))
             .then(function (result) {
               if (seq !== searchSeq) return; // a newer search is on its way
@@ -744,7 +744,7 @@ html(lang="en")
                 title.textContent = card.name;
                 var meta = document.createElement('div');
                 meta.className = 'meta';
-                meta.textContent = card.count + ' items · by ' + card.author + (card.desc ? ' · ' + card.desc : '');
+                meta.textContent = t('{n} items · by {author}', { n: card.count, author: card.author }) + (card.desc ? ' · ' + card.desc : '');
                 li.appendChild(title);
                 li.appendChild(meta);
                 li.addEventListener('click', function () { loadSet(card.id); });
@@ -752,15 +752,15 @@ html(lang="en")
                 list.appendChild(li);
               });
               $('set-results-note').textContent = !result.total
-                ? (q ? 'No listening sets match "' + q + '".' : 'No listening sets published yet.')
-                : result.total > result.sets.length ? 'Showing the newest ' + result.sets.length + ' of ' + result.total + ' - type to narrow it down.' : '';
+                ? (q ? t('No listening sets match "{q}".', { q: q }) : t('No listening sets published yet.'))
+                : result.total > result.sets.length ? t('Showing the newest {n} of {total} - type to narrow it down.', { n: result.sets.length, total: result.total }) : '';
             })
             .catch(function (err) { if (seq === searchSeq) $('set-results-note').textContent = err.message; });
         }
 
         function loadSet(id) {
           clearError();
-          $('set-results-note').textContent = 'Loading…';
+          $('set-results-note').textContent = t('Loading…');
           call('/studio/sets/' + encodeURIComponent(id))
             .then(function (set) { chooseSet(set); })
             .catch(function (err) { $('set-results-note').textContent = ''; showError(err.message); });
@@ -773,7 +773,7 @@ html(lang="en")
             $('set-name').value = set.name || '';
             $('set-desc').value = set.desc || '';
             $('set-author').value = set.author || '';
-            $('chosen-label').textContent = 'Adding to "' + set.name + '" (' + target.items.length + ' items, by ' + set.author + ')';
+            $('chosen-label').textContent = t('Adding to "{name}" ({n} items, by {author})', { name: set.name, n: target.items.length, author: set.author });
             $('set-search-box').hidden = true;
             $('chosen-set').hidden = false;
             $('set-results-note').textContent = '';
@@ -794,17 +794,17 @@ html(lang="en")
           var fields = { name: name, desc: $('set-desc').value, author: $('set-author').value };
           var url, body;
           if (mode === 'existing') {
-            if (!target) return showError('Pick the listening set to add to.');
+            if (!target) return showError(t('Pick the listening set to add to.'));
             var removed = target.items.length - keptIndexes().length;
-            if (removed && !confirm('Remove ' + removed + ' item(s) that are already in "' + target.name + '"?')) return;
+            if (removed && !confirm(t('Remove {n} item(s) that are already in "{name}"?', { n: removed, name: target.name }))) return;
             url = '/studio/sets/' + encodeURIComponent(target.id) + '/update';
             fields.keep = keptIndexes();
             fields.items = items;
-            status.textContent = 'Saving…';
+            status.textContent = t('Saving…');
           } else {
             url = '/studio/publish';
             fields.items = items;
-            status.textContent = 'Publishing…';
+            status.textContent = t('Publishing…');
           }
           btn.disabled = true;
           call(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(fields) })

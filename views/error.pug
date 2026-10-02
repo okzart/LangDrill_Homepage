@@ -1,12 +1,24 @@
 doctype html
-html(lang="en")
+html(lang=lang || "en")
   head
     meta(charset="UTF-8")
-    title LanguageDrill — Error #{status}
+    meta(name="viewport" content="width=device-width, initial-scale=1")
+    title= 'LanguageDrill — ' + t('Error {status}', { status: status })
     include _style
+    style.
+      .oops { max-width: 34rem; margin: 3rem auto; text-align: center; }
+      .oops .code { font-family: var(--display); font-size: clamp(4.5rem, 14vw, 7rem); font-weight: 650; line-height: 1; letter-spacing: -0.04em; background: var(--brand); -webkit-background-clip: text; background-clip: text; color: transparent; }
+      .oops h1 { margin: 0.6rem 0 1rem; font-size: 1.6rem; }
+      .oops h1::after { margin: 0.6rem auto 0; }
+      .oops .error { text-align: left; }
+      .oops .btn { margin-top: 0.5rem; }
   body
     include _nav
-    h1 Error #{status}
-    .error= message
-    p
-      a(href="/dashboard") Back to dashboard
+    include mixins/icons
+    .oops
+      .code= status
+      h1= status === 404 ? t('We couldn’t find that page') : status === 403 ? t('You don’t have access to this') : t('Something went wrong')
+      .error= t(message)
+      a.btn(href="/dashboard")
+        +icon('home', 17)
+        = t('Back to dashboard')

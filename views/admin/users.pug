@@ -1,61 +1,61 @@
 doctype html
-html(lang="en")
+html(lang=lang || "en")
   head
     meta(charset="UTF-8")
-    title LanguageDrill — Admin: Users
+    title= 'LanguageDrill — ' + t('Admin: Users')
     include ../_style
   body
     include ../_nav
-    h1 Users
+    h1= t('Users')
 
     if error
-      .error= error
+      .error= t(error)
 
     section
       table
         thead
           tr
-            th Email
-            th Role
-            th Created
-            th Actions
+            th= t('Email')
+            th= t('Role')
+            th= t('Created')
+            th= t('Actions')
         tbody
           each user in items
             tr
               td= user.email
-              td= user.role
+              td= t(user.role)
               td= user.createdAt
               td
                 details
-                  summary Edit
+                  summary= t('Edit')
                   form(method="POST" action=`/admin/users/${user.id}/update`)
-                    label(for=`role-${user.id}`) Role
+                    label(for=`role-${user.id}`)= t('Role')
                     select(id=`role-${user.id}` name="role")
-                      option(value="user" selected=(user.role === 'user')) user
-                      option(value="admin" selected=(user.role === 'admin')) admin
-                    label(for=`password-${user.id}`) New password (leave blank to keep current)
+                      option(value="user" selected=(user.role === 'user'))= t('user')
+                      option(value="admin" selected=(user.role === 'admin'))= t('admin')
+                    label(for=`password-${user.id}`)= t('New password (leave blank to keep current)')
                     input(id=`password-${user.id}` type="password" name="password")
-                    button(type="submit") Save
+                    button(type="submit")= t('Save')
                   form.inline(method="POST" action=`/admin/users/${user.id}/delete`)
-                    button.danger(type="submit") Delete
-                  a(href=`/admin/users/${user.id}/progress`) Progress
+                    button.danger(type="submit")= t('Delete')
+                  a(href=`/admin/users/${user.id}/progress`)= t('Progress')
 
       .row
         if page > 1
-          a(href=`/admin/users?page=${page - 1}&limit=${limit}`) ← Prev
-        span Page #{page} (#{total} users total)
+          a(href=`/admin/users?page=${page - 1}&limit=${limit}`)= t('← Prev')
+        span= t('Page {page} ({total} users total)', { page: page, total: total })
         if page * limit < total
-          a(href=`/admin/users?page=${page + 1}&limit=${limit}`) Next →
+          a(href=`/admin/users?page=${page + 1}&limit=${limit}`)= t('Next →')
 
     section
-      h2 Create a user
+      h2= t('Create a user')
       form(method="POST" action="/admin/users")
-        label(for="new-email") Email
+        label(for="new-email")= t('Email')
         input#new-email(type="email" name="email" required)
-        label(for="new-password") Password
+        label(for="new-password")= t('Password')
         input#new-password(type="password" name="password" required)
-        label(for="new-role") Role
+        label(for="new-role")= t('Role')
         select#new-role(name="role")
-          option(value="user") user
-          option(value="admin") admin
-        button(type="submit") Create
+          option(value="user")= t('user')
+          option(value="admin")= t('admin')
+        button(type="submit")= t('Create')

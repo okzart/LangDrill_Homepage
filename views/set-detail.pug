@@ -1,5 +1,5 @@
 doctype html
-html(lang="en")
+html(lang=lang || "en")
   head
     meta(charset="UTF-8")
     title LanguageDrill — #{set.name}
@@ -26,43 +26,43 @@ html(lang="en")
     //- they stay reachable on long sets (they used to sit below the full
     //- item list and JSON dump).
     .actions-bar
-      a(href="/community") ← Back to Community
+      a(href="/community")= t('← Back to Community')
       span.spacer
       form.inline(method="POST" action=`/community/${set.id}/download`)
-        button(type="submit") Download (+1)
-      a.btn(href=`/community?tab=list&editId=${set.id}`) Modify
-      form.inline(method="POST" action=`/community/${set.id}/delete` onsubmit="return confirm('Unpublish this set? This cannot be undone.')")
-        button.danger(type="submit") Unpublish
+        button(type="submit")= t('Download (+1)')
+      a.btn(href=`/community?tab=list&editId=${set.id}`)= t('Modify')
+      form.inline(method="POST" action=`/community/${set.id}/delete` onsubmit=`return confirm(${JSON.stringify(t('Unpublish this set? This cannot be undone.'))})`)
+        button.danger(type="submit")= t('Unpublish')
 
     if error
-      .error= error
+      .error= t(error)
     if published
-      .success Published.
+      .success= t('Published.')
     if downloaded
-      .success Downloaded — download count bumped below.
+      .success= t('Downloaded — download count bumped below.')
 
     section
       table
         tr
-          th Type
-          td= set.type
+          th= t('Type')
+          td= t(set.type)
         tr
-          th Author
+          th= t('Author')
           td= set.author
         if set.type === 'vocab'
           tr
-            th Audio voice
-            td= set.voice || 'default'
+            th= t('Audio voice')
+            td= set.voice || t('default')
         tr
-          th Downloads
+          th= t('Downloads')
           td= set.downloads
         tr
-          th Items
+          th= t('Items')
           td= set.count
       p= set.desc
 
     section
-      h2 Items
+      h2= t('Items')
       if set.type === 'vocab'
         - var audioCount = set.items.filter(function (it) { return it && it.audioUrl; }).length
         //- "Play all": plays every item's audio in order (see the script at
@@ -70,20 +70,20 @@ html(lang="en")
         if audioCount > 0
           #playAll.play-all
             .row
-              button#playAllBtn(type="button") ▶ Play all (#{audioCount})
-              button#pauseAllBtn(type="button" hidden) ❚❚ Pause
-              button#stopAllBtn(type="button" hidden) ■ Stop
+              button#playAllBtn(type="button")= t('▶ Play all ({n})', { n: audioCount })
+              button#pauseAllBtn(type="button" hidden)= t('❚❚ Pause')
+              button#stopAllBtn(type="button" hidden)= t('■ Stop')
             .row.play-all-options
-              label(for="playAllGap") Pause between items
+              label(for="playAllGap")= t('Pause between items')
               select#playAllGap
-                option(value="0") none
+                option(value="0")= t('none')
                 option(value="1000") 1 s
                 option(value="2000" selected) 2 s
                 option(value="3000") 3 s
                 option(value="5000") 5 s
               label
                 input#playAllRepeat(type="checkbox")
-                |  Repeat
+                = ' ' + t('Repeat')
             p#playAllStatus.hint(aria-live="polite")
         ol#vocabItems
           each item, i in set.items
@@ -93,14 +93,14 @@ html(lang="en")
               if item.audioUrl
                 audio.item-audio(controls preload="none" src=`/community/audio/${item.audioUrl.replace('/audio/', '')}`)
               else
-                span.hint (no audio yet)
+                span.hint= t('(no audio yet)')
       else if set.type === 'listening'
         //- Listening items may carry their own clip (e.g. made on /studio);
         //- blanked words are highlighted.
         ol#listeningItems
           each item, i in set.items
             li
-              p.hint= item.type
+              p.hint= t(item.type)
               - var blankAt = {}
               - (item.blanks || []).forEach(function (b) { blankAt[b.at] = true; })
               - var parts = [], at = 0, last = 0, m, re = /[A-Za-z']+/g, text = String(item.answer || '')
@@ -155,19 +155,19 @@ html(lang="en")
             playBtn.hidden = running;
             pauseBtn.hidden = !running;
             stopBtn.hidden = !running;
-            pauseBtn.textContent = paused ? '▶ Resume' : '❚❚ Pause';
+            pauseBtn.textContent = paused ? t('▶ Resume') : t('❚❚ Pause');
           }
 
           function playAt(i) {
             clearTimeout(gapTimer);
             if (i >= audios.length) {
-              if (repeatBox.checked) { i = 0; } else { stop('Finished.'); return; }
+              if (repeatBox.checked) { i = 0; } else { stop(t('Finished.')); return; }
             }
             index = i;
             paused = false;
             var audio = audios[i];
             highlight(audio);
-            setStatus('Playing ' + (i + 1) + ' of ' + audios.length);
+            setStatus(t('Playing {n} of {total}', { n: i + 1, total: audios.length }));
             updateButtons();
             audio.currentTime = 0;
             driving = true;
@@ -183,7 +183,7 @@ html(lang="en")
             var gap = parseInt(gapSelect.value, 10) || 0;
             var nextIndex = index + 1;
             if (gap > 0 && (nextIndex < audios.length || repeatBox.checked)) {
-              setStatus('Next in ' + gap / 1000 + ' s…');
+              setStatus(t('Next in {s} s…', { s: gap / 1000 }));
               gapTimer = setTimeout(function () { playAt(nextIndex); }, gap);
             } else {
               playAt(nextIndex);
@@ -226,7 +226,7 @@ html(lang="en")
               updateButtons();
               var audio = audios[index];
               if (audio.ended || audio.currentTime === 0) { playAt(index); return; }
-              setStatus('Playing ' + (index + 1) + ' of ' + audios.length);
+              setStatus(t('Playing {n} of {total}', { n: index + 1, total: audios.length }));
               driving = true;
               audio.play();
               driving = false;
@@ -235,7 +235,7 @@ html(lang="en")
               clearTimeout(gapTimer);
               audios[index].pause();
               updateButtons();
-              setStatus('Paused at ' + (index + 1) + ' of ' + audios.length);
+              setStatus(t('Paused at {n} of {total}', { n: index + 1, total: audios.length }));
             }
           });
         })();

@@ -8,11 +8,11 @@
 //- src/routes/passagesRoutes.js). The MP3 is played from memory only;
 //- nothing is saved on the server or in the browser.
 doctype html
-html(lang="en")
+html(lang=lang || "en")
   head
     meta(charset="UTF-8")
     meta(name="viewport" content="width=device-width, initial-scale=1")
-    title LanguageDrill — Passages
+    title= 'LanguageDrill — ' + t('Passages')
     include _style
     style.
       .picker-head { display: flex; gap: 0.5rem; align-items: end; flex-wrap: wrap; }
@@ -65,55 +65,57 @@ html(lang="en")
       #translation .ko-s.missing { color: #999; font-style: italic; }
   body
     include _nav
-    h1 Passages
-    p Pick expressions from a vocab drill set or type your own. You'll get a short passage that uses every one of them — in the sense shown by each example sentence — read aloud, with each word highlighted as it's spoken.
+    h1= t('Passages')
+    p= t("Pick expressions from a vocab drill set or type your own. You'll get a short passage that uses every one of them — in the sense shown by each example sentence — read aloud, with each word highlighted as it's spoken.")
 
     if vocabSets && vocabSets.length
       section
-        h2 Pick from a vocab drill set
+        h2= t('Pick from a vocab drill set')
         .picker-head
           div
-            label(for="set") Vocab set
+            label(for="set")= t('Vocab set')
             select#set
-              option(value="") — choose a set —
+              option(value="")= t('— choose a set —')
               each set in vocabSets
-                option(value=set.id)= `${set.name} (${set.count} items${set.author ? ` · ${set.author}` : ''})`
+                option(value=set.id)= set.name + ' (' + t('{n} items', { n: set.count }) + (set.author ? ' · ' + set.author : '') + ')'
           div
-            label(for="filter") Search items
-            input#filter(type="search" placeholder="word, sentence or 한국어" disabled)
+            label(for="filter")= t('Search items')
+            input#filter(type="search" placeholder=t('word, sentence or 한국어') disabled)
         #items.hidden
         .picker-actions
-          button#btn-add-checked(type="button" disabled) Add checked
-          button#btn-select-all(type="button" disabled) Check all shown
+          button#btn-add-checked(type="button" disabled)= t('Add checked')
+          button#btn-select-all(type="button" disabled)= t('Check all shown')
           span.hint#picker-status
     else if vocabSets
-      p.hint No vocab drill sets have been published yet — type expressions below.
+      p.hint= t('No vocab drill sets have been published yet — type expressions below.')
 
     section
       form#form
-        h2 Expressions for the passage #[span.count#count 0 / 15]
-        p.hint Each expression can carry a meaning and an example sentence; the passage uses the expression in that sense. Forms may change (e.g. "take off" → "took off"). Placeholders like "one's" are fine.
+        h2
+          = t('Expressions for the passage') + ' '
+          span.count#count 0 / 15
+        p.hint= t('Each expression can carry a meaning and an example sentence; the passage uses the expression in that sense. Forms may change (e.g. "take off" → "took off"). Placeholders like "one\'s" are fine.')
         ul#selected
         .picker-actions
-          button#btn-add-row(type="button") + Add expression
-          button#btn-clear-rows(type="button") Clear
+          button#btn-add-row(type="button")= t('+ Add expression')
+          button#btn-clear-rows(type="button")= t('Clear')
         .grid2
           div
-            label(for="level") Level
+            label(for="level")= t('Level')
             select#level
-              option(value="beginner") Beginner
-              option(value="intermediate" selected) Intermediate
-              option(value="advanced") Advanced
+              option(value="beginner")= t('Beginner')
+              option(value="intermediate" selected)= t('Intermediate')
+              option(value="advanced")= t('Advanced')
           div
             if voiceOptions
-              label(for="voice") Voice
+              label(for="voice")= t('Voice')
               select#voice
                 each v in voiceOptions.voices
-                  option(value=v.id selected=(v.id === voiceOptions.default))= v.label + (v.id === voiceOptions.default ? ' — default' : '')
+                  option(value=v.id selected=(v.id === voiceOptions.default))= v.label + (v.id === voiceOptions.default ? ' — ' + t('default') : '')
             else
-              p.hint Voice list unavailable right now; the default voice will be used.
+              p.hint= t('Voice list unavailable right now; the default voice will be used.')
         .row
-          button#btn-generate(type="submit" disabled) Generate
+          button#btn-generate(type="submit" disabled)= t('Generate')
           span#status
 
     #error.error.hidden
@@ -127,7 +129,7 @@ html(lang="en")
           button(type="button" data-rate="1.25") 1.25×
         label.show-ko
           input#show-ko(type="checkbox" checked)
-          | Show Korean
+          = t('Show Korean')
       ul#chips.chips
       #passage
       #translation-box
@@ -180,7 +182,7 @@ html(lang="en")
         if (selected.length === 0) {
           const li = document.createElement('li');
           li.className = 'empty';
-          li.textContent = 'No expressions yet — pick some from a drill set above or add your own.';
+          li.textContent = t('No expressions yet — pick some from a drill set above or add your own.');
           list.append(li);
         }
         selected.forEach((entry, i) => {
@@ -197,12 +199,12 @@ html(lang="en")
           const remove = document.createElement('button');
           remove.type = 'button';
           remove.textContent = '×';
-          remove.title = 'Remove';
+          remove.title = t('Remove');
           remove.addEventListener('click', () => { selected.splice(i, 1); renderSelected(); });
           li.append(
-            field('expression', 'expression, e.g. take off', 'expr-input'),
-            field('meaning', 'meaning (optional)', 'opt'),
-            field('example', 'example sentence (optional)', 'opt'),
+            field('expression', t('expression, e.g. take off'), 'expr-input'),
+            field('meaning', t('meaning (optional)'), 'opt'),
+            field('example', t('example sentence (optional)'), 'opt'),
             remove
           );
           list.append(li);
@@ -281,7 +283,7 @@ html(lang="en")
         for (const b of ['btn-add-checked', 'btn-select-all']) $(b).disabled = !id;
         $('filter').disabled = !id;
         if (!id) return;
-        $('picker-status').textContent = 'Loading…';
+        $('picker-status').textContent = t('Loading…');
         try {
           const res = await fetch(`/passages/sets/${encodeURIComponent(id)}`);
           if (res.status === 401) { window.location.href = '/login?next=/passages'; return; }
@@ -290,9 +292,9 @@ html(lang="en")
           if (setSelect.value !== id) return; // another set was chosen meanwhile
           setItems = body.items;
           renderItems();
-          $('picker-status').textContent = setItems.length ? `${setItems.length} items` : 'This set has no items with blanks to use.';
+          $('picker-status').textContent = setItems.length ? t('{n} items', { n: setItems.length }) : t('This set has no items with blanks to use.');
         } catch (error) {
-          $('picker-status').textContent = `Could not load the set: ${error.message}`;
+          $('picker-status').textContent = t('Could not load the set: {message}', { message: error.message });
         }
       });
 
@@ -305,14 +307,14 @@ html(lang="en")
           box.checked = n < room;
           if (box.checked) n++;
         });
-        $('picker-status').textContent = n < room ? '' : `Checked ${n} — the passage takes at most ${MAX} expressions.`;
+        $('picker-status').textContent = n < room ? '' : t('Checked {n} — the passage takes at most {max} expressions.', { n, max: MAX });
       });
 
       $('btn-add-checked')?.addEventListener('click', () => {
         const checked = [...document.querySelectorAll('#items input:checked')];
         const overflow = addSelected(checked.map((box) => setItems[Number(box.closest('label').dataset.i)]));
         checked.forEach((box) => { box.checked = false; });
-        $('picker-status').textContent = overflow ? `${overflow} not added — at most ${MAX} expressions per passage.` : '';
+        $('picker-status').textContent = overflow ? t('{n} not added — at most {max} expressions per passage.', { n: overflow, max: MAX }) : '';
       });
 
       renderSelected();
@@ -330,7 +332,7 @@ html(lang="en")
         request = new AbortController();
         showError('');
         $('btn-generate').disabled = true;
-        $('status').textContent = `Writing a passage with ${expressions.length} expression${expressions.length > 1 ? 's' : ''} , recording and translating it… (usually 5–15 seconds)`;
+        $('status').textContent = t('Writing a passage with {n} expressions, recording and translating it… (usually 5–15 seconds)', { n: expressions.length });
         try {
           const res = await fetch('/passages/generate', {
             method: 'POST',
@@ -379,7 +381,7 @@ html(lang="en")
           span.className = word.expression === undefined ? 'w' : 'w expr';
           span.textContent = result.text.slice(word.start, word.end);
           span.dataset.i = i;
-          if (word.expression !== undefined) span.title = `Expression: ${result.expressions[word.expression].expression}`;
+          if (word.expression !== undefined) span.title = t('Expression: {expr}', { expr: result.expressions[word.expression].expression });
           passageEl.append(span);
           wordEls.push(span);
           pos = word.end;
@@ -401,7 +403,7 @@ html(lang="en")
           const button = document.createElement('button');
           button.type = 'button';
           button.textContent = entry.expression;
-          button.title = [entry.meaning, entry.example && `e.g. ${entry.example}`].filter(Boolean).join('\n');
+          button.title = [entry.meaning, entry.example && t('e.g. {example}', { example: entry.example })].filter(Boolean).join('\n');
           if (first && first.text.toLowerCase() !== entry.expression.toLowerCase()) {
             const small = document.createElement('small');
             small.textContent = ` → ${first.text}`;
@@ -415,11 +417,11 @@ html(lang="en")
           $('chips').append(li);
         });
 
-        $('meta').textContent = `${result.words.length} words · ${formatTime(result.audio.duration)} · voice ${result.voice} · ${result.level}. `
-          + 'Sentence timing is exact; word highlighting is approximate. '
-          + (result.translation && !result.translation.complete ? 'Some sentences could not be translated. ' : '')
-          + (!result.translation ? 'Korean translation is unavailable this time. ' : '')
-          + 'Nothing is saved — generating again replaces this passage.';
+        $('meta').textContent = t('{n} words · {time} · voice {voice} · {level}.', { n: result.words.length, time: formatTime(result.audio.duration), voice: result.voice, level: t(result.level) }) + ' '
+          + t('Sentence timing is exact; word highlighting is approximate.') + ' '
+          + (result.translation && !result.translation.complete ? t('Some sentences could not be translated.') + ' ' : '')
+          + (!result.translation ? t('Korean translation is unavailable this time.') + ' ' : '')
+          + t('Nothing is saved — generating again replaces this passage.');
         $('result').classList.remove('hidden');
         $('result').scrollIntoView({ behavior: 'smooth', block: 'start' });
       }

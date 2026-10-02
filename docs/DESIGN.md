@@ -82,6 +82,12 @@ This app never talks to `:3000`/`:3002`/`:3003` directly.
 | `src/routes/authRoutes.js` | `/login`, `/register`, `/logout` - the only pages reachable while logged out. |
 | `src/routes/dashboardRoutes.js` | `/`, `/dashboard`, `/profile`. |
 | `src/routes/progressRoutes.js` | `/progress` - the caller's progress as a read-only dashboard (admins get an Edit button to their own record in the admin editor). |
+| `views/_style.pug` | The shared design system every page includes: colour/shadow/type tokens on `:root` (deep ink, a violet→gold brand gradient, warm cream canvas; Fraunces for headings, Plus Jakarta Sans for text, from Google Fonts with system fallbacks), plus styles for plain elements - `section` cards, buttons (neutral by default; `type=submit`, `.btn` and `.primary` are the gradient primary; `.danger`; `.link`), inputs, tables, `.error`/`.success` alerts. Pages add their own `<style>` on top using the same tokens. |
+| `views/_nav.pug` | The floating site nav (`nav.site`): logo, page links with icons and a "you are here" highlight (`res.locals.currentPath`, set in `currentUser.js`), an Admin dropdown for admins, the avatar (→ `/profile`) and log-out. On phones the links become a swipeable strip. |
+| `views/mixins/icons.pug` | `+icon(name, size)` inline stroke icons and `+brandMark(size)`. |
+| `src/i18n/index.js` | UI language (English / Korean). gettext-style: templates call `t('English text', { vars })` and page scripts call `window.t(...)` (`views/_i18n.pug`, included from `_style.pug`); `ko.json` maps the exact English string to Korean, and anything missing falls back to English. `@patterns` in the dictionary translates messages carrying numbers (mostly relayed from backend services). The choice is the `ld_lang` cookie set by `GET /lang/:code?next=` (the nav's EN / 한국어 switch); without it, the browser's `Accept-Language` decides. Exposes `lang`, `t`, `langReturn` to views and `req.t` to routes (route-made JSON errors are translated with it). Korean mode loads Noto Sans KR / Noto Serif KR for Hangul and sets `word-break: keep-all`. |
+| `src/i18n/build-ko.py` → `src/i18n/ko.json` | The Korean dictionary's source (edit the .py, run it). `npm run i18n:check` (`scripts/i18n-check.js`) lists every `t('...')` literal with no Korean entry. |
+| `views/mixins/authShell.pug` | `+authShell(title, subtitle)` - the split layout (brand panel + form card) used by login, register and the email-confirmation pages. |
 | `views/mixins/progressCharts.pug` | The progress dashboard, shared by `/progress` and `/admin/users/:id/progress`: stat tiles (level/XP, streak, study time, sentences, average accuracy, saved items), a daily-goal meter, a Mon-Sun activity column chart, accuracy-by-type bars with an average line, badges, and a table view of every number. Drawn client-side from the embedded record; on the admin page it redraws live from the edit form. |
 | `src/routes/communityRoutes.js` | `/community` (List and Create tabs - List's rows carry inline Update/Delete), `/community/:id`, and the publish/update/download/unpublish actions. |
 | `src/routes/chatRoutes.js` | `/chat` (chat page for the self-hosted LLM, optionally spoken aloud, with voice input), `POST /chat/transcribe` (relays a browser recording to the gateway's `/api/stt/transcriptions` as multipart and returns `{ text }` - never stored), `POST /chat/completions` (forwards the page's messages to the gateway's `/api/llm` route with the session token and pipes the streamed reply, Server-Sent Events, back to the browser) and `POST /chat/speech` (same, for one sentence of speech from `/api/tts`, piped back as `audio/mpeg` - never written to disk). |
@@ -96,8 +102,11 @@ This app never talks to `:3000`/`:3002`/`:3003` directly.
 
 | Page | Auth | Calls |
 |---|---|---|
-| `GET/POST /login` | — | `POST /api/auth/login` |
-| `GET/POST /register` | — | `POST /api/auth/register`, then `POST /api/auth/login` |
+| `GET/POST /login` | — | `POST /api/auth/login`; a `403` (registered but email not confirmed) shows the code step instead |
+| `GET/POST /register` | — | `POST /api/auth/register` (emails a 6-digit code; no account yet) → renders the "Confirm your email" step |
+| `POST /register/verify` `{ email, code, password }` (the code step; `password` rides in a hidden field because confirming needs it, page sent `no-store`) | — | `POST /api/auth/register/verify` → creates the account, sets the session cookie, redirects to `/dashboard` |
+| `POST /register/resend` | — | `POST /api/auth/register/resend` |
+| `GET/POST /register/confirm?token=` (the emailed link; the GET only shows a password form so mail scanners prefetching links can't use it up) | — | `POST /api/auth/register/confirm` `{ token, password }` → session cookie, `/dashboard` |
 | `POST /logout` | — | (clears the cookie only - no gateway call; JWTs aren't revocable, see Authentication's `docs/DESIGN.md`) |
 | `GET /dashboard` | login | — |
 | `GET /profile` | login | `GET /api/auth/me` |
