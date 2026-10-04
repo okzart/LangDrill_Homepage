@@ -6,18 +6,20 @@
 include mixins/icons
 - var here = currentPath || ''
 - var isActive = function (prefix) { return here === prefix || here.indexOf(prefix + '/') === 0; }
-//- EN / 한국어 switch: shows the language you'd switch TO.
+//- EN | 한국어 segmented switch; the current language is highlighted.
 mixin langSwitch
-  - var other = lang === 'ko' ? 'en' : 'ko'
-  a.lang-switch(href=`/lang/${other}?next=${encodeURIComponent(langReturn || '/dashboard')}` hreflang=other lang=other title=(other === 'ko' ? '한국어로 보기' : 'View in English'))= other === 'ko' ? '한' : 'EN'
+  - var back = encodeURIComponent(langReturn || '/dashboard')
+  .seg(role="group" aria-label="Language / 언어")
+    a(href=`/lang/en?next=${back}` hreflang="en" lang="en" class=lang !== 'ko' ? 'on' : '' aria-current=(lang !== 'ko' ? 'true' : false)) EN
+    a(href=`/lang/ko?next=${back}` hreflang="ko" lang="ko" class=lang === 'ko' ? 'on' : '' aria-current=(lang === 'ko' ? 'true' : false)) 한국어
 mixin tab(href, icon, label, active)
   a.tab(href=href class=active ? 'active' : '' title=label aria-label=label aria-current=(active ? 'page' : false))
-    +icon(icon, 24)
+    +icon(icon, 22)
     span.tab-label= label
 nav.site(aria-label=t('Main'))
   .nav-left
     a.brand(href="/dashboard" aria-label="LanguageDrill")
-      +brandMark(34)
+      +brandMark(30)
       span.wordmark Language#[em Drill]
     if currentUser
       form.nav-search(method="GET" action="/community" role="search")
@@ -37,8 +39,9 @@ nav.site(aria-label=t('Main'))
       if currentUser.role === 'admin'
         details.admin-menu
           summary(class=isActive('/admin') ? 'active' : '' title=t('Admin'))
-            +icon('shield', 18)
+            +icon('shield', 17)
             span= t('Admin')
+            +icon('chevron', 14)
           .menu
             a(href="/admin/users" class=isActive('/admin/users') ? 'active' : '')
               +icon('users', 18)

@@ -38,11 +38,11 @@ mixin progressCharts(progress, options)
     script.pc-data(type="application/json")!= json
 
   style.
-    /* One data colour: the brand violet (see _style.pug). */
-    .pc-root { --pc-surface: #ffffff; --pc-ink: #1b1838; --pc-ink-2: #514d6b; --pc-muted: #8a86a0;
-      --pc-grid: #ebe6dd; --pc-base: #cfc7b8; --pc-series: #6d5ce8; --pc-series-hover: #8070ef;
-      --pc-track: #e6e2fb; --pc-good: #23885b; position: relative; }
-    .pc-note { font-size: 0.85rem; color: var(--pc-ink-2); background: #f6f4fe; border: 1px solid var(--pc-track); border-radius: 10px; padding: 0.5rem 0.8rem; }
+    /* One data colour: #4a7fb5, a slightly more saturated accent blue - the ramp's #5980a6 fails the chroma check and reads grey as a data colour. */
+    .pc-root { --pc-surface: var(--surface); --pc-ink: #1d1f20; --pc-ink-2: #424244; --pc-muted: #5d5d60;
+      --pc-grid: rgba(29, 31, 32, 0.1); --pc-base: #b7b7ba; --pc-series: #4a7fb5; --pc-series-hover: #3a6a9a;
+      --pc-track: #d6ebff; --pc-good: #2f7d5b; position: relative; }
+    .pc-note { font-size: 0.85rem; color: var(--pc-ink-2); background: var(--blue-100); border: 1px solid var(--pc-track); border-radius: 10px; padding: 0.5rem 0.8rem; }
     .pc-tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 0.75rem; margin-bottom: 1rem; }
     .pc-tile { background: var(--pc-surface); border: 1px solid var(--line, #e9e3d8); border-radius: 14px; padding: 0.85rem 1rem; box-shadow: var(--shadow-sm, none); }
     .pc-tile .pc-label { font-size: 0.8rem; color: var(--pc-ink-2); }

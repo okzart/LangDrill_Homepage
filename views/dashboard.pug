@@ -1,8 +1,9 @@
-//- Home, laid out like a social network: shortcuts on the left, the feed in
-//- the middle (stories row of quick actions, a "what do you want to
-//- practise?" composer, then community drill sets as posts), and your
-//- progress / trending sets / top creators on the right. Data from
-//- src/routes/dashboardRoutes.js#showDashboard.
+//- Home, following reference_designs/LanguageDrill Home.html: shortcuts on
+//- the left; in the middle a stories row of quick actions, a navy greeting
+//- header joined to the "what do you want to practise?" composer, then the
+//- community feed (drill sets as posts) with a segmented type filter; on the
+//- right a navy-headed progress widget, trending sets and top creators.
+//- Data from src/routes/dashboardRoutes.js#showDashboard.
 doctype html
 html(lang=lang || "en")
   head
@@ -11,99 +12,127 @@ html(lang=lang || "en")
     title= 'LanguageDrill — ' + t('Home')
     include _style
     style.
-      .home { display: grid; grid-template-columns: 250px minmax(0, 620px) 300px; justify-content: center; gap: 1.5rem; align-items: start; }
-      .rail { position: sticky; top: 76px; display: grid; gap: 1rem; }
-      @media (max-width: 1180px) { .home { grid-template-columns: minmax(0, 620px) 300px; } .rail-left { display: none; } }
-      @media (max-width: 900px) { .home { grid-template-columns: minmax(0, 620px); } .rail-right { position: static; order: 2; } }
+      .home { display: grid; grid-template-columns: 212px minmax(0, 690px) 300px; justify-content: center; gap: 27px; align-items: start; }
+      .rail { position: sticky; top: 84px; display: grid; gap: 20px; }
+      @media (max-width: 1260px) { .home { grid-template-columns: minmax(0, 690px) 300px; gap: 22px; } .rail-left { display: none; } }
+      @media (max-width: 960px) { .home { grid-template-columns: minmax(0, 690px); } .rail-right { position: static; order: 2; } }
 
-      /* left rail: profile + shortcuts */
-      .shortcuts { display: grid; gap: 0.1rem; }
-      .shortcuts a { display: flex; align-items: center; gap: 0.75rem; padding: 0.5rem 0.6rem; border-radius: 10px; color: var(--ink); font-weight: 600; text-decoration: none; }
-      .shortcuts a:hover { background: var(--chip-hover); }
-      .shortcuts .ico { display: grid; place-items: center; width: 36px; height: 36px; border-radius: 10px; color: #fff; }
-      .shortcuts h4 { margin: 0.9rem 0.6rem 0.3rem; font-size: 0.75rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; }
-      .shortcuts .me-link .who { display: grid; line-height: 1.25; min-width: 0; }
-      .shortcuts .me-link small { color: var(--muted); font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-      .rail-foot { padding: 0 0.6rem; font-size: 0.75rem; color: var(--faint); }
+      /* left rail */
+      .me-link { display: flex; align-items: center; gap: 10px; padding: 6px 8px; margin-bottom: 14px; color: var(--text); text-decoration: none; }
+      .me-link .who { display: grid; min-width: 0; line-height: 1.35; }
+      .me-link strong { font-size: 15px; font-weight: 600; }
+      .me-link small { font-size: 12px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .shortcuts { display: grid; gap: 2px; }
+      .shortcuts a { display: flex; align-items: center; gap: 12px; padding: 6px 8px; border-radius: 12px; color: var(--text); font-size: 15px; font-weight: 500; text-decoration: none; }
+      .shortcuts a:hover { background: rgba(65, 97, 128, 0.08); }
+      .shortcuts .ico { display: grid; place-items: center; width: 34px; height: 34px; border-radius: 10px; color: var(--n-100); flex: none; }
+      .shortcuts .kicker { margin: 18px 8px 6px; }
+      .rail-foot { margin: 20px 8px 0; font-size: 12px; color: var(--muted); }
 
       /* stories */
-      .stories { display: flex; gap: 0.55rem; overflow-x: auto; padding: 0.9rem 1rem; margin-bottom: 1rem; background: var(--surface); border: 1px solid var(--line); border-radius: 14px; scrollbar-width: none; }
+      .stories { display: flex; gap: 8px; overflow-x: auto; padding: 14px 16px 12px; margin-bottom: 20px; background: var(--surface); border-radius: var(--radius); box-shadow: var(--shadow-sm); scrollbar-width: none; }
       .stories::-webkit-scrollbar { display: none; }
-      .story { flex: none; display: grid; justify-items: center; gap: 0.35rem; width: 72px; color: var(--ink); text-decoration: none; font-size: 0.74rem; font-weight: 600; text-align: center; line-height: 1.2; }
-      .story .ring { padding: 3px; border-radius: 50%; background: conic-gradient(from 200deg, #f1b45b, #e6566f, #8b5cf6, #6d5ce8, #f1b45b); transition: transform 0.2s; }
+      .story { flex: none; display: flex; flex-direction: column; align-items: center; gap: 7px; width: 76px; color: var(--text); text-decoration: none; font-size: 12.5px; font-weight: 500; line-height: 1.25; text-align: center; }
+      .story .ring { position: relative; display: block; width: 66px; height: 66px; padding: 2.5px; border-radius: 50%; background: var(--brand); transition: transform 0.2s; }
       .story:hover .ring { transform: scale(1.05); }
-      .story .disc { display: grid; place-items: center; width: 62px; height: 62px; border-radius: 50%; border: 3px solid var(--surface); color: #fff; }
+      .story .gap { display: block; width: 100%; height: 100%; padding: 3px; border-radius: 50%; background: var(--n-100); }
+      .story .disc { display: grid; place-items: center; width: 100%; height: 100%; border-radius: 50%; color: var(--n-100); }
+      .story .badge { position: absolute; right: -2px; bottom: -2px; display: grid; place-items: center; min-width: 20px; height: 20px; padding: 0 5px; border-radius: 999px; background: var(--blue-900); color: var(--n-100); border: 2px solid var(--n-100); font-family: var(--display); font-size: 13px; font-weight: 600; }
 
-      /* composer */
-      .composer { display: grid; gap: 0.75rem; padding: 0.9rem 1rem; margin-bottom: 1rem; background: var(--surface); border: 1px solid var(--line); border-radius: 14px; box-shadow: var(--shadow-sm); }
-      .composer .top { display: flex; gap: 0.75rem; align-items: center; }
-      .composer .fake-input { flex: 1; display: flex; align-items: center; min-height: 44px; padding: 0 1.1rem; border-radius: 999px; background: var(--chip); color: var(--muted); text-decoration: none; transition: background 0.15s; }
-      .composer .fake-input:hover { background: var(--chip-hover); color: var(--ink); }
-      .composer .actions { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.25rem; padding-top: 0.6rem; border-top: 1px solid var(--line); }
-      .composer .actions a { display: flex; align-items: center; justify-content: center; gap: 0.45rem; padding: 0.55rem 0.4rem; border-radius: 10px; color: var(--ink-2); font-weight: 600; font-size: 0.85rem; text-decoration: none; text-align: center; }
-      .composer .actions a:hover { background: var(--chip); }
-      @media (max-width: 560px) { .composer .actions { grid-template-columns: repeat(2, 1fr); } }
+      /* greeting header + composer */
+      .welcome { padding: 0; overflow: hidden; margin-bottom: 26px; }
+      .welcome .band { display: flex; align-items: flex-end; justify-content: space-between; gap: 13.6px; flex-wrap: wrap; padding: 20.4px 20.4px 16px; background: var(--blue-900); color: var(--n-100); }
+      .welcome .date { font-size: 11px; font-weight: 500; letter-spacing: 0.14em; text-transform: uppercase; color: var(--blue-300); }
+      .welcome h2 { margin: 4px 0 0; font-size: 34px; color: var(--n-100); }
+      .welcome .streak { display: inline-flex; align-items: center; gap: 8px; padding: 6px 12px; border-radius: 999px; background: var(--blue-800); color: var(--n-100); font-size: 13px; font-weight: 500; text-decoration: none; }
+      .welcome .streak:hover { background: var(--blue-700); color: var(--n-100); }
+      .welcome .compose { display: flex; align-items: center; gap: 13.6px; padding: 13.6px 13.6px 0; }
+      .welcome .fake-input { flex: 1; display: flex; align-items: center; min-height: 44px; padding: 8px 18px; border-radius: 999px; background: var(--chip); color: var(--n-800); text-decoration: none; }
+      .welcome .fake-input:hover { background: var(--chip-hover); color: var(--text); }
+      .welcome .actions { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; padding: 13.6px; }
+      .welcome .actions a { display: flex; align-items: center; justify-content: center; gap: 8px; height: 42px; border-radius: 999px; background: var(--blue-100); color: var(--text); font-family: var(--display); font-size: 15px; font-weight: 600; text-decoration: none; }
+      .welcome .actions a:hover { background: var(--blue-200); }
+      @media (max-width: 560px) { .welcome .actions { grid-template-columns: repeat(2, 1fr); } .welcome h2 { font-size: 28px; } }
 
-      /* feed filter */
-      .feed-tabs { display: flex; gap: 0.4rem; margin: 0 0 0.85rem; overflow-x: auto; scrollbar-width: none; }
-      .feed-tabs a { flex: none; padding: 0.42rem 0.95rem; border-radius: 999px; background: var(--surface); border: 1px solid var(--line); color: var(--ink-2); font-weight: 600; font-size: 0.85rem; text-decoration: none; }
-      .feed-tabs a.active { background: var(--ink); border-color: var(--ink); color: #fff; }
-      .feed-tabs a span { opacity: 0.6; margin-left: 0.25rem; font-weight: 500; }
+      /* feed header + segmented filter */
+      .feed-head { display: flex; align-items: center; justify-content: space-between; gap: 10.2px; flex-wrap: wrap; margin-bottom: 16px; }
+      .feed-head h2 { margin: 0; font-size: 26px; }
+      .segment { display: inline-flex; overflow: hidden; background: var(--n-100); border: 1px solid var(--line); border-radius: 999px; box-shadow: var(--shadow-sm); }
+      .segment a { display: inline-flex; align-items: center; gap: 6px; padding: 8px 13px; font-size: 14px; font-weight: 500; color: var(--text); text-decoration: none; }
+      .segment a + a { border-left: 1px solid var(--line); }
+      .segment a.on { background: var(--accent); color: var(--n-100); }
+      .segment a:not(.on):hover { background: rgba(29, 31, 32, 0.07); }
+      .segment a span { font-size: 12px; opacity: 0.75; }
 
       /* posts */
-      .post { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; box-shadow: var(--shadow-sm); margin-bottom: 1rem; padding: 1rem 1.1rem 0.35rem; }
-      .post-head { display: flex; align-items: center; gap: 0.7rem; }
+      .post { display: flex; flex-direction: column; margin-bottom: 20px; background: var(--surface); border-top: 4px solid var(--blue-800); border-radius: var(--radius); box-shadow: var(--shadow); }
+      .post-listening { border-top-color: var(--blue-500); }
+      .post-writing { border-top-color: var(--n-600); }
+      .post-head { display: flex; align-items: center; gap: 10.2px; padding: 13.6px 13.6px 0; }
       .post-head .who { flex: 1; min-width: 0; line-height: 1.3; }
-      .post-head .name { font-weight: 700; color: var(--ink); }
-      .post-head .sub { font-size: 0.8rem; color: var(--muted); }
-      .type-pill { flex: none; padding: 0.2rem 0.65rem; border-radius: 999px; font-size: 0.72rem; font-weight: 700; }
-      .type-vocab { background: #e8f1fd; color: #2a63c9; }
-      .type-listening { background: var(--violet-soft); color: var(--violet); }
-      .type-writing { background: var(--gold-soft); color: #94621a; }
-      a.post-title { display: block; margin: 0.8rem 0 0.2rem; font-size: 1.12rem; font-weight: 750; color: var(--ink); text-decoration: none; letter-spacing: -0.01em; }
-      a.post-title:hover { text-decoration: underline; }
-      .post-desc { margin: 0.2rem 0 0.4rem; color: var(--text); }
-      .post-items { list-style: none; margin: 0.7rem 0 0; padding: 0; border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
-      .post-items li { position: relative; display: grid; gap: 0.1rem; padding: 0.65rem 3rem 0.65rem 0.9rem; background: var(--surface-2); }
-      .post-items li + li { border-top: 1px solid var(--line); }
-      .post-items .en { color: var(--ink); font-weight: 500; }
-      .post-items .ko { color: var(--muted); font-size: 0.86rem; }
-      .post-items .play { position: absolute; right: 0.6rem; top: 50%; transform: translateY(-50%); width: 34px; height: 34px; margin: 0; padding: 0; border-radius: 50%; background: var(--surface); }
-      .post-items .play:active { transform: translateY(-50%); }
-      .post-items .play.playing { background: var(--violet); color: #fff; border-color: var(--violet); }
-      .post-items .play-ico { font-size: 0.7rem; margin-left: 2px; }
-      a.more { display: inline-block; margin-top: 0.5rem; font-size: 0.85rem; font-weight: 600; }
-      .post-stats { display: flex; justify-content: space-between; gap: 1rem; margin-top: 0.75rem; padding-bottom: 0.55rem; font-size: 0.8rem; color: var(--muted); border-bottom: 1px solid var(--line); }
-      .post-stats span { display: inline-flex; align-items: center; gap: 0.3rem; }
-      .post-actions { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.25rem; padding: 0.3rem 0; }
+      .post-head .name { font-size: 15px; font-weight: 600; }
+      .post-head .sub { font-size: 13px; color: var(--muted); }
+      .type-pill { flex: none; display: inline-flex; align-items: center; gap: 5px; padding: 3px 10px; border-radius: 999px; font-size: 11px; letter-spacing: 0.02em; }
+      .type-vocab { background: var(--blue-100); color: var(--blue-800); }
+      .type-writing { background: var(--n-100); color: var(--n-800); }
+      .type-listening { background: none; color: var(--blue-700); box-shadow: inset 0 0 0 1px var(--blue-600); }
+      .post-body { padding: 10px 13.6px 13.6px; }
+      a.post-title { display: block; margin: 0 0 4px; font-family: var(--display); font-size: 24px; font-weight: 600; line-height: 1.12; letter-spacing: -0.015em; color: var(--text); text-decoration: none; }
+      a.post-title:hover { color: var(--blue-700); }
+      .post-desc { margin: 0 0 8px; font-size: 14.5px; color: var(--n-800); }
+      .post-items { list-style: none; margin: 6px 0 0; padding: 0; display: grid; gap: 2px; }
+      .post-items li { display: flex; align-items: center; gap: 10.2px; padding: 10px 12px; border-radius: 12px; transition: background 0.15s; }
+      .post-items li:hover { background: rgba(65, 97, 128, 0.06); }
+      .post-items .txt { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+      .post-items .en { font-size: 16px; font-weight: 500; line-height: 1.5; color: var(--text); }
+      .post-items .ko { font-size: 13.5px; color: var(--muted); }
+      .post-items .ko.arrow::before { content: "→ "; color: var(--blue-700); }
+      .post-items .play { flex: none; width: 36px; height: 36px; min-height: 0; margin: 0; padding: 0; border: 0; border-radius: 50%; background: var(--blue-100); color: var(--blue-800); }
+      .post-items .play:hover { background: var(--blue-200); color: var(--blue-800); }
+      .post-items .play.playing { background: var(--blue-700); color: var(--n-100); }
+      .post-items .play-ico { font-size: 11px; margin-left: 2px; }
+      .post-foot { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 10px 0 12px; font-size: 13px; color: var(--muted); }
+      .post-foot a.more { font-weight: 500; color: var(--blue-700); }
+      .post-foot .stats { display: inline-flex; align-items: center; gap: 5px; }
+      .post-foot .dot { margin: 0 4px; }
+      .post-actions { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
       .post-actions form { display: contents; }
-      .post-actions .act { display: flex; align-items: center; justify-content: center; gap: 0.45rem; margin: 0; padding: 0.55rem; border: 0; border-radius: 10px; background: none; box-shadow: none; color: var(--ink-2); font-weight: 600; font-size: 0.88rem; text-decoration: none; transform: none; }
-      .post-actions .act:hover { background: var(--chip); color: var(--ink); box-shadow: none; transform: none; }
-      #load-more { width: 100%; margin: 0 0 1rem; padding: 0.75rem; }
-      .feed-empty { text-align: center; padding: 2.2rem 1.4rem; }
+      .post-actions .act { display: flex; align-items: center; justify-content: center; gap: 8px; height: 42px; min-height: 0; margin: 0; padding: 0 6px; border: 0; border-radius: 999px; background: var(--blue-100); color: var(--text); font-family: var(--display); font-size: 15px; font-weight: 600; text-decoration: none; }
+      .post-actions .act:hover { background: var(--blue-200); color: var(--text); }
+      .post-actions .act.primary { background: var(--accent); color: var(--n-100); }
+      .post-actions .act.primary:hover { background: var(--blue-600); color: var(--n-100); }
+      #load-more { width: 100%; min-height: 46px; margin: 0 0 1rem; background: var(--n-100); border-color: var(--line); color: var(--text); }
+      #load-more:hover { background: rgba(29, 31, 32, 0.07); }
+      .feed-empty { text-align: center; padding: 34px 22px; }
       .feed-empty p { color: var(--muted); }
 
-      /* right rail widgets */
-      .widget { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 1rem 1.05rem; box-shadow: var(--shadow-sm); }
-      .widget h3 { display: flex; align-items: center; justify-content: space-between; margin: 0 0 0.75rem; font-size: 0.98rem; }
-      .widget h3 a { font-size: 0.8rem; font-weight: 600; }
-      .stats3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.5rem; text-align: center; }
-      .stats3 .v { font-size: 1.35rem; font-weight: 800; color: var(--ink); line-height: 1.1; }
-      .stats3 .k { font-size: 0.72rem; color: var(--muted); }
-      .stats3 .flame { color: #e6566f; }
-      .goal { margin-top: 0.9rem; }
-      .goal .row { justify-content: space-between; font-size: 0.8rem; color: var(--muted); }
-      .goal .bar { height: 8px; margin-top: 0.35rem; border-radius: 999px; background: var(--violet-soft); overflow: hidden; }
-      .goal .bar div { height: 100%; border-radius: 999px; background: var(--brand); }
-      .rank { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.15rem; }
-      .rank li a { display: flex; align-items: center; gap: 0.65rem; padding: 0.4rem 0.35rem; border-radius: 10px; color: var(--ink); text-decoration: none; }
-      .rank li a:hover { background: var(--chip); }
-      .rank .n { flex: none; width: 1.4rem; text-align: center; font-weight: 800; color: var(--faint); }
-      .rank li:nth-child(1) .n { color: #e2a74f; }
+      /* right rail */
+      .widget { padding: 13.6px; margin: 0; }
+      .widget-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 0 0 6.8px; }
+      .widget-head h4 { margin: 0; font-size: 20px; }
+      .widget-head .icon { color: var(--blue-700); }
+      .widget.progress .widget-head { margin: -13.6px -13.6px 10.2px; padding: 10.2px 13.6px; background: var(--blue-900); border-radius: var(--radius) var(--radius) 0 0; }
+      .widget.progress .widget-head h4 { color: var(--n-100); }
+      .widget.progress .widget-head a { font-size: 13px; font-weight: 500; color: var(--blue-300); }
+      .stats3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; text-align: center; }
+      .stats3 > div { padding: 10px 6px; border-radius: 12px; background: var(--blue-100); }
+      .stats3 .v { display: inline-flex; align-items: center; gap: 2px; font-family: var(--display); font-size: 28px; font-weight: 600; line-height: 1; }
+      .stats3 .k { font-size: 12px; color: var(--muted); margin-top: 4px; }
+      .goal { margin-top: 13.6px; }
+      .goal .line { display: flex; justify-content: space-between; font-size: 13px; }
+      .goal .line b { font-family: var(--display); font-size: 15px; font-weight: 600; }
+      .goal .bar { height: 8px; margin-top: 6px; border-radius: 999px; background: var(--blue-200); overflow: hidden; }
+      .goal .bar div { height: 100%; border-radius: 999px; background: var(--blue-700); }
+      .goal .left { margin-top: 6px; font-size: 12px; color: var(--muted); }
+      .rank { list-style: none; margin: 0; padding: 0; display: grid; }
+      .rank li a { display: flex; align-items: center; gap: 10.2px; padding: 7px 4px; border-radius: 10px; color: var(--text); text-decoration: none; }
+      .rank li a:hover { background: rgba(65, 97, 128, 0.07); }
+      .rank .n { flex: none; display: grid; place-items: center; width: 28px; height: 28px; border-radius: 50%; font-family: var(--display); font-size: 14px; font-weight: 600; }
+      .rank li:first-child .n { background: var(--accent); color: var(--n-100); }
       .rank .t { flex: 1; min-width: 0; display: grid; line-height: 1.3; }
-      .rank .t b { font-weight: 650; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-      .rank .t small { color: var(--muted); font-size: 0.75rem; }
-      .toast { position: fixed; left: 50%; bottom: 92px; transform: translateX(-50%); padding: 0.6rem 1rem; border-radius: 999px; background: var(--ink); color: #fff; font-size: 0.85rem; font-weight: 600; box-shadow: var(--shadow-lg); z-index: 80; }
+      .rank .t b { font-size: 15px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .rank .t small { font-size: 12px; color: var(--muted); }
+      .toast { position: fixed; left: 50%; bottom: 96px; transform: translateX(-50%); padding: 8px 16px; border-radius: 999px; background: var(--blue-900); color: var(--n-100); font-size: 14px; font-weight: 500; box-shadow: var(--shadow-lg); z-index: 80; }
       .toast[hidden] { display: none; }
   body.wide
     include _nav
@@ -111,96 +140,112 @@ html(lang=lang || "en")
 
     - var me = currentUser.email || ''
     - var meName = me.split('@')[0]
+    - var streak = progress ? Number(progress.streakDays) || 0 : 0
+    - var goal = progress ? Number(progress.dailyGoal) || 0 : 0
+    - var done = progress ? Number(progress.dailyGoalProgress) || 0 : 0
     .home
       //- ---- left: profile + shortcuts ----
       aside.rail.rail-left(aria-label=t('Shortcuts'))
-        nav.shortcuts(aria-label=t('Shortcuts'))
+        div
           a.me-link(href="/profile")
-            +avatar(me, 36)
+            +avatar(me, 42)
             span.who
-              span= meName
+              strong= meName
               small= me
-          a(href="/progress")
-            span.ico.tone-blue
-              +icon('chart', 19)
-            = t('Progress')
-          a(href="/community")
-            span.ico.tone-teal
-              +icon('users', 19)
-            = t('Community')
-          a(href="/chat")
-            span.ico.tone-violet
-              +icon('chat', 19)
-            = t('Chat')
-          a(href="/passages")
-            span.ico.tone-gold
-              +icon('book', 19)
-            = t('Passages')
-          a(href="/studio")
-            span.ico.tone-rose
-              +icon('studio', 19)
-            = t('Studio')
-          if currentUser.role === 'admin'
-            h4= t('Administration')
-            a(href="/admin/users")
-              span.ico.tone-ink
-                +icon('shield', 19)
-              = t('Users')
-            a(href="/admin/audio")
-              span.ico.tone-gold
-                +icon('volume', 19)
-              = t('Vocab audio')
-            a(href="/admin/listening")
-              span.ico.tone-violet
-                +icon('headphones', 19)
-              = t('Listening (Dia2)')
-        p.rail-foot LanguageDrill · #{new Date().getFullYear()}
+          nav.shortcuts(aria-label=t('Shortcuts'))
+            a(href="/progress")
+              span.ico.tone-1
+                +icon('chart', 18)
+              = t('Progress')
+            a(href="/community")
+              span.ico.tone-2
+                +icon('users', 18)
+              = t('Community')
+            a(href="/chat")
+              span.ico.tone-3
+                +icon('chat', 18)
+              = t('Chat')
+            a(href="/passages")
+              span.ico.tone-4
+                +icon('book', 18)
+              = t('Passages')
+            a(href="/studio")
+              span.ico.tone-5
+                +icon('studio', 18)
+              = t('Studio')
+            if currentUser.role === 'admin'
+              span.kicker= t('Administration')
+              a(href="/admin/users")
+                span.ico.tone-5
+                  +icon('shield', 18)
+                = t('Users & progress')
+              a(href="/admin/audio")
+                span.ico.tone-5
+                  +icon('volume', 18)
+                = t('Vocab audio')
+              a(href="/admin/listening")
+                span.ico.tone-5
+                  +icon('headphones', 18)
+                = t('Listening (Dia2)')
+          p.rail-foot LanguageDrill · #{new Date().getFullYear()}
 
-      //- ---- middle: stories, composer, feed ----
+      //- ---- middle: stories, greeting + composer, feed ----
       main.feed-col
         -
           var stories = [
-            { href: '/chat', icon: 'chat', tone: 'tone-violet', label: t('AI tutor') },
-            { href: '/studio', icon: 'studio', tone: 'tone-rose', label: t('Make a drill') },
-            { href: '/community?tab=create', icon: 'plus', tone: 'tone-teal', label: t('Publish') },
-            { href: '/passages', icon: 'book', tone: 'tone-gold', label: t('Passage') },
-            { href: '/progress', icon: 'flame', tone: 'tone-ink', label: t('My streak') },
-            { href: '/community?type=listening', icon: 'headphones', tone: 'tone-blue', label: t('Listening') },
-            { href: '/community?type=vocab', icon: 'users', tone: 'tone-violet', label: t('Vocab sets') },
+            { href: '/chat', icon: 'sparkle', tone: 'tone-1', label: t('AI tutor') },
+            { href: '/studio', icon: 'studio', tone: 'tone-2', label: t('Make a drill') },
+            { href: '/community?tab=create', icon: 'plus', tone: 'tone-3', label: t('Publish a set') },
+            { href: '/passages', icon: 'book', tone: 'tone-5', label: t('Passage') },
+            { href: '/progress', icon: 'flame', tone: 'tone-1', label: t('My streak'), badge: streak },
+            { href: '/community?type=listening', icon: 'headphones', tone: 'tone-3', label: t('Listening sets') },
+            { href: '/community?type=vocab', icon: 'type', tone: 'tone-4', label: t('Vocab sets') },
           ];
         .stories(aria-label=t('Quick actions'))
           each s in stories
             a.story(href=s.href)
               span.ring
-                span.disc(class=s.tone)
-                  +icon(s.icon, 26)
+                span.gap
+                  span.disc(class=s.tone)
+                    +icon(s.icon, 24)
+                if s.badge
+                  span.badge= s.badge
               span= s.label
 
-        .composer
-          .top
-            +avatar(me, 44)
-            a.fake-input(href="/chat")
-              span#greeting(data-name=meName)= t('What do you want to practise today, {name}?', { name: meName })
+        section.welcome
+          .band
+            div
+              .date#today= new Date().toLocaleDateString(lang === 'ko' ? 'ko-KR' : 'en-GB', { weekday: 'long', day: 'numeric', month: 'long' })
+              h2#greeting(data-name=meName)= t('Welcome back') + ', ' + meName
+            if progress
+              a.streak(href="/progress")
+                +icon('flame', 15)
+                = t('{n}-day streak · {done}/{goal} today', { n: streak, done: done, goal: goal })
+          .compose
+            +avatar(me, 42)
+            a.fake-input(href="/chat")= t('What do you want to practise today?')
           .actions
             a(href="/chat")
-              +icon('chat', 19)
+              +icon('chat', 18)
               = t('Chat')
             a(href="/studio")
-              +icon('studio', 19)
+              +icon('studio', 18)
               = t('Studio')
             a(href="/community?tab=create")
-              +icon('plus', 19)
+              +icon('plus', 18)
               = t('Publish')
             a(href="/passages")
-              +icon('book', 19)
+              +icon('book', 18)
               = t('Passages')
 
-        - var tabs = [['', t('All'), counts.all], ['vocab', t('Vocab'), counts.vocab], ['listening', t('Listening'), counts.listening], ['writing', t('Writing'), counts.writing]]
-        nav.feed-tabs(aria-label=t('Filter the feed'))
-          each tb in tabs
-            a(href=tb[0] ? `/dashboard?type=${tb[0]}` : '/dashboard' class=type === tb[0] ? 'active' : '')
-              = tb[1]
-              span= tb[2]
+        .feed-head
+          h2= t('Community feed')
+          - var tabs = [['', t('All'), counts.all], ['vocab', t('Vocab'), counts.vocab], ['listening', t('Listening'), counts.listening], ['writing', t('Writing'), counts.writing]]
+          nav.segment(aria-label=t('Filter the feed'))
+            each tb in tabs
+              a(href=tb[0] ? `/dashboard?type=${tb[0]}` : '/dashboard' class=type === tb[0] ? 'on' : '' aria-current=(type === tb[0] ? 'true' : false))
+                = tb[1]
+                span= tb[2]
 
         if feedError
           .error= t(feedError)
@@ -219,14 +264,16 @@ html(lang=lang || "en")
 
       //- ---- right: progress, trending, creators ----
       aside.rail.rail-right
-        .widget
-          h3
-            = t('Your progress')
+        section.widget.progress
+          .widget-head
+            h4= t('Your progress')
             a(href="/progress")= t('See all')
           if progress
             .stats3
               div
-                .v.flame= progress.streakDays || 0
+                .v
+                  +icon('flame', 18)
+                  = streak
                 .k= t('day streak')
               div
                 .v= progress.xp || 0
@@ -234,19 +281,19 @@ html(lang=lang || "en")
               div
                 .v= progress.level || 1
                 .k= t('Level')
-            - var goal = Number(progress.dailyGoal) || 0, done = Number(progress.dailyGoalProgress) || 0
             .goal
-              .row
+              .line
                 span= t('Daily goal')
-                span= goal > 0 ? `${done} / ${goal}` : t('No daily goal set')
+                b= goal > 0 ? `${done} / ${goal}` : '—'
               .bar(role="meter" aria-label=t('Daily goal progress') aria-valuemin="0" aria-valuemax=goal aria-valuenow=done)
                 div(style=`width:${goal > 0 ? Math.min(100, done / goal * 100) : 0}%`)
+              .left= goal <= 0 ? t('No daily goal set') : done >= goal ? t('✓ Goal reached') : t('{n} to go · {pct}%', { n: goal - done, pct: Math.round(done / goal * 100) })
           else
             p.hint= t('Progress is unavailable right now.')
         if trending.length
-          .widget
-            h3
-              = t('Trending sets')
+          section.widget
+            .widget-head
+              h4= t('Trending sets')
               +icon('trend', 18)
             ol.rank
               each c, i in trending
@@ -257,9 +304,9 @@ html(lang=lang || "en")
                       b= c.name
                       small= c.downloads === 1 ? t('{type} · {n} download', { type: t(c.type), n: 1 }) : t('{type} · {n} downloads', { type: t(c.type), n: c.downloads })
         if creators.length
-          .widget
-            h3
-              = t('Top creators')
+          section.widget
+            .widget-head
+              h4= t('Top creators')
               +icon('trophy', 18)
             ul.rank
               each c in creators
@@ -274,11 +321,14 @@ html(lang=lang || "en")
 
     script.
       (function () {
-        // Time-of-day greeting in the composer.
+        // Date and time-of-day greeting in the viewer's own time zone.
+        var now = new Date();
+        var today = document.getElementById('today');
+        today.textContent = now.toLocaleDateString(LD_LANG === 'ko' ? 'ko-KR' : 'en-GB', { weekday: 'long', day: 'numeric', month: 'long' });
         var g = document.getElementById('greeting');
-        var h = new Date().getHours();
+        var h = now.getHours();
         var key = h < 5 ? 'Good evening' : h < 12 ? 'Good morning' : h < 18 ? 'Good afternoon' : 'Good evening';
-        g.textContent = t('{greeting}, {name} - what do you want to practise today?', { greeting: t(key), name: g.dataset.name });
+        g.textContent = t('{greeting}, {name}', { greeting: t(key), name: g.dataset.name });
 
         var toast = document.getElementById('toast'), toastTimer = null;
         function say(text) {

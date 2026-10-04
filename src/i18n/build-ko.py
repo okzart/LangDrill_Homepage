@@ -610,6 +610,14 @@ KO.update({
     "{d} downloads": "다운로드 {d}회",
 })
 
+KO.update({
+    "{n}-day streak · {done}/{goal} today": "{n}일 연속 · 오늘 {done}/{goal}",
+    "What do you want to practise today?": "오늘은 무엇을 연습할까요?",
+    "Community feed": "커뮤니티 피드",
+    "Listening sets": "듣기 세트",
+    "{greeting}, {name}": "{name}님, {greeting}",
+})
+
 PATTERNS = [
     [r"wrong code or password - (\d+) tries left", "코드 또는 비밀번호가 틀렸습니다. 남은 기회: $1번"],
     [r"wrong code or password - 1 try left", "코드 또는 비밀번호가 틀렸습니다. 남은 기회: 1번"],
