@@ -1,0 +1,1464 @@
+main {
+    display: flex;
+    flex-direction: row;
+    justify-content: center;
+    background-color: white;
+    padding: 30px 20px;
+    width: 100%;
+    min-height: 60vh;
+}
+
+main p { color: black; }
+main label { color: black; }
+
+#content {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    width: 80%;
+    max-width: 800px;
+    gap: 24px;
+}
+
+/* Expand to full page width in player mode */
+#content:has(#page-player.active) {
+    width: 100%;
+    max-width: none;
+}
+
+/* ── Pages ── */
+#page-upload {
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    gap: 24px;
+}
+
+#page-player {
+    display: none;
+    flex-direction: column;
+    width: 100%;
+    gap: 16px;
+}
+
+#page-player.active { display: flex; }
+
+/* ── Player nav ── */
+#player-nav {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 16px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid #e8e8e8;
+}
+
+#player-filename {
+    font-family: "Oswald", "Noto Sans KR", sans-serif;
+    font-size: 16px;
+    font-weight: 300;
+    color: #555;
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* ── Header ── */
+#transcribe-header {
+    text-align: center;
+    width: 100%;
+}
+
+#transcribe-header > p:first-child {
+    font-family: "Oswald", "Noto Sans KR", sans-serif;
+    font-size: 50px;
+    font-weight: 400;
+    margin: 0 0 6px 0;
+}
+
+#transcribe-header .description {
+    font-family: "Oswald", "Noto Sans KR", sans-serif;
+    font-size: 14px;
+    font-weight: 300;
+    color: #555;
+    margin: 0;
+}
+
+/* ── Main panel ── */
+#transcribe-panel {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    width: 100%;
+    gap: 16px;
+}
+
+/* ── Drop zone ── */
+#drop-zone {
+    position: relative;
+    width: 100%;
+    border: 2px dashed #aaa;
+    border-radius: 6px;
+    padding: 40px 20px;
+    text-align: center;
+    cursor: pointer;
+    transition: border-color 0.2s, background-color 0.2s;
+    box-sizing: border-box;
+}
+
+#drop-zone:hover,
+#drop-zone.drag-over {
+    border-color: #222;
+    background-color: #f7f7f7;
+}
+
+#drop-zone.has-file {
+    border-color: #333;
+    border-style: solid;
+}
+
+#drop-zone input[type="file"] {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    opacity: 0;
+    cursor: pointer;
+}
+
+#drop-icon {
+    font-size: 36px;
+    color: #888;
+    margin-bottom: 8px;
+}
+
+#drop-title {
+    font-family: "Oswald", "Noto Sans KR", sans-serif;
+    font-size: 18px;
+    font-weight: 400;
+    color: #333;
+    margin: 0 0 4px 0;
+}
+
+#drop-subtitle {
+    font-family: "Oswald", "Noto Sans KR", sans-serif;
+    font-size: 12px;
+    font-weight: 300;
+    color: #888;
+    margin: 0;
+}
+
+#selected-file {
+    font-family: "Oswald", "Noto Sans KR", sans-serif;
+    font-size: 13px;
+    font-weight: 400;
+    color: #222;
+    margin-top: 10px;
+    min-height: 1.2em;
+}
+
+/* ── Options row ── */
+#options-row {
+    display: flex;
+    flex-direction: row;
+    gap: 24px;
+    flex-wrap: wrap;
+    width: 100%;
+    justify-content: center;
+}
+
+.option-group {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 8px;
+}
+
+.option-group label {
+    font-family: "Oswald", "Noto Sans KR", sans-serif;
+    font-size: 13px;
+    font-weight: 400;
+    color: #333;
+}
+
+.option-group select {
+    font-family: "Oswald", "Noto Sans KR", sans-serif;
+    font-size: 13px;
+    font-weight: 300;
+    padding: 4px 8px;
+    border: 1px solid #aaa;
+    background: white;
+    cursor: pointer;
+    outline: none;
+}
+
+.option-group select:focus {
+    border-color: #333;
+}
+
+/* ── Floating param tooltip ── */
+#param-tooltip {
+    display: none;
+    position: absolute;
+    z-index: 9999;
+    max-width: 280px;
+    background: #1a1a1a;
+    border-radius: 4px;
+    padding: 10px 13px;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.22);
+    pointer-events: none;
+}
+
+#param-tooltip-text {
+    font-family: "Oswald", "Noto Sans KR", sans-serif;
+    font-size: 12px;
+    font-weight: 300;
+    color: #e8e8e8;
+    line-height: 1.6;
+    display: block;
+}
+
+/* Arrow defaults to pointing down (tooltip is above the field) */
+#param-tooltip-arrow {
+    position: absolute;
+    bottom: -6px;
+    width: 0;
+    height: 0;
+    border-left: 6px solid transparent;
+    border-right: 6px solid transparent;
+    border-top: 6px solid #1a1a1a;
+    transform: translateX(-50%);
+}
+
+/* When tooltip is below the field, arrow points up */
+#param-tooltip.tooltip--below #param-tooltip-arrow {
+    bottom: auto;
+    top: -6px;
+    border-top: none;
+    border-bottom: 6px solid #1a1a1a;
+}
+
+/* ── Advanced toggle ── */
+#advanced-toggle {
+    background: none;
+    border: none;
+    padding: 0;
+    font-family: "Oswald", "Noto Sans KR", sans-serif;
+    font-size: 12px;
+    font-weight: 300;
+    color: #888;
+    cursor: pointer;
+    letter-spacing: 0.03em;
+    align-self: flex-start;
+}
+
+#advanced-toggle:hover { color: #333; }
+
+/* ── Advanced panel ── */
+#advanced-panel {
+    display: none;
+    flex-direction: column;
+    width: 100%;
+    gap: 16px;
+    border: 1px solid #e0e0e0;
+    border-radius: 4px;
+    padding: 16px;
+    box-sizing: border-box;
+    background: #fafafa;
+}
+
+#advanced-panel.open { display: flex; }
+
+.adv-section { display: flex; flex-direction: column; gap: 8px; }
+
+.adv-section-title {
+    font-family: "Oswald", "Noto Sans KR", sans-serif;
+    font-size: 11px;
+    font-weight: 400;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: #999;
+}
+
+.adv-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px 24px;
+}
+
+.adv-group {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    min-width: 140px;
+}
+
+.adv-group label {
+    font-family: "Oswald", "Noto Sans KR", sans-serif;
+    font-size: 12px;
+    font-weight: 400;
+    color: #444;
+}
+
+.adv-group input[type="number"] {
+    font-family: "Roboto Mono", "Roboto", monospace;
+    font-size: 13px;
+    width: 90px;
+    padding: 4px 6px;
+    border: 1px solid #ccc;
+    background: #fff;
+    outline: none;
+    box-sizing: border-box;
+}
+
+.adv-group input[type="number"]:focus { border-color: #333; }
+
+.adv-group select {
+    font-family: "Oswald", "Noto Sans KR", sans-serif;
+    font-size: 13px;
+    font-weight: 300;
+    padding: 4px 6px;
+    border: 1px solid #ccc;
+    background: #fff;
+    outline: none;
+    cursor: pointer;
+    width: 160px;
+}
+
+.adv-group select:focus { border-color: #333; }
+
+.adv-hint {
+    font-family: "Oswald", "Noto Sans KR", sans-serif;
+    font-size: 11px;
+    font-weight: 300;
+    color: #aaa;
+}
+
+.adv-group--check {
+    flex-direction: row;
+    align-items: center;
+    gap: 7px;
+    flex-wrap: wrap;
+}
+
+.adv-group--check label {
+    font-size: 13px;
+    cursor: pointer;
+}
+
+.adv-group--check .adv-hint {
+    width: 100%;
+    margin-left: 20px;
+}
+
+#adv-footer {
+    display: flex;
+    justify-content: flex-end;
+    padding-top: 4px;
+    border-top: 1px solid #e8e8e8;
+}
+
+#reset-params-btn {
+    background: none;
+    border: 1px solid #ccc;
+    padding: 4px 10px;
+    font-family: "Oswald", "Noto Sans KR", sans-serif;
+    font-size: 11px;
+    font-weight: 300;
+    color: #888;
+    cursor: pointer;
+    letter-spacing: 0.03em;
+}
+
+#reset-params-btn:hover {
+    border-color: #333;
+    color: #333;
+}
+
+/* ── Progress panel ── */
+#progress-panel {
+    display: none;
+    flex-direction: column;
+    width: 100%;
+    gap: 8px;
+}
+
+#status-text {
+    font-family: "Oswald", "Noto Sans KR", sans-serif;
+    font-size: 13px;
+    font-weight: 300;
+    color: #444;
+}
+
+#progress-bar {
+    width: 100%;
+    height: 4px;
+    background-color: #e0e0e0;
+    border-radius: 2px;
+    overflow: hidden;
+}
+
+#progress-fill {
+    height: 100%;
+    width: 0%;
+    background-color: #222;
+    border-radius: 2px;
+    transition: width 0.3s ease;
+}
+
+#progress-fill.indeterminate {
+    width: 40%;
+    animation: indeterminate 1.4s ease-in-out infinite;
+}
+
+@keyframes indeterminate {
+    0%   { transform: translateX(-100%); }
+    100% { transform: translateX(350%); }
+}
+
+#segment-preview {
+    font-family: "Oswald", "Noto Sans KR", sans-serif;
+    font-size: 12px;
+    font-weight: 300;
+    color: #666;
+    min-height: 1.2em;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+#extract-ready {
+    display: none;
+    flex-direction: column;
+    gap: 8px;
+    margin-top: 4px;
+    padding: 10px 12px;
+    background: #1a2a1a;
+    border: 1px solid #2d6a2d;
+    border-radius: 4px;
+}
+
+#extract-ready-info {
+    font-family: "Oswald", "Noto Sans KR", sans-serif;
+    font-size: 12px;
+    font-weight: 300;
+    color: #7ec87e;
+}
+
+#extract-ready-actions {
+    display: flex;
+    gap: 8px;
+}
+
+#download-audio-btn,
+#extract-next-btn {
+    font-size: 12px;
+    padding: 4px 12px;
+}
+
+#extract-next-btn {
+    background: #2d6a2d;
+    border-color: #3a8a3a;
+}
+#extract-next-btn:hover {
+    background: #3a8a3a;
+}
+
+/* ── Video panel ── */
+#video-panel {
+    display: none;
+    flex-direction: column;
+    width: 100%;
+    gap: 8px;
+}
+
+/* Wraps the video and timeline together so they stay connected in all layouts */
+#video-column {
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    flex-shrink: 0;
+}
+
+#video-wrapper {
+    position: relative;
+    width: 100%;
+    background: #000;
+    border-radius: 4px 4px 0 0;
+    overflow: hidden;
+    line-height: 0;
+    flex-shrink: 0;
+}
+
+/* ── Subtitle timeline row (timeline + zoom controls side by side) ── */
+#subtitle-timeline-row {
+    display: flex;
+    flex-direction: row;
+    align-items: stretch;
+    width: 100%;
+    background: #e8e8e8;
+    border-radius: 0 0 4px 4px;
+    overflow: hidden;
+    flex-shrink: 0;
+}
+
+#subtitle-timeline {
+    flex: 1;
+    position: relative;
+    height: 80px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    cursor: crosshair;
+    min-width: 0;   /* allow flex shrink below content size */
+}
+
+/* Thin custom scrollbar so it doesn't eat much height */
+#subtitle-timeline::-webkit-scrollbar        { height: 8px; }
+#subtitle-timeline::-webkit-scrollbar-track  { background: #e0e0e0; }
+#subtitle-timeline::-webkit-scrollbar-thumb  { background: #aaa; border-radius: 4px; }
+#subtitle-timeline::-webkit-scrollbar-thumb:hover { background: #888; }
+
+/* Scalable inner track — width driven by JS (timelineZoom × 100%) */
+#timeline-track {
+    position: relative;
+    height: calc(100% - 8px);   /* leave room for the 8px scrollbar */
+    width: 100%;
+    min-width: 100%;
+}
+
+.timeline-segment {
+    position: absolute;
+    top: 4px;
+    height: 16px;
+    background: #b8b8b8;
+    border-radius: 2px;
+    min-width: 2px;
+    cursor: grab;
+    transition: background-color 0.1s;
+    z-index: 2;
+}
+
+.timeline-segment:active { cursor: grabbing; }
+
+.timeline-segment:hover { background: #777; }
+
+.timeline-segment.active { background: #222; }
+
+/* Drag handles on left / right edge of each segment */
+.seg-handle {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 7px;
+    opacity: 0;
+    transition: opacity 0.12s;
+    z-index: 3;
+}
+
+.seg-handle--left  { left: 0;  cursor: w-resize; border-left:  2px solid rgba(255,255,255,0.8); }
+.seg-handle--right { right: 0; cursor: e-resize; border-right: 2px solid rgba(255,255,255,0.8); }
+
+.timeline-segment:hover .seg-handle { opacity: 1; }
+
+#timeline-playhead {
+    position: absolute;
+    top: 0;
+    bottom: 8px;   /* stop above scrollbar */
+    left: 0%;
+    width: 2px;
+    background: #e53935;
+    border-radius: 1px;
+    pointer-events: none;
+    transform: translateX(-50%);
+    z-index: 10;
+}
+
+#waveform-canvas {
+    position: absolute;
+    top: 26px;               /* sits below the segment strip */
+    left: 0;
+    width: 100%;
+    height: calc(100% - 26px - 8px);   /* fill remaining space above scrollbar */
+    z-index: 1;
+    pointer-events: none;
+}
+
+/* ── Zoom controls — outside the scrollable area ── */
+#timeline-controls {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 3px;
+    padding: 0 7px;
+    background: #ddd;
+    border-left: 1px solid #ccc;
+    flex-shrink: 0;
+}
+
+#timeline-controls button {
+    width: 20px;
+    height: 20px;
+    padding: 0;
+    border: 1px solid #bbb;
+    border-radius: 2px;
+    background: #f5f5f5;
+    font-family: "Oswald", "Noto Sans KR", sans-serif;
+    font-size: 15px;
+    line-height: 1;
+    color: #444;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background-color 0.1s, border-color 0.1s;
+}
+
+#timeline-controls button:hover:not(:disabled) { background: #e8e8e8; border-color: #888; }
+
+#timeline-controls button:disabled { opacity: 0.35; cursor: not-allowed; }
+
+#voice-toggle-btn {
+    width: auto;
+    height: 20px;
+    padding: 0 8px;
+    font-family: "Oswald", "Noto Sans KR", sans-serif;
+    font-size: 10px;
+    letter-spacing: 0.03em;
+    margin-right: 4px;
+}
+
+#voice-toggle-btn[hidden] { display: none; }
+
+#voice-toggle-btn.active {
+    background: #333;
+    border-color: #333;
+    color: #fff;
+}
+
+#timeline-zoom-label {
+    font-family: "Oswald", "Noto Sans KR", sans-serif;
+    font-size: 10px;
+    font-weight: 300;
+    color: #666;
+    min-width: 22px;
+    text-align: center;
+    user-select: none;
+}
+
+#video-player {
+    width: 100%;
+    display: block;
+    max-height: 480px;
+    object-fit: contain;
+    background: #000;
+}
+
+/* ── Subtitle toggle button ── */
+#subtitle-toggle-btn {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    z-index: 10;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.2s;
+    background: rgba(0, 0, 0, 0.55);
+    border: 1px solid rgba(255, 255, 255, 0.35);
+    border-radius: 3px;
+    color: #fff;
+    font-family: "Oswald", "Noto Sans KR", sans-serif;
+    font-size: 11px;
+    font-weight: 400;
+    letter-spacing: 0.06em;
+    padding: 3px 8px;
+    cursor: pointer;
+    user-select: none;
+    transition: opacity 0.2s, background-color 0.15s, color 0.15s;
+}
+
+#video-wrapper:hover #subtitle-toggle-btn {
+    opacity: 1;
+    pointer-events: auto;
+}
+
+#subtitle-toggle-btn.sub-off {
+    color: rgba(255, 255, 255, 0.4);
+    border-color: rgba(255, 255, 255, 0.15);
+    text-decoration: line-through;
+}
+
+#subtitle-overlay {
+    position: absolute;
+    bottom: 8%;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(0, 0, 0, 0.72);
+    color: #fff;
+    font-family: "Oswald", "Noto Sans KR", sans-serif;
+    font-size: clamp(13px, 2vw, 20px);
+    font-weight: 400;
+    line-height: 1.4;
+    padding: 4px 14px 6px;
+    border-radius: 3px;
+    text-align: center;
+    max-width: 88%;
+    white-space: pre-wrap;
+    pointer-events: none;
+    display: none;
+}
+
+/* ── Sub-list (hidden until play mode) ── */
+#sub-list {
+    display: none;
+    flex-direction: column;
+    background: #fafafa;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    overflow: hidden;   /* clip children to border-radius */
+}
+
+#video-panel.play-mode #sub-list { display: flex; }
+
+/* ── Sub-list bottom resizer (height drag handle) ── */
+#sub-list-resizer {
+    display: none;
+    height: 6px;
+    cursor: ns-resize;
+    flex-shrink: 0;
+    position: relative;
+    background: transparent;
+}
+
+#sub-list-resizer::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 28px;
+    height: 2px;
+    background: #ccc;
+    border-radius: 1px;
+    transition: background-color 0.15s, width 0.15s;
+}
+
+#sub-list-resizer:hover::after,
+#sub-list-resizer.dragging::after {
+    background: #aaa;
+    width: 40px;
+}
+
+#video-panel.layout-below #sub-list-resizer,
+#video-panel.layout-beside #sub-list-resizer { display: block; }
+
+/* Header: drag handle + title + layout buttons */
+#sub-list-header {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 8px;
+    padding: 5px 10px;
+    background: #f0f0f0;
+    border-bottom: 1px solid #e0e0e0;
+    flex-shrink: 0;
+    user-select: none;
+}
+
+#sub-list-drag-handle {
+    font-size: 15px;
+    color: #ccc;
+    cursor: grab;
+    display: none;          /* only shown in float mode */
+    line-height: 1;
+}
+
+#sub-list-title {
+    font-family: "Oswald", "Noto Sans KR", sans-serif;
+    font-size: 11px;
+    font-weight: 400;
+    letter-spacing: 0.07em;
+    text-transform: uppercase;
+    color: #999;
+    flex: 1;
+}
+
+#history-btns {
+    display: flex;
+    gap: 2px;
+    margin-right: 6px;
+}
+
+.history-btn {
+    background: none;
+    border: 1px solid transparent;
+    padding: 2px 6px;
+    font-family: "Oswald", "Noto Sans KR", sans-serif;
+    font-size: 13px;
+    color: #aaa;
+    cursor: pointer;
+    border-radius: 2px;
+    line-height: 1;
+    transition: color 0.12s, border-color 0.12s;
+}
+
+.history-btn:hover:not(:disabled) { color: #333; border-color: #ccc; }
+.history-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+
+.autoscroll-btn {
+    background: none;
+    border: 1px solid transparent;
+    padding: 2px 7px;
+    font-family: "Oswald", "Noto Sans KR", sans-serif;
+    font-size: 11px;
+    color: #999;
+    cursor: pointer;
+    border-radius: 2px;
+    transition: color 0.12s, border-color 0.12s, background-color 0.12s;
+    margin-right: 4px;
+}
+
+.autoscroll-btn:hover { color: #333; border-color: #ccc; }
+
+.autoscroll-btn.active {
+    color: #fff;
+    background: #555;
+    border-color: #555;
+}
+
+.merge-btn {
+    background: none;
+    border: 1px solid transparent;
+    padding: 2px 7px;
+    font-family: "Oswald", "Noto Sans KR", sans-serif;
+    font-size: 11px;
+    color: #999;
+    cursor: pointer;
+    border-radius: 2px;
+    transition: color 0.12s, border-color 0.12s, background-color 0.12s;
+    margin-right: 4px;
+}
+
+.merge-btn:hover:not(:disabled) { color: #333; border-color: #ccc; }
+.merge-btn:disabled { opacity: 0.35; cursor: not-allowed; }
+
+#layout-btns {
+    display: flex;
+    gap: 2px;
+}
+
+.layout-btn {
+    background: none;
+    border: 1px solid transparent;
+    padding: 2px 7px;
+    font-family: "Oswald", "Noto Sans KR", sans-serif;
+    font-size: 11px;
+    font-weight: 300;
+    color: #aaa;
+    cursor: pointer;
+    border-radius: 2px;
+    transition: color 0.12s, border-color 0.12s, background-color 0.12s;
+}
+
+.layout-btn:hover { color: #333; border-color: #ccc; }
+
+.layout-btn.active {
+    color: #fff;
+    background: #333;
+    border-color: #333;
+}
+
+/* Scrollable items area */
+#sub-list-body {
+    flex: 1;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+}
+
+/* ── layout-below: video+timeline stacked above docked sub-list ── */
+#video-panel.layout-below { gap: 0; }
+
+#video-panel.layout-below #subtitle-timeline-row { border-radius: 0; border-bottom: 1px solid #ddd; }
+
+#video-panel.layout-below #sub-list {
+    height: 220px;
+    border-top: none;
+    border-radius: 0 0 4px 4px;
+}
+
+/* ── layout-beside: video-column left, sub-list right ── */
+#video-panel.layout-beside {
+    flex-direction: row;
+    align-items: flex-start;
+    gap: 0;
+}
+
+#video-panel.layout-beside #video-column { flex: 1 1 58%; min-width: 200px; }
+
+#video-panel.layout-beside #video-wrapper { border-radius: 4px 4px 0 0; }
+
+#video-panel.layout-beside #sub-list {
+    flex: 0 0 38%;
+    min-width: 160px;
+    height: 380px;
+}
+
+/* ── Beside-mode resizer handle ── */
+#beside-resizer {
+    display: none;
+    width: 8px;
+    flex-shrink: 0;
+    cursor: col-resize;
+    position: relative;
+    align-self: stretch;
+    user-select: none;
+}
+
+#beside-resizer::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 1px;
+    background: #ddd;
+    transition: background-color 0.15s, width 0.15s;
+}
+
+#beside-resizer:hover::after,
+#beside-resizer.dragging::after {
+    width: 3px;
+    background: #aaa;
+}
+
+#video-panel.layout-beside #beside-resizer { display: block; }
+
+/* ── layout-float: fixed draggable panels ── */
+#video-float-handle {
+    display: none;
+    padding: 5px 10px;
+    background: #f0f0f0;
+    border-bottom: 1px solid #e0e0e0;
+    font-family: "Oswald", "Noto Sans KR", sans-serif;
+    font-size: 11px;
+    font-weight: 400;
+    letter-spacing: 0.07em;
+    text-transform: uppercase;
+    color: #999;
+    cursor: grab;
+    user-select: none;
+    flex-shrink: 0;
+    border-radius: 4px 4px 0 0;
+}
+
+#video-float-handle:active { cursor: grabbing; }
+
+#video-panel.layout-float #video-float-handle { display: flex; align-items: center; gap: 6px; }
+
+#video-panel.layout-float #video-column {
+    position: fixed;
+    z-index: 199;
+    width: 480px;
+    min-width: 200px;
+    min-height: 150px;
+    display: flex;
+    flex-direction: column;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.22);
+    overflow: hidden;
+    resize: both;
+    background: #000;
+}
+
+#video-panel.layout-float #video-wrapper {
+    border-radius: 0;
+    flex: 1;
+    min-height: 0;
+}
+
+#video-panel.layout-float #video-player {
+    max-height: none;
+    height: 100%;
+}
+
+#video-panel.layout-float #sub-list {
+    position: fixed;
+    z-index: 200;
+    width: 300px;
+    height: 380px;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.22);
+    border-radius: 6px;
+    resize: both;
+}
+
+#video-panel.layout-float #sub-list-drag-handle { display: block; }
+
+#video-panel.layout-float #sub-list-header { cursor: grab; }
+
+#video-panel.layout-float #sub-list-header:active,
+#video-panel.layout-float #sub-list-header.dragging { cursor: grabbing; }
+
+.sub-item {
+    display: flex;
+    flex-direction: row;
+    gap: 10px;
+    padding: 6px 12px 6px 14px;
+    cursor: pointer;
+    border-bottom: 1px solid #eee;
+    border-left: 3px solid transparent;
+    transition: background-color 0.12s, border-color 0.12s;
+    flex-shrink: 0;
+    box-sizing: border-box;
+}
+
+.sub-item:last-child { border-bottom: none; }
+
+.sub-item:hover { background: #f0f0f0; }
+
+.sub-item.active {
+    background: #f5f5f5;
+    border-left-color: #222;
+}
+
+.sub-item.selected {
+    background: #eaf2fc;
+    border-left-color: #4a90d9;
+}
+
+.sub-select-checkbox {
+    flex-shrink: 0;
+    align-self: center;
+    margin: 0;
+    cursor: pointer;
+}
+
+/* ── Time column (start + end stacked) ── */
+.sub-times {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    flex-shrink: 0;
+    align-self: center;
+}
+
+.sub-time {
+    font-family: "Roboto Mono", "Roboto", monospace;
+    font-size: 10px;
+    color: #aaa;
+    white-space: nowrap;
+    padding: 1px 4px;
+    border-radius: 2px;
+    border: 1px solid transparent;
+    cursor: text;
+    transition: border-color 0.12s, color 0.12s;
+    line-height: 1.4;
+}
+
+.sub-time:hover        { border-color: #ccc; color: #555; }
+.sub-time-end          { color: #c0c0c0; }
+.sub-item.active .sub-time { color: #777; }
+
+/* Inline time edit input */
+.sub-time-input {
+    font-family: "Roboto Mono", "Roboto", monospace;
+    font-size: 10px;
+    width: 72px;
+    padding: 1px 3px;
+    border: 1px solid #555;
+    border-radius: 2px;
+    background: #fff;
+    outline: none;
+    color: #222;
+}
+
+.sub-text {
+    flex: 1;            /* fill remaining space, pushing split btn to far right */
+    font-family: "Oswald", "Noto Sans KR", sans-serif;
+    font-size: 13px;
+    font-weight: 300;
+    color: #333;
+    line-height: 1.45;
+    white-space: pre-wrap;
+    border-radius: 2px;
+    padding: 1px 3px;
+    margin: -1px -3px;
+    outline: none;
+    cursor: pointer;    /* inherits item's click-to-seek affordance */
+    transition: background-color 0.12s, box-shadow 0.12s;
+}
+
+/* ── Insert-between zone ── */
+.sub-insert {
+    height: 10px;
+    flex-shrink: 0;
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.sub-insert::before {
+    content: '';
+    position: absolute;
+    left: 14px;
+    right: 14px;
+    height: 1px;
+    background: transparent;
+    transition: background-color 0.15s;
+    pointer-events: none;
+}
+
+.sub-insert:hover::before { background: #ddd; }
+
+.sub-insert-btn {
+    position: absolute;
+    opacity: 0;
+    pointer-events: none;
+    display: flex;
+    align-items: center;
+    gap: 3px;
+    padding: 1px 7px;
+    background: #fff;
+    border: 1px solid #ccc;
+    border-radius: 2px;
+    font-family: "Oswald", "Noto Sans KR", sans-serif;
+    font-size: 11px;
+    font-weight: 300;
+    color: #888;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: opacity 0.15s, color 0.12s, border-color 0.12s;
+    z-index: 5;
+}
+
+.sub-insert:hover .sub-insert-btn {
+    opacity: 1;
+    pointer-events: auto;
+}
+
+.sub-insert-btn:hover { color: #333; border-color: #888; }
+
+/* ── Split button ── */
+.sub-split-btn,
+.sub-delete-btn {
+    flex-shrink: 0;
+    align-self: center;
+    width: 24px;
+    height: 22px;
+    padding: 0;
+    border: 1px solid transparent;
+    border-radius: 2px;
+    background: none;
+    font-size: 13px;
+    color: #ccc;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    visibility: hidden;
+    transition: color 0.12s, border-color 0.12s, background-color 0.12s;
+}
+
+.sub-item:hover .sub-split-btn,
+.sub-item:hover .sub-delete-btn { visibility: visible; border-color: #ddd; }
+
+.sub-split-btn:hover { color: #555; border-color: #aaa; }
+.sub-delete-btn:hover { color: #555; border-color: #aaa; }
+
+/* Confirming state */
+.sub-split-btn.confirming {
+    visibility: visible;
+    color: #fff;
+    background: #3a7bd5;
+    border-color: #3a7bd5;
+}
+
+.sub-delete-btn.confirming {
+    visibility: visible;
+    color: #fff;
+    background: #3a7bd5;
+    border-color: #3a7bd5;
+}
+
+.sub-item.active .sub-text {
+    color: #111;
+    font-weight: 400;
+}
+
+/* Edit mode — only when contentEditable is active */
+.sub-text[contenteditable="true"] {
+    cursor: text;
+    background: #fff;
+    box-shadow: 0 0 0 2px #555;
+    border-radius: 2px;
+}
+
+.sub-item.active .sub-text[contenteditable="true"] {
+    background: #fff;
+    color: #111;
+    box-shadow: 0 0 0 2px #555;
+}
+
+/* ── Result panel ── */
+#result-panel {
+    display: none;
+    flex-direction: column;
+    width: 100%;
+    gap: 8px;
+}
+
+#result-header {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+}
+
+#result-header > p {
+    font-family: "Oswald", "Noto Sans KR", sans-serif;
+    font-size: 18px;
+    font-weight: 400;
+    margin: 0;
+}
+
+#result-actions {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+.fcpxml-export {
+    display: flex;
+    align-items: center;
+    gap: 0;
+}
+
+.fcpxml-export select {
+    height: 28px;
+    padding: 0 6px;
+    font-size: 12px;
+    border: 1px solid #ccc;
+    border-right: none;
+    border-radius: 3px 0 0 3px;
+    background: #f5f5f5;
+    color: #333;
+    cursor: pointer;
+    outline: none;
+}
+
+.fcpxml-export select:focus {
+    border-color: #333;
+}
+
+.fcpxml-export #export-fcpxml-btn {
+    border-radius: 0 3px 3px 0;
+}
+
+#srt-output {
+    width: 100%;
+    height: 360px;
+    font-family: "Roboto Mono", "Roboto", monospace;
+    font-size: 12px;
+    line-height: 1.6;
+    color: #222;
+    background: #fafafa;
+    border: 1px solid #ddd;
+    padding: 12px;
+    resize: vertical;
+    box-sizing: border-box;
+    outline: none;
+}
+
+#srt-output:focus {
+    border-color: #333;
+}
+
+#srt-output::placeholder {
+    font-family: "Oswald", "Noto Sans KR", sans-serif;
+    font-size: 13px;
+    font-weight: 300;
+    color: #bbb;
+    line-height: 1.6;
+}
+
+/* ── Upload actions row ── */
+#upload-actions {
+    display: flex;
+    flex-direction: row;
+    gap: 12px;
+    justify-content: flex-end;
+    width: 100%;
+}
+
+/* ── Button disabled state ── */
+.button:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+    pointer-events: none;
+}
+
+/* ── Dark mode toggle button ── */
+#transcribe-header {
+    position: relative;
+}
+
+#dark-mode-btn {
+    position: absolute;
+    top: 0;
+    right: 0;
+    background: none;
+    border: 1px solid #ccc;
+    border-radius: 20px;
+    padding: 3px 12px;
+    font-family: "Oswald", "Noto Sans KR", sans-serif;
+    font-size: 11px;
+    font-weight: 300;
+    color: #888;
+    cursor: pointer;
+    letter-spacing: 0.05em;
+    width: auto;
+    height: auto;
+    transition: border-color 0.2s, color 0.2s;
+}
+
+#dark-mode-btn:hover {
+    border-color: #555;
+    color: #333;
+    background-color: transparent;
+}
+
+/* ══════════════════════════════════════════════════════════════════
+   Dark mode overrides  (main.dark = parent selector)
+   ══════════════════════════════════════════════════════════════════ */
+
+main.dark { background-color: #1a1a1a; }
+
+main.dark p     { color: #ddd; }
+main.dark label { color: #ccc; }
+
+main.dark #transcribe-header .description { color: #666; }
+
+/* Toggle button in dark mode */
+main.dark #dark-mode-btn { border-color: #444; color: #666; }
+main.dark #dark-mode-btn:hover { border-color: #888; color: #ccc; background-color: transparent; }
+
+/* Drop zone */
+main.dark #drop-zone                      { border-color: #444; }
+main.dark #drop-zone:hover,
+main.dark #drop-zone.drag-over           { border-color: #888; background-color: #222; }
+main.dark #drop-zone.has-file            { border-color: #777; }
+main.dark #drop-icon                      { color: #555; }
+main.dark #drop-title                     { color: #ccc; }
+main.dark #drop-subtitle                  { color: #555; }
+main.dark #selected-file                  { color: #aaa; }
+
+/* Options row */
+main.dark .option-group label            { color: #bbb; }
+main.dark .option-group select           { background: #222; border-color: #444; color: #ccc; }
+main.dark .option-group select:focus     { border-color: #888; }
+
+/* Advanced toggle */
+main.dark #advanced-toggle               { color: #555; }
+main.dark #advanced-toggle:hover         { color: #bbb; }
+
+/* Advanced panel */
+main.dark #advanced-panel                { background: #222; border-color: #3a3a3a; }
+main.dark .adv-section-title             { color: #555; }
+main.dark .adv-group label               { color: #aaa; }
+main.dark .adv-group input[type="number"]{ background: #1a1a1a; border-color: #3a3a3a; color: #ddd; }
+main.dark .adv-group input[type="number"]:focus { border-color: #777; }
+main.dark .adv-group select              { background: #1a1a1a; border-color: #3a3a3a; color: #ccc; }
+main.dark .adv-group select:focus        { border-color: #777; }
+main.dark .adv-hint                      { color: #555; }
+main.dark #adv-footer                    { border-top-color: #333; }
+main.dark #reset-params-btn              { border-color: #3a3a3a; color: #555; }
+main.dark #reset-params-btn:hover        { border-color: #888; color: #bbb; }
+
+/* Player nav */
+main.dark #player-nav                    { border-bottom-color: #333; }
+main.dark #player-filename               { color: #777; }
+
+/* Progress */
+main.dark #status-text                   { color: #888; }
+main.dark #progress-bar                  { background-color: #333; }
+main.dark #progress-fill                 { background-color: #aaa; }
+main.dark #segment-preview               { color: #666; }
+
+/* Subtitle timeline */
+main.dark #subtitle-timeline-row         { background: #252525; }
+main.dark #subtitle-timeline::-webkit-scrollbar-track { background: #2a2a2a; }
+main.dark #subtitle-timeline::-webkit-scrollbar-thumb { background: #444; border-radius: 4px; }
+main.dark #subtitle-timeline::-webkit-scrollbar-thumb:hover { background: #666; }
+main.dark #timeline-controls             { background: #2a2a2a; border-left-color: #1a1a1a; }
+main.dark #timeline-controls button      { background: #333; border-color: #444; color: #aaa; }
+main.dark #timeline-controls button:hover:not(:disabled) { background: #3a3a3a; border-color: #666; }
+main.dark #voice-toggle-btn.active       { background: #ccc; border-color: #ccc; color: #222; }
+main.dark #timeline-zoom-label           { color: #666; }
+main.dark .timeline-segment              { background: #555; }
+main.dark .timeline-segment:hover        { background: #888; }
+main.dark .timeline-segment.active       { background: #ccc; }
+
+/* Sub-list */
+main.dark #sub-list                      { background: #1e1e1e; border-color: #333; }
+main.dark #sub-list-header               { background: #252525; border-bottom-color: #333; }
+main.dark #sub-list-drag-handle          { color: #444; }
+main.dark #sub-list-title                { color: #555; }
+main.dark .history-btn                   { color: #555; }
+main.dark .history-btn:hover:not(:disabled) { color: #ccc; border-color: #444; }
+main.dark .autoscroll-btn                { color: #555; }
+main.dark .autoscroll-btn:hover          { color: #bbb; border-color: #444; }
+main.dark .autoscroll-btn.active         { color: #ddd; background: #444; border-color: #444; }
+main.dark .merge-btn                     { color: #555; }
+main.dark .merge-btn:hover:not(:disabled) { color: #bbb; border-color: #444; }
+main.dark .sub-item.selected             { background: #1c2b3d; border-left-color: #4a90d9; }
+main.dark .layout-btn                    { color: #555; }
+main.dark .layout-btn:hover              { color: #bbb; border-color: #444; }
+main.dark .layout-btn.active             { color: #ddd; background: #444; border-color: #444; }
+main.dark #sub-list-resizer::after       { background: #333; }
+main.dark #sub-list-resizer:hover::after,
+main.dark #sub-list-resizer.dragging::after { background: #555; }
+main.dark #beside-resizer::after         { background: #333; }
+main.dark #beside-resizer:hover::after,
+main.dark #beside-resizer.dragging::after { background: #555; }
+
+/* Sub-list items */
+main.dark .sub-item                      { border-bottom-color: #2a2a2a; }
+main.dark .sub-item:hover                { background: #252525; }
+main.dark .sub-item.active               { background: #2a2a2a; border-left-color: #ccc; }
+main.dark .sub-time                      { color: #555; }
+main.dark .sub-time-end                  { color: #444; }
+main.dark .sub-time:hover                { border-color: #444; color: #888; }
+main.dark .sub-item.active .sub-time     { color: #777; }
+main.dark .sub-time-input                { background: #1a1a1a; border-color: #555; color: #ddd; }
+main.dark .sub-text                      { color: #bbb; }
+main.dark .sub-item.active .sub-text     { color: #eee; }
+main.dark .sub-text[contenteditable="true"] { background: #2a2a2a; box-shadow: 0 0 0 2px #777; }
+main.dark .sub-item.active .sub-text[contenteditable="true"] { background: #2a2a2a; color: #eee; }
+main.dark .sub-insert:hover::before      { background: #333; }
+main.dark .sub-insert-btn                { background: #222; border-color: #3a3a3a; color: #555; }
+main.dark .sub-insert-btn:hover          { color: #bbb; border-color: #666; }
+main.dark .sub-split-btn,
+main.dark .sub-delete-btn                { color: #3a3a3a; }
+main.dark .sub-item:hover .sub-split-btn,
+main.dark .sub-item:hover .sub-delete-btn { border-color: #333; }
+main.dark .sub-split-btn:hover,
+main.dark .sub-delete-btn:hover          { color: #888; border-color: #666; }
+
+/* Video float handle */
+main.dark #video-float-handle            { background: #252525; border-bottom-color: #333; color: #555; }
+main.dark #video-panel.layout-float #video-column { border-color: #333; }
+
+/* layout-below */
+main.dark #video-panel.layout-below #subtitle-timeline-row { border-bottom-color: #333; }
+
+/* Result panel */
+main.dark #result-header > p            { color: #ddd; }
+main.dark .fcpxml-export select         { background: #222; border-color: #444; color: #bbb; }
+main.dark .fcpxml-export select:focus   { border-color: #777; }
+main.dark #srt-output                   { color: #ddd; background: #161616; border-color: #333; }
+main.dark #srt-output:focus             { border-color: #666; }
+main.dark #srt-output::placeholder      { color: #444; }

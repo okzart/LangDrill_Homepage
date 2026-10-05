@@ -1,0 +1,26 @@
+//- Transcribe: the video/audio transcription tool with its subtitle editor.
+//- This page is only the shell - the homepage's top bar with the tool in a
+//- frame underneath (GET /transcribe/app, views/transcribe-app.pug).
+//-
+//- Why a frame: the tool was written for its own document (it came from a
+//- standalone site). Its stylesheet builds on that site's base button/label
+//- styles, and its script positions floating panels and tooltips against the
+//- window. Inside a frame it runs exactly as designed, and neither it nor the
+//- homepage's design system (_style.pug) can restyle the other.
+doctype html
+html(lang=lang || "en")
+  head
+    meta(charset="UTF-8")
+    meta(name="viewport" content="width=device-width, initial-scale=1")
+    title= 'LanguageDrill — ' + t('Subtitles')
+    include _style
+    style.
+      html, body.tx-shell { height: 100%; }
+      body.tx-shell { display: flex; flex-direction: column; max-width: none; margin: 0; padding: 0; height: 100dvh; overflow: hidden; }
+      body.tx-shell nav.site { flex: none; margin: 0; padding: 0 20px; }
+      body.tx-shell iframe { flex: 1; min-height: 0; width: 100%; border: 0; background: #fff; }
+      /* phones: leave room for the bottom tab bar */
+      @media (max-width: 1020px) { body.tx-shell { padding-bottom: 58px; } }
+  body.tx-shell
+    include _nav
+    iframe(src="/transcribe/app" title=t('Transcription and subtitle editor') allow="fullscreen; autoplay; clipboard-write" allowfullscreen)

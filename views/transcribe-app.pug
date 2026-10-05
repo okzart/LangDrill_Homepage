@@ -1,0 +1,175 @@
+//- The transcription tool itself, shown inside views/transcribe.pug's frame.
+//- A standalone document on purpose (no _style / _nav): its look comes from
+//- /assets/transcribe/transcribe.css plus the few base rules below, which are
+//- the ones the tool's original site supplied globally.
+//-
+//- Script: /assets/transcribe/transcribe.js (src/public/transcribe/). Server
+//- side: src/routes/transcribeRoutes.js → stt-service through the gateway.
+doctype html
+html(lang=lang || "en")
+  head
+    meta(charset="UTF-8")
+    meta(name="viewport" content="width=device-width, initial-scale=1")
+    title= t('Subtitles')
+    link(rel="preconnect" href="https://fonts.googleapis.com")
+    link(rel="preconnect" href="https://fonts.gstatic.com" crossorigin)
+    link(rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Oswald:wght@200..700&family=Noto+Sans+KR:wght@300;400;500&family=Roboto+Mono:wght@300;400&display=swap")
+    include _i18n
+    style.
+      /* Base rules from the tool's original site (com.css / head.css). */
+      html, body { margin: 0; }
+      body { background-color: white; }
+      body:has(main.dark) { background-color: #1a1a1a; }
+      main { box-sizing: border-box; }
+      p, label { font-family: "Oswald", "Noto Sans KR", sans-serif; font-weight: 300; font-style: normal; font-size: 18px; color: white; }
+      button {
+        font-family: "Oswald", "Noto Sans KR", sans-serif; font-weight: 300; font-style: normal; font-size: 13px;
+        color: white; background-color: black; border: none; padding: 4px 10px; cursor: pointer; gap: 9px;
+        width: 119px; height: 34px;
+      }
+      button:hover { background-color: brown; }
+      /* The transcript header holds up to seven buttons; at the base 119px
+         each they overflow the panel in the Beside and Float layouts. */
+      #sub-list-header button, #timeline-controls button { width: auto; height: auto; min-width: 26px; }
+      #sub-list-header { flex-wrap: wrap; }
+    link(rel="stylesheet" href="/assets/transcribe/transcribe.css")
+    script(src="/assets/transcribe/lame.min.js")
+    script(src="/assets/transcribe/transcribe.js" defer)
+  body(data-max-upload-mb=maxUploadMb)
+    main
+      #content
+        #page-upload
+          #transcribe-header
+            p= t('Video Transcription')
+            p.description= t('Drop a video — audio is extracted in-browser, transcribed by Whisper AI on the GPU, and overlaid as subtitles')
+            button#dark-mode-btn(type="button" title=t('Toggle dark mode'))= t('Dark')
+
+          #transcribe-panel
+            #drop-zone
+              input(type="file" id="audio-file" accept="audio/*,video/*")
+              #drop-icon ▶
+              #drop-title= t('Drop video or audio file here')
+              #drop-subtitle= t('Click to browse · MP4, MOV, MKV, MP3, WAV, M4A ...')
+              #selected-file
+
+            #options-row
+              .option-group
+                label(for="lang-select")= t('Language')
+                select#lang-select
+                  option(value="ko" selected)= t('Korean') + ' (한국어)'
+                  option(value="en")= t('English')
+                  option(value="auto")= t('Auto Detect')
+
+            button#advanced-toggle(type="button")= '▸ ' + t('Advanced Parameters')
+
+            #param-tooltip
+              #param-tooltip-text
+              #param-tooltip-arrow
+
+            #advanced-panel
+              .adv-section
+                .adv-section-title= t('Recognition')
+                .adv-row
+                  .adv-group.adv-group--check
+                    input#vad-input(type="checkbox" checked)
+                    label(for="vad-input")= t('Skip silence (voice activity detection)')
+                    span.adv-hint= t('faster, and avoids invented text over silence')
+
+              .adv-section
+                .adv-section-title= t('Subtitle chunking')
+                .adv-row
+                  .adv-group
+                    label(for="max-chars-input")= t('Max characters per segment')
+                    input#max-chars-input(type="number" min="10" max="200" step="1" placeholder="auto")
+                    span.adv-hint= t('auto = 28 for Korean/Japanese/Chinese, 80 otherwise')
+                  .adv-group
+                    label(for="max-duration-input")= t('Max segment duration (s)')
+                    input#max-duration-input(type="number" min="1" max="20" step="0.5" value="6")
+                    span.adv-hint= t('longer segments are force-split even mid-sentence')
+                  .adv-group
+                    label(for="pause-split-input")= t('Pause split threshold (s)')
+                    input#pause-split-input(type="number" min="0.1" max="3" step="0.1" value="0.5")
+                    span.adv-hint= t('gap between words that starts a new segment')
+
+              #adv-footer
+                button#reset-params-btn(type="button")= t('Reset to defaults')
+
+            #upload-actions
+              button#open-player-btn.button(type="button" disabled)= t('Open Player →')
+              button#transcribe-btn.button(disabled)= t('Transcribe')
+
+          #progress-panel
+            #status-text= t('Waiting...')
+            #progress-bar
+              #progress-fill
+            #segment-preview
+            #extract-ready
+              #extract-ready-info
+              #extract-ready-actions
+                button#download-audio-btn.button(type="button")= t('↓ Download audio')
+                button#extract-next-btn.button(type="button")= t('Next →')
+
+        #page-player
+          #player-nav
+            button#back-btn.button(type="button")= t('← Back')
+            span#player-filename
+
+          #video-panel
+            #video-column
+              #video-float-handle= '⠿ ' + t('Video')
+              #video-wrapper
+                video#video-player(controls preload="metadata")
+                //- Kept (hidden) for the editor script: it played a vocals-only
+                //- track when the tool ran Demucs locally. No service provides
+                //- that here, so the button below never shows.
+                audio#vocals-audio(preload="none")
+                #subtitle-overlay
+                button#subtitle-toggle-btn(type="button" title=t('Toggle subtitles')) SUB
+              #subtitle-timeline-row
+                #subtitle-timeline
+                  #timeline-track
+                    #timeline-playhead
+                #timeline-controls
+                  button#voice-toggle-btn(type="button" disabled hidden) 🎤 Voice only
+                  button#timeline-zoom-out(type="button") −
+                  span#timeline-zoom-label 1×
+                  button#timeline-zoom-in(type="button") +
+            #beside-resizer
+            #sub-list
+              #sub-list-header
+                span#sub-list-drag-handle ⠿
+                span#sub-list-title= t('Transcript')
+                #history-btns
+                  button#undo-btn.history-btn(type="button" title=t('Undo (Ctrl+Z)') disabled) ↩
+                  button#redo-btn.history-btn(type="button" title=t('Redo (Ctrl+Y)') disabled) ↪
+                button#merge-selected-btn.merge-btn(type="button" title=t('Select two or more adjacent segments to merge') disabled)= '⧉ ' + t('Merge')
+                button#autoscroll-btn.autoscroll-btn.active(type="button" title=t('Auto-scroll list with video'))= '↕ ' + t('Follow')
+                #layout-btns
+                  button.layout-btn#layout-below(type="button" title=t('Stack below video'))= t('Below')
+                  button.layout-btn#layout-beside(type="button" title=t('Place beside video'))= t('Beside')
+                  button.layout-btn#layout-float(type="button" title=t('Floating panel'))= t('Float')
+              #sub-list-body
+              #sub-list-resizer
+
+          #result-panel
+            input#srt-file-input(type="file" accept=".srt" style="display:none")
+            #result-header
+              p= t('SRT Output')
+              #result-actions
+                button#load-srt-btn.button= t('Load .srt')
+                button#copy-btn.button= t('Copy')
+                button#download-btn.button= t('Save')
+                .fcpxml-export
+                  select#fcpxml-target-select
+                    option(value="me") 나
+                    option(value="wife") 아내
+                  select#fcpxml-fps-select
+                    option(value="2997") 29.97 fps
+                    option(value="30") 30 fps
+                    option(value="2398") 23.976 fps
+                    option(value="24") 24 fps
+                    option(value="25") 25 fps
+                    option(value="5994") 59.94 fps
+                    option(value="60") 60 fps
+                  button#export-fcpxml-btn.button= t('Export FCPXML')
+            textarea#srt-output(spellcheck="false" placeholder=t('Transcribe a video above, or click  Load .srt  to open an existing subtitle file.'))

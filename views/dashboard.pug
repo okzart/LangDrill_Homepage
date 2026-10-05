@@ -177,6 +177,10 @@ html(lang=lang || "en")
               span.ico.tone-3
                 +icon('scan', 18)
               = t('Scan & Study')
+            a(href="/transcribe")
+              span.ico.tone-2
+                +icon('captions', 18)
+              = t('Subtitles')
             if currentUser.role === 'admin'
               span.kicker= t('Administration')
               a(href="/admin/users")
@@ -200,6 +204,7 @@ html(lang=lang || "en")
             { href: '/chat', icon: 'sparkle', tone: 'tone-1', label: t('AI tutor') },
             { href: '/studio', icon: 'studio', tone: 'tone-2', label: t('Make a drill') },
             { href: '/scan', icon: 'scan', tone: 'tone-4', label: t('Scan a page') },
+            { href: '/transcribe', icon: 'captions', tone: 'tone-1', label: t('Subtitle a video') },
             { href: '/community?tab=create', icon: 'plus', tone: 'tone-3', label: t('Publish a set') },
             { href: '/passages', icon: 'book', tone: 'tone-5', label: t('Passage') },
             { href: '/progress', icon: 'flame', tone: 'tone-1', label: t('My streak'), badge: streak },

@@ -87,6 +87,9 @@ html(lang=lang || "en")
     include _nav
     h1= t('Studio')
     p.hint= t('Turn your own audio or video into listening drills: transcribe it, pick a sentence (or part of one), crop the audio, and publish the items as a listening set.')
+    p.hint
+      = t('Want subtitles for a whole video instead?') + ' '
+      a(href="/transcribe")= t('Open the subtitle editor')
 
     #error.error(hidden)
 

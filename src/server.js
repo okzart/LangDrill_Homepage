@@ -17,6 +17,7 @@ const PassagesRoutes = require('./routes/passagesRoutes');
 const ListeningRoutes = require('./routes/listeningRoutes');
 const StudioRoutes = require('./routes/studioRoutes');
 const ScanRoutes = require('./routes/scanRoutes');
+const TranscribeRoutes = require('./routes/transcribeRoutes');
 
 // Fail fast: without COOKIE_SECRET the session cookie can't be signed, so
 // every login would be silently unverifiable (see middleware/session.js).
@@ -41,6 +42,7 @@ const passagesRoutes = new PassagesRoutes(gatewayClient);
 const listeningRoutes = new ListeningRoutes(gatewayClient);
 const studioRoutes = new StudioRoutes(gatewayClient);
 const scanRoutes = new ScanRoutes(gatewayClient);
+const transcribeRoutes = new TranscribeRoutes(gatewayClient);
 
 const app = express();
 // Parses JSON bodies (unused by this app's own forms, kept for parity/
@@ -48,6 +50,12 @@ const app = express();
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser(process.env.COOKIE_SECRET));
+
+// Static files for the pages that are too big to keep inline (the
+// transcription editor's script and stylesheet). They live under src/ so the
+// shared Docker image recipe (deploy/node-service.Dockerfile copies src/ and
+// views/) picks them up without a change.
+app.use('/assets', express.static(path.join(__dirname, 'public'), { maxAge: '1h' }));
 
 app.set('views', path.join(__dirname, '..', 'views'));
 app.set('view engine', 'pug');
@@ -69,6 +77,7 @@ app.use(passagesRoutes.router);
 app.use(listeningRoutes.router);
 app.use(studioRoutes.router);
 app.use(scanRoutes.router);
+app.use(transcribeRoutes.router);
 
 // Simple liveness check, useful for uptime monitors / load balancers
 app.get('/health', (req, res) => res.json({ status: 'ok' }));
