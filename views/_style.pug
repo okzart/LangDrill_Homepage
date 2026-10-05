@@ -93,7 +93,7 @@ style.
      Full-width #f5f5f8 bar with a hairline bottom edge. Left: logo + search;
      centre: tabs with the icon over its label (current page: blue fill +
      3px underline); right: EN | 한국어 segment, Admin pill, avatar, log out.
-     On phones the tabs become a bottom tab bar. */
+     On phones and narrow tablets (<= 1020px) the tabs become a bottom tab bar. */
   nav.site {
     position: sticky; top: 0; z-index: 50;
     display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; gap: 13.6px;
@@ -150,7 +150,7 @@ style.
     nav.site .nav-search .icon { z-index: 3; left: 10px; }
     nav.site details.admin-menu summary span { display: none; }
   }
-  @media (max-width: 760px) {
+  @media (max-width: 1020px) {
     nav.site { grid-template-columns: minmax(0, 1fr) auto; height: 56px; }
     nav.site .nav-search { display: none; }
     nav.site .links {
@@ -162,7 +162,7 @@ style.
     nav.site .links .tab-label { font-size: 11px; }
     body:has(nav.site .links) { padding-bottom: 80px; }
   }
-  @media (max-width: 420px) { nav.site .brand .wordmark { display: none; } nav.site .seg a { padding: 6px 8px; } }
+  @media (max-width: 420px) { nav.site .brand .wordmark { display: none; } nav.site .seg a { padding: 6px 8px; } nav.site .links .tab-label { font-size: 10px; letter-spacing: -0.01em; } }
 
   /* ---- Avatars & blue tones (feed, rails, stories, shortcuts) ---------- */
   .av { display: inline-grid; place-items: center; flex: none; width: var(--av, 40px); height: var(--av, 40px); border-radius: 50%; color: var(--n-100); font-family: var(--display); font-weight: 600; font-size: calc(var(--av, 40px) * 0.45); line-height: 1; }

@@ -1,0 +1,435 @@
+//- Scan & Study: a picture of English text → the text (POST /scan/ocr →
+//- ocr-service) → every sentence in Korean plus the vocabulary and
+//- expressions worth learning (POST /scan/analyze → content-sharing's
+//- /study/analyze) → the ones you tick saved as a vocab drill set (POST
+//- /scan/publish). See src/routes/scanRoutes.js.
+//-
+//- Two steps on purpose: the text box between them shows what the scan read
+//- and can be corrected - or typed/pasted into directly, with no picture.
+doctype html
+html(lang=lang || "en")
+  head
+    meta(charset="UTF-8")
+    meta(name="viewport" content="width=device-width, initial-scale=1")
+    title= 'LanguageDrill — ' + t('Scan & Study')
+    include _style
+    style.
+      .hint { font-size: 13px; color: var(--muted); margin: 4px 0 0; }
+      .status { font-size: 13.5px; color: var(--muted); min-height: 1.3em; }
+      .actions { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin-top: 12px; }
+      .actions button, .actions .btn { margin: 0; }
+      .pic-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 20px; align-items: start; }
+      @media (max-width: 760px) { .pic-grid { grid-template-columns: 1fr; } }
+      .drop { display: grid; justify-items: center; gap: 8px; padding: 26px 16px; border: 2px dashed var(--line-strong); border-radius: 14px; background: var(--surface-2); color: var(--muted); text-align: center; cursor: pointer; transition: border-color 0.15s, background 0.15s; margin: 0; }
+      .drop:hover, .drop.over { border-color: var(--accent); background: var(--blue-100); color: var(--blue-800); }
+      .drop strong { font-family: var(--display); font-size: 18px; font-weight: 600; color: var(--text); }
+      .drop input { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+      .opts { display: grid; grid-template-columns: 1fr 1fr; gap: 0 14px; align-items: end; }
+      .opts .check { display: flex; align-items: center; gap: 8px; margin: 0 0 9px; font-size: 14px; cursor: pointer; }
+      .preview { position: relative; display: grid; place-items: center; min-height: 180px; border-radius: 14px; background: var(--chip); overflow: hidden; }
+      .preview img { display: block; max-width: 100%; max-height: 460px; }
+      .preview .frame { position: relative; display: inline-block; line-height: 0; }
+      .preview svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+      .preview rect { fill: rgba(89, 128, 166, 0.14); stroke: var(--blue-700); stroke-width: 1.5; vector-effect: non-scaling-stroke; }
+      .preview .empty { color: var(--muted); font-size: 14px; padding: 20px; text-align: center; line-height: 1.5; }
+      #text { min-height: 190px; font-family: var(--font); font-size: 15.5px; line-height: 1.6; }
+      .text-foot { display: flex; justify-content: space-between; gap: 10px; font-size: 12.5px; color: var(--muted); margin-top: 4px; }
+      .level-row { display: flex; gap: 12px; align-items: end; flex-wrap: wrap; }
+      .level-row > div { min-width: 180px; }
+
+      .segment { display: inline-flex; overflow: hidden; margin-bottom: 14px; background: var(--n-100); border: 1px solid var(--line); border-radius: 999px; box-shadow: var(--shadow-sm); }
+      .segment button { margin: 0; min-height: 0; padding: 8px 14px; border: 0; border-radius: 0; background: none; font-family: var(--font); font-size: 14px; font-weight: 500; }
+      .segment button + button { border-left: 1px solid var(--line); }
+      .segment button[aria-selected=true] { background: var(--accent); color: var(--n-100); }
+      .segment button span { font-size: 12px; opacity: 0.75; margin-left: 4px; }
+      .panel[hidden] { display: none; }
+      .sentences { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
+      .sentences li { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 12px; }
+      .sentences li:hover { background: rgba(65, 97, 128, 0.06); }
+      .sentences .txt { flex: 1; min-width: 0; display: grid; gap: 2px; }
+      .sentences .en { font-size: 16px; font-weight: 500; }
+      .sentences .ko { font-size: 14px; color: var(--muted); }
+      .sentences li.native .en { font-weight: 400; color: var(--muted); }
+      .play { flex: none; width: 36px; height: 36px; min-height: 0; margin: 0; padding: 0; border: 0; border-radius: 50%; background: var(--blue-100); color: var(--blue-800); font-size: 11px; }
+      .play:hover { background: var(--blue-200); color: var(--blue-800); }
+      .play.playing { background: var(--blue-700); color: var(--n-100); }
+      .picks { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 10px; }
+      .pick { position: relative; display: block; margin: 0; padding: 12px 14px 12px 42px; border: 1px solid var(--line); border-radius: 14px; background: #fbfbfd; cursor: pointer; font-size: 15px; font-weight: 400; color: var(--text); transition: border-color 0.15s, background 0.15s; }
+      .pick:hover { border-color: var(--line-strong); }
+      .pick:has(input:checked) { border-color: var(--accent); background: var(--blue-100); }
+      .pick input { position: absolute; left: 14px; top: 15px; margin: 0; width: 17px; height: 17px; }
+      .pick .term { font-family: var(--display); font-size: 21px; font-weight: 600; line-height: 1.15; }
+      .pick .pos { margin-left: 6px; padding: 2px 8px; border-radius: 999px; background: var(--n-200); color: var(--n-800); font-size: 11px; vertical-align: middle; }
+      .pick .meaning { margin-top: 2px; font-size: 15px; color: var(--blue-800); font-weight: 600; }
+      .pick .ex { margin-top: 8px; font-size: 14px; line-height: 1.5; }
+      .pick .exko { font-size: 13px; color: var(--muted); }
+      .none { color: var(--muted); font-size: 14px; }
+      .save-bar { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; margin-bottom: 6px; }
+      .save-bar strong { font-family: var(--display); font-size: 18px; font-weight: 600; }
+      .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 0 14px; }
+      @media (max-width: 560px) { .grid2, .opts { grid-template-columns: 1fr; } }
+      [hidden] { display: none !important; }
+  body
+    include _nav
+    .page-head
+      h1= t('Scan & Study')
+      p= t('Take a picture of English text - a textbook page, a worksheet, a menu - and get it in Korean, with the words and expressions worth learning.')
+
+    #error.error(hidden role="alert")
+
+    section
+      h2= t('1. Picture')
+      .pic-grid
+        div
+          label.drop#drop(for="file")
+            +icon('scan', 34)
+            strong= t('Choose a picture or PDF')
+            span= t('or drop it here - PNG, JPEG, WebP or PDF, up to 20 MB')
+            input#file(type="file" accept="image/*,application/pdf,.pdf")
+          .actions
+            label.btn.soft(for="camera" style="margin:0")
+              +icon('camera', 18)
+              = t('Take a photo')
+            input#camera(type="file" accept="image/*" capture="environment" hidden)
+            span#file-name.status
+          .opts
+            div
+              label(for="language")= t('Text on the page')
+              select#language
+                option(value="auto" selected)= t('English (+ Korean)')
+                option(value="en")= t('English only')
+            label.check
+              input#rotate(type="checkbox")
+              = t('The page is sideways or upside down')
+          .actions
+            button#read.primary(type="button" disabled)= t('Read the text')
+            span#read-status.status(aria-live="polite")
+        .preview#preview
+          .empty= t('Your picture appears here, with the lines that were read outlined.')
+
+    section
+      h2= t('2. Text')
+      p.hint= t('Fix anything the scan got wrong - or just type or paste English text here, no picture needed.')
+      textarea#text(spellcheck="false" maxlength=maxTextChars placeholder=t('The text read from your picture appears here.'))
+      .text-foot
+        span#ocr-note
+        span#count
+      .level-row
+        div
+          label(for="level")= t('My level')
+          select#level
+            each lv in levels
+              option(value=lv selected=(lv === 'intermediate'))= t(lv.charAt(0).toUpperCase() + lv.slice(1))
+        .actions
+          button#analyze.primary(type="button" disabled)= t('Translate & find vocabulary')
+          span#analyze-status.status(aria-live="polite")
+
+    section#result(hidden)
+      h2= t('3. Study')
+      .segment(role="tablist" aria-label=t('What to show'))
+        button(type="button" role="tab" data-tab="sentences" aria-selected="true")
+          = t('Sentences')
+          span#n-sentences
+        button(type="button" role="tab" data-tab="vocab" aria-selected="false")
+          = t('Vocabulary')
+          span#n-vocab
+        button(type="button" role="tab" data-tab="expressions" aria-selected="false")
+          = t('Expressions')
+          span#n-expressions
+      #panel-sentences.panel(role="tabpanel")
+        ul#sentences.sentences
+        p#translation-note.hint(hidden)= t('Some sentences could not be translated.')
+      #panel-vocab.panel(role="tabpanel" hidden)
+        #vocab.picks
+      #panel-expressions.panel(role="tabpanel" hidden)
+        #expressions.picks
+
+    section#save(hidden)
+      h2= t('4. Save as a vocab set')
+      .save-bar
+        strong#picked
+        .actions(style="margin:0")
+          button#pick-all(type="button")= t('Tick all')
+          button#pick-none(type="button")= t('Untick all')
+      p.hint= t('Each ticked word or expression becomes a fill-in-the-blank item: its sentence with the word hidden, the Korean underneath, and audio.')
+      .grid2
+        div
+          label(for="set-name")= t('Set name')
+          input#set-name(type="text")
+        div
+          label(for="set-author")= t('Author (optional)')
+          input#set-author(type="text")
+      .actions
+        button#publish.primary(type="button" disabled)= t('Save vocab set')
+        span#publish-status.status(aria-live="polite")
+
+    script.
+      (function () {
+        var $ = function (id) { return document.getElementById(id); };
+        var MAX_CHARS = #{maxTextChars};
+        var WORD = /[A-Za-z']+/g;
+        var errorBox = $('error');
+        function showError(msg) { errorBox.textContent = msg; errorBox.hidden = false; errorBox.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); }
+        function clearError() { errorBox.hidden = true; }
+
+        // fetch → JSON; errors → Error(message); 401 → /login.
+        function call(url, opts) {
+          return fetch(url, opts).then(function (res) {
+            if (res.status === 401) { location.href = '/login?next=/scan'; throw new Error(t('Not logged in')); }
+            return res.json().catch(function () { return {}; }).then(function (data) {
+              if (!res.ok) throw new Error(data.error || t('Request failed ({status})', { status: res.status }));
+              return data;
+            });
+          });
+        }
+        function ticker(el, text) {
+          var started = Date.now();
+          var show = function () { el.textContent = text + ' ' + t('{n} s', { n: Math.round((Date.now() - started) / 1000) }); };
+          show();
+          var id = setInterval(show, 1000);
+          return function (finalText) { clearInterval(id); el.textContent = finalText || ''; };
+        }
+
+        // ---- 1. Picture ---------------------------------------------------
+        var file = null, previewUrl = null;
+        function setFile(f) {
+          if (!f) return;
+          clearError();
+          if (f.size > 20 * 1024 * 1024) return showError(t('Files up to {mb} MB', { mb: 20 }));
+          file = f;
+          $('file-name').textContent = f.name + ' (' + (f.size / 1048576).toFixed(1) + ' MB)';
+          $('read').disabled = false;
+          $('read-status').textContent = '';
+          var box = $('preview');
+          box.textContent = '';
+          if (previewUrl) URL.revokeObjectURL(previewUrl);
+          previewUrl = null;
+          if (/^image\//.test(f.type)) {
+            previewUrl = URL.createObjectURL(f);
+            var frame = document.createElement('div');
+            frame.className = 'frame';
+            var img = document.createElement('img');
+            img.src = previewUrl;
+            img.alt = t('The picture you chose');
+            frame.appendChild(img);
+            box.appendChild(frame);
+          } else {
+            var note = document.createElement('div');
+            note.className = 'empty';
+            note.textContent = t('PDF chosen - no preview, but it will be read page by page.');
+            box.appendChild(note);
+          }
+        }
+        $('file').addEventListener('change', function () { setFile(this.files[0]); });
+        $('camera').addEventListener('change', function () { setFile(this.files[0]); });
+        var drop = $('drop');
+        ['dragenter', 'dragover'].forEach(function (ev) { drop.addEventListener(ev, function (e) { e.preventDefault(); drop.classList.add('over'); }); });
+        ['dragleave', 'drop'].forEach(function (ev) { drop.addEventListener(ev, function (e) { e.preventDefault(); drop.classList.remove('over'); }); });
+        drop.addEventListener('drop', function (e) { if (e.dataTransfer.files[0]) setFile(e.dataTransfer.files[0]); });
+
+        // Outline the lines that were read, on top of the preview picture.
+        function drawBoxes(page) {
+          var frame = document.querySelector('#preview .frame');
+          if (!frame || !page || page.angle) return; // rotated by auto_rotate: boxes no longer match the preview
+          var old = frame.querySelector('svg');
+          if (old) old.remove();
+          var NS = 'http://www.w3.org/2000/svg';
+          var svg = document.createElementNS(NS, 'svg');
+          svg.setAttribute('viewBox', '0 0 ' + page.width + ' ' + page.height);
+          svg.setAttribute('preserveAspectRatio', 'none');
+          svg.setAttribute('aria-hidden', 'true');
+          page.lines.forEach(function (line) {
+            var r = document.createElementNS(NS, 'rect');
+            r.setAttribute('x', line.box.x); r.setAttribute('y', line.box.y);
+            r.setAttribute('width', line.box.width); r.setAttribute('height', line.box.height);
+            r.setAttribute('rx', 3);
+            svg.appendChild(r);
+          });
+          frame.appendChild(svg);
+        }
+
+        $('read').addEventListener('click', function () {
+          if (!file) return;
+          clearError();
+          var form = new FormData();
+          form.append('language', $('language').value);
+          form.append('auto_rotate', $('rotate').checked ? 'true' : 'false');
+          form.append('file', file, file.name);
+          var btn = $('read');
+          btn.disabled = true;
+          var done = ticker($('read-status'), t('Reading the text…'));
+          call('/scan/ocr', { method: 'POST', body: form })
+            .then(function (ocr) {
+              var lines = ocr.pages.reduce(function (n, p) { return n + p.lines.length; }, 0);
+              if (!lines) { done(''); return showError(t('No text was found in the picture.')); }
+              done(t('Read {n} lines.', { n: lines }));
+              drawBoxes(ocr.pages[0]);
+              setText(ocr.text.slice(0, MAX_CHARS));
+              $('ocr-note').textContent = t('Read from your picture · {pct}% sure', { pct: Math.round((ocr.confidence || 0) * 100) }) +
+                (ocr.text.length > MAX_CHARS ? ' · ' + t('cut to the first {max} characters', { max: MAX_CHARS }) : '');
+              $('text').scrollIntoView({ block: 'center', behavior: 'smooth' });
+            })
+            .catch(function (err) { done(''); showError(err.message); })
+            .then(function () { btn.disabled = !file; });
+        });
+
+        // ---- 2. Text --------------------------------------------------------
+        var textEl = $('text');
+        function onText() {
+          $('count').textContent = textEl.value.length + ' / ' + MAX_CHARS;
+          $('analyze').disabled = !textEl.value.trim();
+        }
+        function setText(v) { textEl.value = v; onText(); }
+        textEl.addEventListener('input', function () { $('ocr-note').textContent = ''; onText(); });
+        onText();
+
+        var study = null;
+        $('analyze').addEventListener('click', function () {
+          clearError();
+          var btn = $('analyze');
+          btn.disabled = true;
+          var done = ticker($('analyze-status'), t('Translating and picking vocabulary… (usually 10-20 seconds)'));
+          call('/scan/analyze', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text: textEl.value, level: $('level').value }) })
+            .then(function (result) { done(''); render(result); })
+            .catch(function (err) { done(''); showError(err.message); })
+            .then(function () { onText(); });
+        });
+
+        // ---- 3. Study -------------------------------------------------------
+        function el(tag, cls, text) {
+          var e = document.createElement(tag);
+          if (cls) e.className = cls;
+          if (text !== undefined && text !== null) e.textContent = text;
+          return e;
+        }
+        // The sentence with the studied word(s) highlighted.
+        function marked(sentence, blanks) {
+          var box = el('div', 'ex');
+          var hit = {};
+          (blanks || []).forEach(function (b) { hit[b.at] = true; });
+          var at = 0, last = 0, m;
+          WORD.lastIndex = 0;
+          while ((m = WORD.exec(sentence)) !== null) {
+            box.appendChild(document.createTextNode(sentence.slice(last, m.index)));
+            if (hit[at]) box.appendChild(el('mark', null, m[0])); else box.appendChild(document.createTextNode(m[0]));
+            last = m.index + m[0].length;
+            at++;
+          }
+          box.appendChild(document.createTextNode(sentence.slice(last)));
+          return box;
+        }
+        function pickCard(kind, index, item) {
+          var label = el('label', 'pick');
+          var box = document.createElement('input');
+          box.type = 'checkbox';
+          box.checked = true;
+          box.dataset.kind = kind;
+          box.dataset.index = index;
+          var head = el('div');
+          head.appendChild(el('span', 'term', kind === 'vocab' ? item.word : item.expression));
+          if (item.pos) head.appendChild(el('span', 'pos', t(item.pos)));
+          label.appendChild(box);
+          label.appendChild(head);
+          label.appendChild(el('div', 'meaning', item.meaning));
+          label.appendChild(marked(item.example, item.blanks));
+          if (item.exampleKo) label.appendChild(el('div', 'exko', item.exampleKo));
+          return label;
+        }
+        function render(result) {
+          study = result;
+          var list = $('sentences');
+          list.textContent = '';
+          result.sentences.forEach(function (s) {
+            var li = el('li', s.english ? '' : 'native');
+            var txt = el('div', 'txt');
+            txt.appendChild(el('span', 'en', s.text));
+            if (s.ko) txt.appendChild(el('span', 'ko', s.ko));
+            li.appendChild(txt);
+            if (s.english) {
+              var play = el('button', 'play', '▶');
+              play.type = 'button';
+              play.title = t('Listen');
+              play.setAttribute('aria-label', t('Listen'));
+              play.dataset.text = s.text;
+              li.appendChild(play);
+            }
+            list.appendChild(li);
+          });
+          $('translation-note').hidden = result.translation.complete;
+          [['vocab', result.vocab, t('No single words stood out at this level - try a lower level.')],
+            ['expressions', result.expressions, t('No expressions were found in this text.')]].forEach(function (row) {
+            var box = $(row[0]);
+            box.textContent = '';
+            if (!row[1].length) box.appendChild(el('p', 'none', row[2]));
+            row[1].forEach(function (item, i) { box.appendChild(pickCard(row[0], i, item)); });
+          });
+          $('n-sentences').textContent = result.sentences.length;
+          $('n-vocab').textContent = result.vocab.length;
+          $('n-expressions').textContent = result.expressions.length;
+          $('result').hidden = false;
+          $('save').hidden = !(result.vocab.length + result.expressions.length);
+          if (!$('set-name').value) {
+            var first = (result.sentences[0] || {}).text || '';
+            $('set-name').value = first.length <= 40 ? first.replace(/[.!?]+$/, '') : t('Scan {date}', { date: new Date().toLocaleDateString(LD_LANG === 'ko' ? 'ko-KR' : 'en-GB') });
+          }
+          showTab(result.vocab.length ? 'vocab' : 'sentences');
+          updatePicked();
+          $('result').scrollIntoView({ block: 'start', behavior: 'smooth' });
+        }
+        function showTab(name) {
+          document.querySelectorAll('.segment [data-tab]').forEach(function (b) { b.setAttribute('aria-selected', b.dataset.tab === name ? 'true' : 'false'); });
+          ['sentences', 'vocab', 'expressions'].forEach(function (n) { $('panel-' + n).hidden = n !== name; });
+        }
+        document.querySelectorAll('.segment [data-tab]').forEach(function (b) { b.addEventListener('click', function () { showTab(b.dataset.tab); }); });
+
+        // Listen to a sentence (tts-service through /chat/speech).
+        var player = new Audio(), playingBtn = null, playUrl = null;
+        function stopPlaying() { if (playingBtn) playingBtn.classList.remove('playing'); playingBtn = null; }
+        player.addEventListener('ended', stopPlaying);
+        $('sentences').addEventListener('click', function (e) {
+          var btn = e.target.closest('.play');
+          if (!btn) return;
+          if (playingBtn === btn) { player.pause(); stopPlaying(); return; }
+          stopPlaying();
+          playingBtn = btn;
+          btn.classList.add('playing');
+          fetch('/chat/speech', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text: btn.dataset.text }) })
+            .then(function (res) { if (!res.ok) throw new Error(); return res.blob(); })
+            .then(function (blob) {
+              if (playingBtn !== btn) return;
+              if (playUrl) URL.revokeObjectURL(playUrl);
+              playUrl = URL.createObjectURL(blob);
+              player.src = playUrl;
+              return player.play();
+            })
+            .catch(function () { stopPlaying(); showError(t('Speech is unavailable right now.')); });
+        });
+
+        // ---- 4. Save ----------------------------------------------------------
+        function pickedBoxes() { return Array.prototype.slice.call(document.querySelectorAll('.pick input:checked')); }
+        function updatePicked() {
+          var n = pickedBoxes().length;
+          $('picked').textContent = t('{n} picked', { n: n });
+          $('publish').disabled = n === 0;
+        }
+        document.addEventListener('change', function (e) { if (e.target.closest && e.target.closest('.pick')) updatePicked(); });
+        function setAll(on) { document.querySelectorAll('.pick input').forEach(function (b) { b.checked = on; }); updatePicked(); }
+        $('pick-all').addEventListener('click', function () { setAll(true); });
+        $('pick-none').addEventListener('click', function () { setAll(false); });
+
+        $('publish').addEventListener('click', function () {
+          clearError();
+          var name = $('set-name').value.trim();
+          if (!name) { $('set-name').focus(); return showError(t('Give the set a name')); }
+          var items = pickedBoxes().map(function (box) {
+            var item = study[box.dataset.kind][Number(box.dataset.index)];
+            return { ko: item.exampleKo || item.meaning, answer: item.example, keyKo: item.meaning, blanks: item.blanks };
+          });
+          var btn = $('publish');
+          btn.disabled = true;
+          var done = ticker($('publish-status'), t('Saving and recording the audio…'));
+          call('/scan/publish', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: name, author: $('set-author').value, desc: t('Made with Scan & Study'), items: items }) })
+            .then(function (result) { location.href = result.id ? '/community/' + encodeURIComponent(result.id) : '/community?published=1'; })
+            .catch(function (err) { done(''); showError(err.message); updatePicked(); });
+        });
+      })();

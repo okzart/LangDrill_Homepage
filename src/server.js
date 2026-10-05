@@ -16,6 +16,7 @@ const ChatRoutes = require('./routes/chatRoutes');
 const PassagesRoutes = require('./routes/passagesRoutes');
 const ListeningRoutes = require('./routes/listeningRoutes');
 const StudioRoutes = require('./routes/studioRoutes');
+const ScanRoutes = require('./routes/scanRoutes');
 
 // Fail fast: without COOKIE_SECRET the session cookie can't be signed, so
 // every login would be silently unverifiable (see middleware/session.js).
@@ -39,6 +40,7 @@ const chatRoutes = new ChatRoutes(gatewayClient);
 const passagesRoutes = new PassagesRoutes(gatewayClient);
 const listeningRoutes = new ListeningRoutes(gatewayClient);
 const studioRoutes = new StudioRoutes(gatewayClient);
+const scanRoutes = new ScanRoutes(gatewayClient);
 
 const app = express();
 // Parses JSON bodies (unused by this app's own forms, kept for parity/
@@ -66,6 +68,7 @@ app.use(chatRoutes.router);
 app.use(passagesRoutes.router);
 app.use(listeningRoutes.router);
 app.use(studioRoutes.router);
+app.use(scanRoutes.router);
 
 // Simple liveness check, useful for uptime monitors / load balancers
 app.get('/health', (req, res) => res.json({ status: 'ok' }));

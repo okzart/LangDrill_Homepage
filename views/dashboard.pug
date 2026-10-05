@@ -173,6 +173,10 @@ html(lang=lang || "en")
               span.ico.tone-5
                 +icon('studio', 18)
               = t('Studio')
+            a(href="/scan")
+              span.ico.tone-3
+                +icon('scan', 18)
+              = t('Scan & Study')
             if currentUser.role === 'admin'
               span.kicker= t('Administration')
               a(href="/admin/users")
@@ -195,6 +199,7 @@ html(lang=lang || "en")
           var stories = [
             { href: '/chat', icon: 'sparkle', tone: 'tone-1', label: t('AI tutor') },
             { href: '/studio', icon: 'studio', tone: 'tone-2', label: t('Make a drill') },
+            { href: '/scan', icon: 'scan', tone: 'tone-4', label: t('Scan a page') },
             { href: '/community?tab=create', icon: 'plus', tone: 'tone-3', label: t('Publish a set') },
             { href: '/passages', icon: 'book', tone: 'tone-5', label: t('Passage') },
             { href: '/progress', icon: 'flame', tone: 'tone-1', label: t('My streak'), badge: streak },
