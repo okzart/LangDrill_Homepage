@@ -14,6 +14,17 @@ const TABS = ['list', 'create'];
 const DEFAULT_LIMIT = 10;
 const MAX_LIMIT = 50;
 
+// llm-service caps max_tokens at 1024; ~8 sentences of Korean fit easily
+// (same batch size as Content Sharing's PassageTranslator).
+const MAX_TRANSLATE_SENTENCES = 8;
+const MAX_TRANSLATE_CHARS = 500;
+const HANGUL = /[가-힣]/;
+const TRANSLATE_PROMPT = `You translate English sentences for Korean learners of English into natural Korean.
+Translate each sentence faithfully and completely - it is study material, so do not summarise or embellish. Use polite spoken Korean (…해요 / …입니다).
+Greetings and set phrases become what a Korean would actually say (Good evening. -> 안녕하세요.), not word-for-word. Keep each idiom's meaning, not its literal words.
+Transliterate names into Hangul (David -> 데이비드). Write only Hangul Korean: never Chinese characters.
+You get a numbered list of sentences. Answer with exactly those numbers, one line each: "<n>. <Korean>". Output nothing else.`;
+
 class CommunityRoutes {
   constructor(gatewayClient) {
     this.gatewayClient = gatewayClient;
@@ -21,6 +32,7 @@ class CommunityRoutes {
 
     this.router.get('/community', requireLogin, AsyncHandler.wrap(this.showCommunity.bind(this)));
     this.router.post('/community/publish', requireLogin, AsyncHandler.wrap(this.publish.bind(this)));
+    this.router.post('/community/translate', AsyncHandler.wrap(this.translate.bind(this)));
     this.router.post('/community/:id/update', requireLogin, AsyncHandler.wrap(this.update.bind(this)));
     this.router.get('/community/:id', requireLogin, AsyncHandler.wrap(this.showOne.bind(this)));
     this.router.post('/community/:id/download', requireLogin, AsyncHandler.wrap(this.download.bind(this)));
@@ -106,6 +118,51 @@ class CommunityRoutes {
       deleted: req.query.deleted === '1',
       updated: req.query.updated === '1',
     });
+  }
+
+  // The item builder's "Fill all empty Korean prompts with AI": { sentences } →
+  // { translations }, the same length, null where the model gave no usable
+  // Korean line. Called by the page's fetch(), so failures are JSON
+  // `{ error }` (401 included) rather than errorHandler.js's pages.
+  async translate(req, res) {
+    if (!req.auth) return res.status(401).json({ error: req.t('Not logged in') });
+    const sentences = req.body?.sentences;
+    const valid = Array.isArray(sentences) && sentences.length > 0 && sentences.length <= MAX_TRANSLATE_SENTENCES
+      && sentences.every((s) => typeof s === 'string' && s.trim() !== '' && s.length <= MAX_TRANSLATE_CHARS);
+    if (!valid) {
+      return res.status(400).json({ error: req.t('sentences must be 1-{max} non-empty strings', { max: MAX_TRANSLATE_SENTENCES }) });
+    }
+    const list = sentences.map((s, i) => `${i + 1}. ${s.replace(/\s+/g, ' ').trim()}`).join('\n');
+    try {
+      const reply = await this.gatewayClient.postLong(
+        '/api/llm/chat/completions',
+        { messages: [{ role: 'system', content: TRANSLATE_PROMPT }, { role: 'user', content: list }], max_tokens: 1024, temperature: 0.2 },
+        req.auth.token,
+        3 * 60 * 1000
+      );
+      res.json({ translations: CommunityRoutes.numberedLines(reply?.choices?.[0]?.message?.content, sentences.length) });
+    } catch (err) {
+      if (!(err instanceof GatewayError)) {
+        console.error(err);
+        return res.status(502).json({ error: req.t('Translation is unavailable right now (is llm-service running? scripts/gpu-services.sh status)') });
+      }
+      const down = err.status === 502 || err.status === 504;
+      res.status(err.status).json({ error: down ? req.t('Translation is unavailable right now (is llm-service running? scripts/gpu-services.sh status)') : req.t(err.message) });
+    }
+  }
+
+  // "<n>. <Korean>" lines → an array of `count` strings; null for a number
+  // the reply skipped or answered without any Hangul.
+  static numberedLines(text, count) {
+    const out = new Array(count).fill(null);
+    const body = String(text || '').replace(/<think>[\s\S]*?<\/think>/g, '');
+    for (const line of body.split('\n')) {
+      const m = line.match(/^\s*(\d+)[.)]\s*(.+?)\s*$/);
+      if (!m) continue;
+      const i = Number(m[1]) - 1;
+      if (i >= 0 && i < count && out[i] === null && HANGUL.test(m[2])) out[i] = m[2];
+    }
+    return out;
   }
 
   async publish(req, res, next) {

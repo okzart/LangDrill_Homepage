@@ -50,7 +50,10 @@ mixin itemBuilder(formAction, prefill, submitLabel)
 
       .field#w-ko
         label(for="f-ko")= t('Korean prompt')
-        input#f-ko(type="text")
+        .row
+          input#f-ko(type="text")
+          button#translateKoBtn(type="button" title=t('Translate the English sentence below into Korean'))= t('Translate with AI')
+        span#translateKoStatus.copy-status
 
       .field#w-answer
         label(for="f-answer")= t('Answer / correct sentence')
@@ -92,6 +95,12 @@ mixin itemBuilder(formAction, prefill, submitLabel)
       button#addItemBtn(type="button")= t('+ Add item')
       button#cancelEditBtn.link(type="button" hidden)= t('Cancel edit')
 
+    //- Heads the list of items already in the set; the AI fill acts on
+    //- all of them, not on the item being composed above.
+    .row#itemListHead
+      strong#itemCount
+      span#fillKoStatus.copy-status
+      button#fillKoBtn(type="button")= t('Fill all empty Korean prompts with AI')
     ol#itemList
 
     details#aiPromptDetails

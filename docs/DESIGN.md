@@ -117,6 +117,7 @@ This app never talks to `:3000`/`:3002`/`:3003` directly.
 | `GET /community` (`?tab=list\|create`; List's `?editId=` loads a row's inline editor), `GET /community/:id` | login | `GET /api/sets`, `GET /api/sets/:id` |
 | `POST /community/publish` (Create tab) | login | `POST /api/sets` |
 | `POST /community/:id/update` (List row's inline "Update" editor) | login | `PATCH /api/sets/:id` (owner-only) |
+| `POST /community/translate` `{ sentences }` (1-8 English sentences; the item builder's "Fill all empty Korean prompts with AI" button, which sends the items whose `ko` is empty a batch at a time - `answer`, or `model` for writing; JSON `{ error }` on failure) | login | `POST /api/llm/chat/completions` (non-streaming) → `{ translations }`, same length, `null` where the model gave no Korean line. Nothing is saved until the user saves the set |
 | `POST /community/:id/download` | login | `POST /api/sets/:id/download` |
 | `POST /community/:id/delete` (set-detail's Unpublish button, and the List row's Delete button) | login | `DELETE /api/sets/:id` (owner-only - a non-owner sees the service's own 403 message) |
 | `GET /chat` | login | `GET /api/llm/models` (model name for the header) and `GET /api/tts/voices` (voice picker); the page still renders if either service is down, without the voice picker if tts-service is |

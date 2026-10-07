@@ -16,6 +16,9 @@ html(lang=lang || "en")
       #itemList li.editing { background: #eef4ff; border-radius: 4px; padding: 0.1rem 0.4rem; margin-left: -0.4rem; }
       #itemList button { margin: 0 0 0 0.5rem; padding: 0.1rem 0.5rem; font-size: 0.8rem; }
       #cancelEditBtn { margin-left: 0.75rem; }
+      #itemListHead { margin-top: 1.25rem; align-items: center; flex-wrap: wrap; }
+      #itemListHead #fillKoStatus { margin-left: auto; text-align: right; }
+      #itemListHead #fillKoBtn { margin-top: 0; }
       #itemBuilder { background: #fafafa; }
       #itemBuilder .field[hidden] { display: none; }
       .ai-prompt { white-space: pre-wrap; font-family: monospace; font-size: 0.75rem; line-height: 1.4; background: #fff; border: 1px solid #ddd; border-radius: 6px; padding: 0.75rem; max-height: 320px; overflow-y: auto; }
@@ -189,6 +192,8 @@ html(lang=lang || "en")
 
         function renderItemList(items) {
           itemList.innerHTML = '';
+          document.getElementById('itemCount').textContent = t('Items in this set: {n}', { n: items.length });
+          document.getElementById('fillKoBtn').hidden = !items.length;
           items.forEach(function (item, index) {
             var li = document.createElement('li');
             if (index === editingIndex) li.className = 'editing';
@@ -469,6 +474,105 @@ html(lang=lang || "en")
           clearError();
           stopEditing();
           renderItemList(getItems());
+        });
+
+        // Fill all empty Korean prompts with AI: every item whose type has a
+        // Korean field and whose `ko` is empty gets its English sentence
+        // (writing: the model answer) translated, a few per request so the
+        // list fills in as it goes. Items that already have Korean are left
+        // alone.
+        var fillKoBtn = document.getElementById('fillKoBtn');
+        var fillKoStatus = document.getElementById('fillKoStatus');
+        var FILL_BATCH = 8;
+
+        function koSource(item) {
+          var cfg = FIELD_CONFIG[typeSelect.value];
+          if (!cfg || !item || typeof item !== 'object') return '';
+          var fields = cfg.subtypes ? cfg.fieldsBySubtype[item.type] || [] : cfg.fields;
+          if (fields.indexOf('ko') === -1) return '';
+          if (typeof item.ko === 'string' && item.ko.trim()) return '';
+          var source = typeSelect.value === 'writing' ? item.model : item.answer;
+          return typeof source === 'string' ? source.trim().slice(0, 500) : '';
+        }
+
+        // English sentences (at most FILL_BATCH) → their Korean, null where
+        // the model gave none (POST /community/translate).
+        function translate(sentences) {
+          return fetch('/community/translate', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ sentences: sentences }),
+          }).then(function (res) {
+            if (res.status === 401) { window.location = '/login'; throw new Error(t('Not logged in')); }
+            return res.json().catch(function () { return {}; }).then(function (body) {
+              if (!res.ok) throw new Error(body.error || t('Something went wrong.'));
+              return body.translations || [];
+            });
+          });
+        }
+
+        // The Korean prompt field's own button: translates the sentence
+        // being composed (writing: the model answer) into that field.
+        var translateKoBtn = document.getElementById('translateKoBtn');
+        var translateKoStatus = document.getElementById('translateKoStatus');
+        translateKoBtn.addEventListener('click', function () {
+          var isWriting = typeSelect.value === 'writing';
+          var source = document.getElementById(isWriting ? 'f-model' : 'f-answer').value.trim().slice(0, 500);
+          if (!source) {
+            translateKoStatus.textContent = isWriting ? t('Write the model answer first.') : t('Write the answer sentence first.');
+            return;
+          }
+          translateKoBtn.disabled = true;
+          translateKoStatus.textContent = t('Translating…');
+          translate([source])
+            .then(function (translations) {
+              if (!translations[0]) throw new Error(t('The AI gave no translation - try again.'));
+              document.getElementById('f-ko').value = translations[0];
+              translateKoStatus.textContent = '';
+            })
+            .catch(function (err) { translateKoStatus.textContent = err.message; })
+            .then(function () { translateKoBtn.disabled = false; });
+        });
+
+        fillKoBtn.addEventListener('click', function () {
+          var todo = [];
+          getItems().forEach(function (item, index) {
+            var source = koSource(item);
+            if (source) todo.push({ index: index, source: source });
+          });
+          if (!todo.length) {
+            fillKoStatus.textContent = t('No empty Korean prompts to fill.');
+            return;
+          }
+          fillKoBtn.disabled = true;
+          var done = 0, filled = 0;
+          function finish(error) {
+            fillKoBtn.disabled = false;
+            fillKoStatus.textContent = (error ? error + ' ' : '') + t('Filled {n} of {total} - check them, then save.', { n: filled, total: todo.length });
+          }
+          function next() {
+            if (done >= todo.length) return finish();
+            var batch = todo.slice(done, done + FILL_BATCH);
+            fillKoStatus.textContent = t('Translating {n} / {total}…', { n: done + batch.length, total: todo.length });
+            translate(batch.map(function (job) { return job.source; }))
+              .then(function (translations) {
+                // The list may have been edited meanwhile: only fill an item
+                // that is still the same sentence and still has no Korean.
+                var current = getItems();
+                batch.forEach(function (job, k) {
+                  var ko = translations[k];
+                  if (ko && koSource(current[job.index]) === job.source) {
+                    current[job.index].ko = ko;
+                    filled++;
+                  }
+                });
+                setItems(current);
+                done += batch.length;
+                next();
+              })
+              .catch(function (err) { finish(err.message); });
+          }
+          next();
         });
 
         // Bulk-add: paste a JSON array of new items and merge it onto
