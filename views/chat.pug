@@ -97,6 +97,11 @@ html(lang=lang || "en")
       const messagesEl = $('messages');
       const promptEl = $('prompt');
 
+      // /chat?scenario=... (e.g. from the Map page's "Practise with the AI
+      // tutor") starts the chat with that role-play as the system prompt.
+      const scenario = new URLSearchParams(location.search).get('scenario');
+      if (scenario) $('system-prompt').value = scenario.slice(0, 800);
+
       // Conversation sent to the model on every turn: [{ role, content }].
       let history = [];
       let abortController = null;

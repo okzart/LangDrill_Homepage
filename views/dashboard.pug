@@ -181,6 +181,10 @@ html(lang=lang || "en")
               span.ico.tone-2
                 +icon('captions', 18)
               = t('Subtitles')
+            a(href="/map")
+              span.ico.tone-1
+                +icon('pin', 18)
+              = t('Map')
             if currentUser.role === 'admin'
               span.kicker= t('Administration')
               a(href="/admin/users")
@@ -204,6 +208,7 @@ html(lang=lang || "en")
             { href: '/chat', icon: 'sparkle', tone: 'tone-1', label: t('AI tutor') },
             { href: '/studio', icon: 'studio', tone: 'tone-2', label: t('Make a drill') },
             { href: '/scan', icon: 'scan', tone: 'tone-4', label: t('Scan a page') },
+            { href: '/map', icon: 'pin', tone: 'tone-2', label: t('Around me') },
             { href: '/transcribe', icon: 'captions', tone: 'tone-1', label: t('Subtitle a video') },
             { href: '/community?tab=create', icon: 'plus', tone: 'tone-3', label: t('Publish a set') },
             { href: '/passages', icon: 'book', tone: 'tone-5', label: t('Passage') },

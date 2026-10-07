@@ -3,7 +3,7 @@
 //- word timings (POST /studio/transcribe → audio-split-service, which
 //- extracts the audio track from video and asks stt-service for the words),
 //- select a stretch of words, check and adjust the crop by ear, and add it
-//- as a dictation/full item - POST /studio/clip crops it and stores the clip
+//- as a dictation/full/choice/order item - POST /studio/clip crops it and stores the clip
 //- in content-sharing. The draft items are published together as one
 //- listening set (POST /studio/publish). See src/routes/studioRoutes.js.
 //-
@@ -55,6 +55,7 @@ html(lang=lang || "en")
       .nudge input { flex: 1; margin: 0; }
       .nudge button { margin: 0; padding: 0.3rem 0.5rem; }
       .actions { display: flex; gap: 0.5rem; flex-wrap: wrap; align-items: center; }
+      .actions select { width: auto; margin: 0; }
       .chips { display: flex; flex-wrap: wrap; gap: 0.3rem; margin-top: 0.3rem; }
       .chip { border: 1px solid #ccc; border-radius: 999px; padding: 0.15rem 0.6rem; font-size: 0.85rem; cursor: pointer; background: #fff; margin: 0; }
       .chip.on { background: #2a78d6; border-color: #2a78d6; color: #fff; }
@@ -128,6 +129,13 @@ html(lang=lang || "en")
       audio#player(controls preload="auto")
       p.hint= t('Click the first word, then the last word (or use a whole sentence). Dotted words were hard to hear - check them.')
       #transcript
+      .actions
+        select#all-type(aria-label=t('Drill type'))
+          option(value="full" selected)= t('Full sentence (write it all)')
+          option(value="order")= t('Word order (rebuild the sentence)')
+        button#add-all(type="button")= t('+ Add all sentences')
+        span#all-status.status
+      p.hint= t('Adds every sentence above as its own item, without picking them one by one. Dictation and multiple choice need blanks or wrong options, so add those one at a time.')
 
       #sel-panel(hidden)
         h3= t('Selection')
@@ -151,8 +159,10 @@ html(lang=lang || "en")
           div
             label(for="item-type")= t('Drill type')
             select#item-type
-              option(value="dictation" selected)= t('Dictation (fill in blanks)')
-              option(value="full")= t('Full sentence (write it all)')
+              option(value="dictation")= t('Dictation (fill in blanks)')
+              option(value="full" selected)= t('Full sentence (write it all)')
+              option(value="choice")= t('Multiple choice (pick the sentence heard)')
+              option(value="order")= t('Word order (rebuild the sentence)')
           div
             label(for="ko")= t('Korean meaning (optional)')
             input#ko(type="text" placeholder="한국어 뜻")
@@ -162,6 +172,10 @@ html(lang=lang || "en")
         #blanks-field
           label= t('Blanks - click the words the learner must fill in')
           #blank-chips.chips
+        #options-field
+          label(for="wrong-options")= t('Wrong options - one sentence per line')
+          textarea#wrong-options(rows="3")
+          p.hint= t('The learner picks the sentence they heard from the answer and these.')
         .actions
           button#add-item.primary(type="button")= t('+ Add as item')
           span#clip-status.status
@@ -487,6 +501,7 @@ html(lang=lang || "en")
           $('ko').value = '';
           blankSet = {};
           renderBlankChips();
+          $('wrong-options').value = '';
           updateLength();
           $('clip-status').textContent = '';
           $('sel-panel').hidden = false;
@@ -556,7 +571,11 @@ html(lang=lang || "en")
           });
         }
         $('answer').addEventListener('input', function () { blankSet = {}; renderBlankChips(); });
-        function syncType() { $('blanks-field').hidden = $('item-type').value !== 'dictation'; }
+        // Only dictation needs blanks, and only choice needs wrong options.
+        function syncType() {
+          $('blanks-field').hidden = $('item-type').value !== 'dictation';
+          $('options-field').hidden = $('item-type').value !== 'choice';
+        }
         $('item-type').addEventListener('change', syncType);
         syncType();
 
@@ -572,7 +591,11 @@ html(lang=lang || "en")
           if (!answer) return showError(t('The answer text is empty.'));
           if (!(tm.end > tm.start)) return showError(t('End must be after start.'));
           if (tm.end - tm.start > MAX_CLIP) return showError(t('A clip can be at most {max} seconds.', { max: MAX_CLIP }));
-          if (type === 'dictation' && !blanks.length) return showError(t('Pick at least one word to blank out (or choose "Full sentence").'));
+          if (type === 'dictation' && !blanks.length) return showError(t('Pick at least one word to blank out (or choose another drill type).'));
+          var wrong = $('wrong-options').value.split('\n')
+            .map(function (s) { return s.trim(); })
+            .filter(function (s, k, all) { return s && s !== answer && all.indexOf(s) === k; });
+          if (type === 'choice' && !wrong.length) return showError(t('Add at least one wrong option (one per line).'));
           var btn = $('add-item'), status = $('clip-status');
           btn.disabled = true;
           status.textContent = t('Cropping and saving the clip…');
@@ -582,6 +605,7 @@ html(lang=lang || "en")
               var ko = $('ko').value.trim();
               if (ko) item.ko = ko;
               if (type === 'dictation') item.blanks = blanks;
+              if (type === 'choice') item.options = [answer].concat(wrong);
               items.push(item);
               renderItems();
               status.textContent = t('Added ({n} s clip).', { n: clip.duration.toFixed(2) });
@@ -589,6 +613,47 @@ html(lang=lang || "en")
             })
             .catch(function (err) { showError(err.message); status.textContent = ''; })
             .then(function () { btn.disabled = false; });
+        });
+
+        // Every detected sentence as its own item, cropped one after another.
+        // Only the types that need nothing but the answer text.
+        $('add-all').addEventListener('click', function () {
+          clearError();
+          if (!data || !data.sentences.length) return;
+          var type = $('all-type').value;
+          var btn = $('add-all'), status = $('all-status');
+          var todo = [], skipped = 0;
+          data.sentences.forEach(function (s) {
+            var r = paddedRange(s.firstWord, s.lastWord);
+            var answer = data.words.slice(s.firstWord, s.lastWord + 1).map(function (w) { return w.word; }).join(' ').trim();
+            if (!answer || !(r.end > r.start) || r.end - r.start > MAX_CLIP) skipped++;
+            else todo.push({ range: r, answer: answer });
+          });
+          var added = 0;
+          function done(err) {
+            btn.disabled = false;
+            $('add-item').disabled = false;
+            var msg = t('Added {n} of {total} sentences.', { n: added, total: data.sentences.length });
+            if (skipped) msg += ' ' + t('{n} skipped (empty or longer than {max} s).', { n: skipped, max: MAX_CLIP });
+            status.textContent = msg;
+            if (err) showError(err.message);
+          }
+          function next() {
+            if (added >= todo.length) return done();
+            var job = todo[added];
+            status.textContent = t('Cropping {n} / {total}…', { n: added + 1, total: todo.length });
+            call('/studio/clip?start=' + job.range.start + '&end=' + job.range.end, { method: 'POST', headers: { 'Content-Type': 'audio/mpeg' }, body: audioBlob })
+              .then(function (clip) {
+                items.push({ type: type, answer: job.answer, audioUrl: clip.audioUrl });
+                added++;
+                renderItems();
+                next();
+              })
+              .catch(done);
+          }
+          btn.disabled = true;
+          $('add-item').disabled = true;
+          next();
         });
 
         // ---- 3. Draft set: new, or added to an existing listening set ------
@@ -641,6 +706,13 @@ html(lang=lang || "en")
             ko.className = 'ko';
             ko.textContent = item.ko;
             body.appendChild(ko);
+          }
+          var wrong = (item.options || []).filter(function (o) { return o !== answer; });
+          if (wrong.length) {
+            var opts = document.createElement('div');
+            opts.className = 'ko';
+            opts.textContent = t('Wrong options: {list}', { list: wrong.join(' / ') });
+            body.appendChild(opts);
           }
           var btn = document.createElement('button');
           btn.type = 'button';

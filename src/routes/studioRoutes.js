@@ -1,7 +1,7 @@
 // Presentation layer for /studio - turn your own audio or video (or a voice
 // recording made on the page) into listening drill items: upload → transcript
 // with word timings → select a stretch of words → crop that audio → build a
-// dictation/full item around it → publish the items as a listening set.
+// dictation/full/choice/order item around it → publish the items as a listening set.
 //
 // Calls the API Gateway only (see docs/DESIGN.md §1):
 //   /api/split/transcribe  audio-split-service: extracts the audio track
@@ -30,7 +30,9 @@ const MAX_CLIP_SOURCE_BYTES = 32 * 1024 * 1024;
 // Matches audio-split-service's MAX_CLIP_SECONDS default.
 const MAX_CLIP_SECONDS = 120;
 const LANGUAGES = ['en', 'ko', 'auto'];
-const ITEM_TYPES = ['dictation', 'full'];
+const ITEM_TYPES = ['dictation', 'full', 'choice', 'order'];
+const MAX_OPTIONS = 6;
+const MAX_OPTION_LENGTH = 500;
 const MAX_ITEMS = 200;
 const MAX_SEARCH_RESULTS = 20;
 // The apps count blank positions over these word tokens (see
@@ -169,7 +171,7 @@ class StudioRoutes {
   // Body (JSON): { name, desc, author, keep, items }. `keep` lists the
   // indexes of the set's current items to keep (the page can remove some);
   // those are re-read from the service, not taken from the page, so items
-  // Studio can't make (choice/order, ...) pass through untouched. `items`
+  // Studio can't make pass through untouched. `items`
   // are the new Studio items, appended after them. Owner-only - the
   // service answers 403 for anyone else.
   async updateSet(req, res) {
@@ -216,7 +218,8 @@ class StudioRoutes {
   }
 
   // Rebuilds each item from known fields only, so the page can't publish
-  // anything but a well-formed dictation/full listening item.
+  // anything but a well-formed listening item. Only dictation takes blanks,
+  // only choice takes options (the answer first, then the wrong ones).
   // Errors carry `i18n: [english, vars]` so the caller can translate them.
   static itemError(text, vars) {
     const err = new Error(text.replace(/\{(\w+)\}/g, (m, k) => vars?.[k] ?? m));
@@ -229,7 +232,7 @@ class StudioRoutes {
     if (raw.length > MAX_ITEMS) throw StudioRoutes.itemError('At most {max} items per set', { max: MAX_ITEMS });
     return raw.map((it, i) => {
       const n = i + 1;
-      if (!it || !ITEM_TYPES.includes(it.type)) throw StudioRoutes.itemError('Item {n}: type must be dictation or full', { n });
+      if (!it || !ITEM_TYPES.includes(it.type)) throw StudioRoutes.itemError('Item {n}: unknown drill type', { n });
       const answer = typeof it.answer === 'string' ? it.answer.trim() : '';
       if (!answer) throw StudioRoutes.itemError('Item {n}: the answer text is empty', { n });
       if (typeof it.audioUrl !== 'string' || !CLIP_URL.test(it.audioUrl)) throw StudioRoutes.itemError('Item {n}: missing its audio clip', { n });
@@ -244,6 +247,14 @@ class StudioRoutes {
           .map((at) => ({ at, word: words[at] }));
         if (blanks.length === 0) throw StudioRoutes.itemError('Item {n}: pick at least one word to blank out', { n });
         item.blanks = blanks;
+      }
+      if (it.type === 'choice') {
+        const wrong = (Array.isArray(it.options) ? it.options : [])
+          .map((o) => (typeof o === 'string' ? o.trim().slice(0, MAX_OPTION_LENGTH) : ''))
+          .filter((o, k, all) => o && o !== answer && all.indexOf(o) === k)
+          .slice(0, MAX_OPTIONS - 1);
+        if (wrong.length === 0) throw StudioRoutes.itemError('Item {n}: add at least one wrong option', { n });
+        item.options = [answer, ...wrong];
       }
       return item;
     });

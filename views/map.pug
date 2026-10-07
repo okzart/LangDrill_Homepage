@@ -1,0 +1,130 @@
+//- Map: English expressions for where you are. A map from the provider the
+//- user picks (OpenStreetMap / Google / Kakao) finds the places near the
+//- user or a searched spot; picking one shows the "place pack" for that kind
+//- of place (GET /map/expressions → content-sharing's /places/expressions),
+//- which can be listened to and saved as a vocab drill set (POST /map/publish).
+//- See src/routes/mapRoutes.js; the page's script is src/public/map/map.js.
+doctype html
+html(lang=lang || "en")
+  head
+    meta(charset="UTF-8")
+    meta(name="viewport" content="width=device-width, initial-scale=1")
+    title= 'LanguageDrill — ' + t('Map')
+    include _style
+    style.
+      .map-card { padding: 0; overflow: hidden; }
+      .map-bar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 12px 14px; border-bottom: 1px solid var(--line); }
+      .map-bar > * { margin: 0; }
+      .segment { display: inline-flex; overflow: hidden; background: var(--n-100); border: 1px solid var(--line); border-radius: 999px; box-shadow: var(--shadow-sm); }
+      .segment button { margin: 0; min-height: 0; padding: 8px 14px; border: 0; border-radius: 0; background: none; color: var(--text); font-family: var(--font); font-size: 14px; font-weight: 500; }
+      .segment button + button { border-left: 1px solid var(--line); }
+      .segment button[aria-pressed=true] { background: var(--accent); color: var(--n-100); }
+      #search-form { display: flex; gap: 8px; flex: 1; min-width: 220px; }
+      #search-form input { flex: 1; min-width: 0; margin: 0; }
+      #search-form button, #near-me { margin: 0; min-height: 0; padding: 9px 16px; white-space: nowrap; }
+      .follow { display: inline-flex; align-items: center; gap: 7px; font-size: 14px; cursor: pointer; white-space: nowrap; }
+      .follow input { margin: 0; width: 17px; height: 17px; }
+      #map { height: min(56vh, 520px); min-height: 320px; background: var(--chip); position: relative; z-index: 0; }
+      .map-foot { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; padding: 10px 14px; border-top: 1px solid var(--line); font-size: 13.5px; color: var(--muted); }
+      .map-foot button { margin: 0; min-height: 0; padding: 7px 14px; }
+      #near-banner { display: flex; align-items: center; gap: 10px; margin: 14px 0 0; padding: 12px 16px; border-radius: 14px; background: var(--blue-100); border: 1px solid var(--blue-200); color: var(--blue-900); font-weight: 500; }
+      .cols { display: grid; grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.2fr); gap: 20px; align-items: start; }
+      .cols > section { margin-top: 20px; }
+      #places { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; max-height: 560px; overflow: auto; }
+      #places button { display: grid; grid-template-columns: 1fr auto; gap: 2px 10px; width: 100%; margin: 0; min-height: 0; padding: 10px 12px; border: 0; border-radius: 12px; background: none; color: var(--text); text-align: left; font-family: var(--font); font-weight: 400; }
+      #places button:hover { background: rgba(65, 97, 128, 0.07); }
+      #places button[aria-current=true] { background: var(--blue-100); }
+      #places .name { font-weight: 600; font-size: 15px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      #places .dist { font-size: 12.5px; color: var(--muted); }
+      #places .kind { grid-column: 1 / -1; font-size: 13px; color: var(--blue-800); }
+      #places .kind.none { color: var(--muted); }
+      .pack-head { display: flex; align-items: end; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+      .pack-head h2 { margin: 0; }
+      .pack-head .where { font-size: 13.5px; color: var(--muted); }
+      .pack-head select { margin: 0; width: auto; min-width: 150px; }
+      .situation { margin-top: 18px; }
+      .situation h3 { margin: 0 0 6px; font-family: var(--display); font-size: 19px; font-weight: 600; }
+      .situation h3 small { margin-left: 8px; font-family: var(--font); font-size: 13.5px; font-weight: 400; color: var(--muted); }
+      .lines { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
+      .lines li { display: flex; align-items: center; gap: 10px; padding: 9px 10px; border-radius: 12px; }
+      .lines li:hover { background: rgba(65, 97, 128, 0.06); }
+      .lines .txt { flex: 1; min-width: 0; display: grid; gap: 2px; }
+      .lines .en { font-size: 16px; font-weight: 500; }
+      .lines .en mark { background: none; border: 0; padding: 0; text-decoration: none; color: var(--blue-800); font-weight: 700; }
+      .lines .ko { font-size: 14px; color: var(--muted); }
+      .role { flex: none; width: 74px; padding: 3px 0; border-radius: 999px; font-size: 11px; font-weight: 600; text-align: center; background: var(--blue-100); color: var(--blue-800); }
+      .role.hear { background: var(--n-200); color: var(--n-800); }
+      .play { flex: none; width: 36px; height: 36px; min-height: 0; margin: 0; padding: 0; border: 0; border-radius: 50%; background: var(--blue-100); color: var(--blue-800); font-size: 11px; }
+      .play:hover { background: var(--blue-200); color: var(--blue-800); }
+      .play.playing { background: var(--blue-700); color: var(--n-100); }
+      .pack-actions { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--line); }
+      .pack-actions > * { margin: 0; }
+      .chips { display: flex; flex-wrap: wrap; gap: 8px; }
+      .chips button { margin: 0; min-height: 0; padding: 7px 14px; border: 1px solid var(--line); border-radius: 999px; background: var(--n-100); color: var(--text); font-family: var(--font); font-size: 14px; font-weight: 500; }
+      .chips button:hover { border-color: var(--line-strong); background: var(--blue-100); }
+      .chips button[aria-pressed=true] { background: var(--accent); border-color: var(--accent); color: var(--n-100); }
+      .none { color: var(--muted); font-size: 14px; }
+      [hidden] { display: none !important; }
+      @media (max-width: 860px) { .cols { grid-template-columns: 1fr; } #places { max-height: 300px; } }
+      @media (max-width: 560px) { .role { width: 62px; font-size: 10px; } #map { height: 46vh; } }
+  body
+    include _nav
+    .page-head
+      h1= t('Map')
+      p= t('See the English you need where you are. Search for a place or use your location, pick a place, and get the expressions that come up there - with Korean and audio.')
+
+    #error.error(hidden role="alert")
+    if unavailable
+      .error(role="alert")= t('Expressions are unavailable right now (content-sharing did not answer).')
+
+    section.map-card
+      .map-bar
+        .segment#providers(role="group" aria-label=t('Map provider'))
+        form#search-form(role="search")
+          input#q(type="search" placeholder=t('Search a place or address') aria-label=t('Search a place or address') autocomplete="off")
+          button(type="submit")= t('Search')
+        button#near-me.soft(type="button")= t('Near me')
+        label.follow(title=t('Keep looking up places as you move'))
+          input#follow(type="checkbox")
+          = t('Follow me')
+      #map(aria-label=t('Map'))
+      .map-foot
+        span#status(aria-live="polite")
+        button#here.soft(type="button")= t('Search this area')
+
+    #near-banner(hidden role="status")
+      +icon('sparkle', 20)
+      span#near-text
+
+    .cols
+      section
+        h2= t('Places')
+        ul#places
+        p#places-empty.none= t('Search for a place, or press "Near me", to see what is around.')
+      section#pack-sec
+        .pack-head
+          div
+            h2#pack-title= t('Expressions')
+            .where#pack-where
+          div
+            label(for="level" style="margin:0")= t('Level')
+            select#level
+              each lv in levels
+                option(value=lv selected=(lv === 'intermediate'))= t(lv.charAt(0).toUpperCase() + lv.slice(1))
+        p#pack-empty.none= t('Pick a place on the map or in the list - or a kind of place below.')
+        p#pack-status.status(hidden aria-live="polite")
+        #pack
+        .pack-actions#pack-actions(hidden)
+          button#save.primary(type="button")= t('Save as a drill set')
+          a#practise.btn.soft(href="/chat")= t('Practise with the AI tutor')
+          button#regenerate.soft(type="button" hidden)= t('Write this pack again')
+          span#save-status.status(aria-live="polite")
+
+    section
+      h2= t('Browse by kind of place')
+      p.hint= t('No map needed: every kind of place has its own pack.')
+      .chips#chips
+
+    script.
+      window.LD_MAP = !{JSON.stringify(mapConfig).replace(/</g, '\\u003c')};
+    script(src="/assets/map/map.js")
