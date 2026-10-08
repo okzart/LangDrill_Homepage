@@ -31,6 +31,13 @@ const MAX_UPLOAD_BYTES = 300 * 1024 * 1024;
 const MAX_CLIP_SOURCE_BYTES = 32 * 1024 * 1024;
 // Matches audio-split-service's MAX_CLIP_SECONDS default.
 const MAX_CLIP_SECONDS = 120;
+// audio-split-service transcribes at most MAX_PART_SECONDS per request
+// (its MAX_TRANSCRIBE_MINUTES default) and may move a part boundary by up to
+// PART_SLACK_SECONDS (its PART_SLACK). The page uses them to work out how
+// many parts a file will have before uploading it; the service's own answer
+// (`part.count`) replaces that guess once a part has been transcribed.
+const MAX_PART_SECONDS = 30 * 60;
+const PART_SLACK_SECONDS = 10;
 const LANGUAGES = ['en', 'ko', 'auto'];
 const ITEM_TYPES = ['dictation', 'full', 'choice', 'order'];
 const MAX_OPTIONS = 6;
@@ -47,7 +54,7 @@ class StudioRoutes {
     this.gatewayClient = gatewayClient;
     this.router = express.Router();
 
-    this.router.get('/studio', requireLogin, (req, res) => res.render('studio', { maxClipSeconds: MAX_CLIP_SECONDS }));
+    this.router.get('/studio', requireLogin, (req, res) => res.render('studio', { maxClipSeconds: MAX_CLIP_SECONDS, maxPartSeconds: MAX_PART_SECONDS, partSlackSeconds: PART_SLACK_SECONDS }));
     // Multipart body streamed straight through - never parsed or buffered here.
     this.router.post('/studio/transcribe', AsyncHandler.wrap(this.transcribe.bind(this)));
     this.router.post(

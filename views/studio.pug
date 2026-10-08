@@ -111,7 +111,7 @@ html(lang=lang || "en")
         span#rec-time
         button#transcribe-btn.primary(type="button" disabled)= t('Transcribe')
       p#rec-hint.hint(hidden)
-      p.hint= t('Up to 300 MB and 2 hours. From a video only the sound is used. A recording longer than 30 minutes is split into parts that you work through one at a time.')
+      p.hint= t('Up to 300 MB and 2 hours. From a video only the sound is used. A recording longer than 30 minutes is split into parts: pick the part you want, then transcribe it.')
       #tx-progress(hidden)
         .top
           span#tx-label(aria-live="polite")
@@ -220,6 +220,7 @@ html(lang=lang || "en")
     script.
       (function () {
         var MAX_CLIP = #{maxClipSeconds};
+        var MAX_PART = #{maxPartSeconds}, PART_SLACK = #{partSlackSeconds};
         var MAX_RECORD_SECONDS = 10 * 60;
         var WORD = /[A-Za-z']+/g;
         var $ = function (id) { return document.getElementById(id); };
@@ -248,7 +249,7 @@ html(lang=lang || "en")
         fileInput.addEventListener('change', function () {
           var f = fileInput.files[0];
           source = f ? { blob: f, name: f.name } : null;
-          $('parts').hidden = true;
+          newSource();
           transcribeBtn.disabled = !source;
           sourceStatus.textContent = f ? f.name + ' (' + (f.size / 1048576).toFixed(1) + ' MB)' : '';
         });
@@ -276,7 +277,7 @@ html(lang=lang || "en")
               var ext = type.indexOf('mp4') !== -1 ? 'm4a' : type.indexOf('ogg') !== -1 ? 'ogg' : 'webm';
               var blob = new Blob(recChunks, { type: type });
               source = { blob: blob, name: 'recording.' + ext };
-              $('parts').hidden = true;
+              newSource();
               fileInput.value = '';
               transcribeBtn.disabled = false;
               sourceStatus.textContent = t('Recording ready ({time}) - click Transcribe.', { time: fmt((Date.now() - recStarted) / 1000) });
@@ -374,60 +375,86 @@ html(lang=lang || "en")
         }
         $('tx-cancel').addEventListener('click', function () { if (txXhr) txXhr.abort(); });
 
+        // ---- Parts of a long recording --------------------------------------
+        // One request transcribes at most MAX_PART seconds, so a longer
+        // recording is worked through in parts: a chip per part picks one,
+        // and Transcribe fetches it (the file is uploaded again each time,
+        // since no server keeps it). The page measures the file itself to
+        // offer the choice before the first upload; where the browser can't
+        // read the length, the chips appear once part 1 is back.
+        var parts = { count: 1, duration: 0, picked: 1, shown: null }; // shown: the response's `part`
+        var transcribedSource = null; // the `source` the current transcript came from
+
+        function partCount(duration) {
+          return duration > MAX_PART ? Math.ceil(duration / Math.max(1, MAX_PART - 2 * PART_SLACK)) : 1;
+        }
+        function clock(secs) { var m = Math.floor(secs / 60), sec = Math.floor(secs - m * 60); return m + ':' + (sec < 10 ? '0' : '') + sec; }
+
+        function newSource() {
+          parts = { count: 1, duration: 0, picked: 1, shown: null };
+          renderParts();
+          if (!source) return;
+          var mine = source, url = URL.createObjectURL(source.blob);
+          var probe = document.createElement(/^video\//.test(source.blob.type) ? 'video' : 'audio');
+          var done = function () { URL.revokeObjectURL(url); probe.removeAttribute('src'); };
+          probe.preload = 'metadata';
+          probe.onloadedmetadata = function () {
+            var duration = probe.duration;
+            done();
+            if (source !== mine || !isFinite(duration) || parts.shown) return;
+            parts.duration = duration;
+            parts.count = partCount(duration);
+            renderParts();
+          };
+          probe.onerror = done;
+          probe.src = url;
+        }
+
+        function renderParts() {
+          $('parts').hidden = parts.count < 2;
+          if (parts.count < 2) return;
+          var note = t('This recording is {length} long, so it is split into {count} parts. Pick a part, then click Transcribe.', { length: clock(parts.duration), count: parts.count });
+          if (parts.shown) note += ' ' + t('Showing part {n} ({start} - {end}).', { n: parts.shown.index, start: clock(parts.shown.start), end: clock(parts.shown.end) });
+          $('parts-note').textContent = note;
+          var box = $('part-chips');
+          box.innerHTML = '';
+          for (var n = 1; n <= parts.count; n++) {
+            (function (n) {
+              var chip = document.createElement('button');
+              chip.type = 'button';
+              chip.className = 'chip' + (n === parts.picked ? ' on' : '');
+              // The real boundaries move to a nearby pause, hence "about".
+              chip.textContent = t('Part {n}', { n: n }) + ' · ' + clock(parts.duration * (n - 1) / parts.count) + ' - ' + clock(parts.duration * n / parts.count);
+              chip.title = t('About {start} to {end} of the recording', { start: clock(parts.duration * (n - 1) / parts.count), end: clock(parts.duration * n / parts.count) });
+              chip.disabled = !!txXhr;
+              chip.addEventListener('click', function () { parts.picked = n; renderParts(); });
+              box.appendChild(chip);
+            })(n);
+          }
+        }
+
         transcribeBtn.addEventListener('click', function () {
           if (!source) return;
-          if (items.length && !confirm(t('Start over with a new source? Items already added stay in your set.'))) return;
-          transcribe(1);
-        });
-
-        // `part` picks one part of a recording too long for one go (see
-        // renderParts); the file is uploaded again for each part, since no
-        // server keeps it.
-        function transcribe(part) {
+          // Another part of the same recording isn't "starting over".
+          if (source !== transcribedSource && items.length && !confirm(t('Start over with a new source? Items already added stay in your set.'))) return;
           clearError();
+          var mine = source;
           var form = new FormData();
           form.append('language', $('language').value);
-          form.append('part', String(part));
+          form.append('part', String(parts.picked));
           form.append('file', source.blob, source.name);
           transcribeBtn.disabled = true;
           sourceStatus.textContent = '';
           progress.start();
           progress.step('upload');
           progress.percent(0, t('Uploading… {pct}% ({done} / {total} MB)', { pct: 0, done: 0, total: mb(source.blob.size) }));
-          postWithProgress('/studio/transcribe', form)
-            .then(function (result) { loadTranscript(result); })
+          var request = postWithProgress('/studio/transcribe', form);
+          renderParts(); // chips are locked while it runs
+          request
+            .then(function (result) { if (source === mine) { transcribedSource = mine; loadTranscript(result); } })
             .catch(function (err) { if (!err.cancelled) showError(err.message); sourceStatus.textContent = err.cancelled ? t('Cancelled.') : ''; })
-            .then(function () { txXhr = null; progress.stop(); transcribeBtn.disabled = !source; setPartsDisabled(false); });
-        }
-
-        // A long recording comes back one part at a time: a chip per part
-        // switches to it. Items already added stay in the set.
-        function setPartsDisabled(off) {
-          document.querySelectorAll('#part-chips .chip').forEach(function (chip) { chip.disabled = off; });
-        }
-        function renderParts(part) {
-          var many = !!part && part.count > 1;
-          $('parts').hidden = !many;
-          if (!many) return;
-          $('parts-note').textContent = t('This recording is split into {count} parts. Showing part {n}: {start} - {end}. Add the items you want, then move to another part.', { count: part.count, n: part.index, start: fmt(part.start), end: fmt(part.end) });
-          var box = $('part-chips');
-          box.innerHTML = '';
-          for (var n = 1; n <= part.count; n++) {
-            (function (n) {
-              var chip = document.createElement('button');
-              chip.type = 'button';
-              chip.className = 'chip' + (n === part.index ? ' on' : '');
-              chip.textContent = t('Part {n}', { n: n });
-              chip.addEventListener('click', function () {
-                if (!source || n === part.index) return;
-                setPartsDisabled(true);
-                transcribeBtn.disabled = true;
-                transcribe(n);
-              });
-              box.appendChild(chip);
-            })(n);
-          }
-        }
+            .then(function () { txXhr = null; progress.stop(); transcribeBtn.disabled = !source; renderParts(); });
+        });
 
         function loadTranscript(result) {
           data = result;
@@ -438,7 +465,14 @@ html(lang=lang || "en")
           player.src = URL.createObjectURL(audioBlob);
           sourceStatus.textContent = (result.source.hadVideo ? t('Audio extracted from video') + ' · ' : '') +
             t('{duration} · {n} sentences · language: {lang}', { duration: fmt(result.duration), n: result.sentences.length, lang: result.language || '?' });
-          renderParts(result.part);
+          // The service's own count and boundaries replace the page's guess.
+          if (result.part) {
+            parts.count = result.part.count;
+            parts.duration = result.source.duration;
+            parts.shown = result.part;
+            parts.picked = result.part.index;
+            renderParts();
+          }
           renderTranscript();
           clearSelection();
           $('editor').hidden = false;
