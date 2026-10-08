@@ -42,7 +42,7 @@ const LANGUAGES = ['en', 'ko', 'auto'];
 const ITEM_TYPES = ['dictation', 'full', 'choice', 'order'];
 const MAX_OPTIONS = 6;
 const MAX_OPTION_LENGTH = 500;
-const MAX_ITEMS = 200;
+const MAX_ITEMS = 300;
 const MAX_SEARCH_RESULTS = 20;
 // The apps count blank positions over these word tokens (see
 // services/vocabExpressions.js and LangDrillApp's listening drill).
@@ -54,7 +54,7 @@ class StudioRoutes {
     this.gatewayClient = gatewayClient;
     this.router = express.Router();
 
-    this.router.get('/studio', requireLogin, (req, res) => res.render('studio', { maxClipSeconds: MAX_CLIP_SECONDS, maxPartSeconds: MAX_PART_SECONDS, partSlackSeconds: PART_SLACK_SECONDS }));
+    this.router.get('/studio', requireLogin, (req, res) => res.render('studio', { maxClipSeconds: MAX_CLIP_SECONDS, maxItems: MAX_ITEMS, maxPartSeconds: MAX_PART_SECONDS, partSlackSeconds: PART_SLACK_SECONDS }));
     // Multipart body streamed straight through - never parsed or buffered here.
     this.router.post('/studio/transcribe', AsyncHandler.wrap(this.transcribe.bind(this)));
     this.router.post(

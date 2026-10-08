@@ -220,6 +220,7 @@ html(lang=lang || "en")
     script.
       (function () {
         var MAX_CLIP = #{maxClipSeconds};
+        var MAX_ITEMS = #{maxItems};
         var MAX_PART = #{maxPartSeconds}, PART_SLACK = #{partSlackSeconds};
         var MAX_RECORD_SECONDS = 10 * 60;
         var WORD = /[A-Za-z']+/g;
@@ -707,12 +708,18 @@ html(lang=lang || "en")
             if (!answer || !(r.end > r.start) || r.end - r.start > MAX_CLIP) skipped++;
             else todo.push({ range: r, answer: answer });
           });
+          // A set holds at most MAX_ITEMS: stop there rather than crop clips
+          // that could not be published.
+          var room = Math.max(0, MAX_ITEMS - items.length - (mode === 'existing' ? keptIndexes().length : 0));
+          var over = Math.max(0, todo.length - room);
+          todo = todo.slice(0, room);
           var added = 0;
           function done(err) {
             btn.disabled = false;
             $('add-item').disabled = false;
             var msg = t('Added {n} of {total} sentences.', { n: added, total: data.sentences.length });
             if (skipped) msg += ' ' + t('{n} skipped (empty or longer than {max} s).', { n: skipped, max: MAX_CLIP });
+            if (over) msg += ' ' + t('{n} left out: a set holds at most {max} items - publish this one, then add the rest to a new set.', { n: over, max: MAX_ITEMS });
             status.textContent = msg;
             if (err) showError(err.message);
           }

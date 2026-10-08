@@ -411,6 +411,7 @@
   "The learner picks the sentence they heard from the answer and these.": "학습자는 정답과 이 선택지들 중에서 들은 문장을 고릅니다.",
   "Add at least one wrong option (one per line).": "오답 선택지를 하나 이상 입력하세요 (한 줄에 하나씩).",
   "Wrong options: {list}": "오답 선택지: {list}",
+  "{n} left out: a set holds at most {max} items - publish this one, then add the rest to a new set.": "{n}개는 제외했습니다: 세트 하나에는 문항을 최대 {max}개까지 담을 수 있습니다 - 이 세트를 게시한 뒤 나머지는 새 세트에 추가하세요.",
   "+ Add all sentences": "+ 모든 문장 추가",
   "Adds every sentence above as its own item, without picking them one by one. Dictation and multiple choice need blanks or wrong options, so add those one at a time.": "위의 모든 문장을 하나씩 고르지 않고 각각 문항으로 추가합니다. 받아쓰기와 객관식은 빈칸이나 오답 선택지가 필요하므로 하나씩 추가하세요.",
   "Added {n} of {total} sentences.": "문장 {total}개 중 {n}개를 추가했습니다.",
