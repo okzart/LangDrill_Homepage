@@ -1,3 +1,18 @@
+//- An item's English sentence with its blanked words highlighted. Blank
+//- positions count [A-Za-z']+ tokens, the same way the apps count them.
+mixin marked(answer, blanks)
+  - var blankAt = {}
+  - (Array.isArray(blanks) ? blanks : []).forEach(function (b) { if (b) blankAt[b.at] = true; })
+  - var parts = [], at = 0, last = 0, m, re = /[A-Za-z']+/g, text = String(answer || '')
+  - while ((m = re.exec(text)) !== null) { parts.push({ t: text.slice(last, m.index) }); parts.push({ t: m[0], blank: !!blankAt[at] }); last = m.index + m[0].length; at++; }
+  - parts.push({ t: text.slice(last) })
+  p.answer
+    each part in parts
+      if part.blank
+        mark= part.t
+      else
+        | #{part.t}
+
 doctype html
 html(lang=lang || "en")
   head
@@ -16,8 +31,27 @@ html(lang=lang || "en")
       .play-all-options label { display: inline-flex; align-items: center; gap: 0.3rem; margin: 0; }
       .play-all-options select { width: auto; margin: 0; }
       .play-all-options input[type="checkbox"] { width: auto; margin: 0; }
-      #vocabItems li { padding: 0.25rem 0.5rem; margin-left: -0.5rem; border-radius: 6px; transition: background 0.2s; }
+      /* Compact item rows: text on the left, a slim player on the right. */
+      #items ol { margin: 0.5rem 0; padding-left: 2.2rem; }
+      #items ol > li { padding: 0.3rem 0.5rem; border-bottom: 1px solid #eee; font-size: 0.92rem; transition: background 0.2s; }
+      #items ol > li::marker { color: #888; font-size: 0.8rem; }
+      #items .item { display: flex; flex-wrap: wrap; align-items: center; gap: 0.25rem 0.75rem; }
+      #items .item-text { flex: 1 1 16rem; min-width: 0; line-height: 1.35; }
+      #items .item-text p { margin: 0; }
+      #items .item-text .ko, #items .item-text .hint, #items .item-text .field { font-size: 0.82rem; }
+      #items .item-text .ko { color: #555; }
+      #items .item > audio { flex: none; width: 15rem; max-width: 100%; height: 30px; }
+      #items .item > .hint { font-size: 0.78rem; }
+      #items .kind { float: right; margin-left: 0.5rem; padding: 0 0.45rem; border: 1px solid #ddd; border-radius: 999px; font-size: 0.72rem; color: #666; }
       #vocabItems li.now-playing { background: #eef4ff; }
+      .pager { justify-content: center; margin-top: 1rem; font-size: 0.9rem; }
+      .pager span { color: #666; }
+      .pager { flex-wrap: wrap; }
+      .pager .per-page { display: inline-flex; align-items: center; gap: 0.4rem; margin: 0 0 0 0.75rem; }
+      .pager .per-page label { margin: 0; }
+      .pager .per-page select { width: auto; margin: 0; min-height: 0; padding-top: 3px; padding-bottom: 3px; }
+      ul.options { margin: 0.1rem 0; padding-left: 1.1rem; font-size: 0.82rem; color: #555; }
+      ul.options li.correct { color: #1d1f20; font-weight: 600; }
   body
     include _nav
     h1= set.name
@@ -61,16 +95,19 @@ html(lang=lang || "en")
           td= set.count
       p= set.desc
 
-    section
+    //- One page of the set's items (see communityRoutes.js#itemPaging), each
+    //- shown by its fields - never as raw JSON.
+    section#items
       h2= t('Items')
       if set.type === 'vocab'
-        - var audioCount = set.items.filter(function (it) { return it && it.audioUrl; }).length
-        //- "Play all": plays every item's audio in order (see the script at
-        //- the bottom). Only rendered when at least one item has audio.
+        - var audioCount = paging.items.filter(function (it) { return it && it.audioUrl; }).length
+        //- "Play all": plays the audio of every item on this page in order
+        //- (see the script at the bottom). Only rendered when at least one
+        //- of them has audio.
         if audioCount > 0
           #playAll.play-all
             .row
-              button#playAllBtn(type="button")= t('▶ Play all ({n})', { n: audioCount })
+              button#playAllBtn(type="button")= paging.totalPages > 1 ? t('▶ Play this page ({n})', { n: audioCount }) : t('▶ Play all ({n})', { n: audioCount })
               button#pauseAllBtn(type="button" hidden)= t('❚❚ Pause')
               button#stopAllBtn(type="button" hidden)= t('■ Stop')
             .row.play-all-options
@@ -85,38 +122,82 @@ html(lang=lang || "en")
                 input#playAllRepeat(type="checkbox")
                 = ' ' + t('Repeat')
             p#playAllStatus.hint(aria-live="polite")
-        ol#vocabItems
-          each item, i in set.items
+        ol#vocabItems(start=paging.first + 1)
+          each item in paging.items
             li
-              p.ko= item.ko
-              p.answer= item.answer
-              if item.audioUrl
-                audio.item-audio(controls preload="none" src=`/community/audio/${item.audioUrl.replace('/audio/', '')}`)
-              else
-                span.hint= t('(no audio yet)')
+              .item
+                .item-text
+                  p.ko= item.ko
+                  +marked(item.answer, item.blanks)
+                  - var extras = []
+                  - if (item.keyKo) extras.push(t('Key word: {word}', { word: item.keyKo }))
+                  - if (item.source) extras.push(t('Source: {source}', { source: item.source }))
+                  if extras.length
+                    p.hint= extras.join(' · ')
+                if item.audioUrl
+                  audio.item-audio(controls preload="none" src=`/community/audio/${item.audioUrl.replace('/audio/', '')}`)
+                else
+                  span.hint= t('(no audio yet)')
       else if set.type === 'listening'
         //- Listening items may carry their own clip (e.g. made on /studio);
         //- blanked words are highlighted.
-        ol#listeningItems
-          each item, i in set.items
+        ol#listeningItems(start=paging.first + 1)
+          each item in paging.items
             li
-              p.hint= t(item.type)
-              - var blankAt = {}
-              - (item.blanks || []).forEach(function (b) { blankAt[b.at] = true; })
-              - var parts = [], at = 0, last = 0, m, re = /[A-Za-z']+/g, text = String(item.answer || '')
-              - while ((m = re.exec(text)) !== null) { parts.push({ t: text.slice(last, m.index) }); parts.push({ t: m[0], blank: !!blankAt[at] }); last = m.index + m[0].length; at++; }
-              - parts.push({ t: text.slice(last) })
-              p.answer
-                each part in parts
-                  if part.blank
-                    mark= part.t
-                  else
-                    | #{part.t}
-              if item.ko
-                p.ko= item.ko
-              if item.audioUrl
-                audio.item-audio(controls preload="none" src=`/community/audio/${item.audioUrl.replace('/audio/', '')}`)
-      pre= JSON.stringify(set.items, null, 2)
+              .item
+                .item-text
+                  span.kind= t(item.type)
+                  +marked(item.answer, item.blanks)
+                  if item.ko
+                    p.ko= item.ko
+                  if Array.isArray(item.options) && item.options.length
+                    ul.options
+                      each option in item.options
+                        li(class=(option === item.answer ? 'correct' : undefined))= option
+                if item.audioUrl
+                  audio.item-audio(controls preload="none" src=`/community/audio/${item.audioUrl.replace('/audio/', '')}`)
+      else
+        ol#writingItems(start=paging.first + 1)
+          each item in paging.items
+            li
+              .item
+                .item-text
+                  span.kind= t(item.type)
+                  if item.ko
+                    p.ko= item.ko
+                  if item.prompt
+                    p.field
+                      span.hint= t('Sentence to fix') + ': '
+                      = item.prompt
+                  if item.model
+                    p.field
+                      span.hint= t('Model answer') + ': '
+                      = item.model
+                  if Array.isArray(item.keyVocab) && item.keyVocab.length
+                    p.field
+                      span.hint= t('Must-use words') + ': '
+                      = item.keyVocab.join(', ')
+                  if item.tip
+                    p.field
+                      span.hint= t('Tip') + ': '
+                      = item.tip
+      //- Shown whenever the set is longer than the smallest page size, so
+      //- the "per page" picker stays reachable after choosing a big one.
+      if paging.total > paging.sizes[0]
+        .row.pager
+          if paging.page > 1
+            a(href=`/community/${set.id}?${paging.query}page=${paging.page - 1}#items`)= t('← Prev')
+          span= t('Page {page} of {pages} ({total} items total)', { page: paging.page, pages: paging.totalPages, total: paging.total })
+          if paging.page < paging.totalPages
+            a(href=`/community/${set.id}?${paging.query}page=${paging.page + 1}#items`)= t('Next →')
+          //- Changing the size goes back to page 1 (no `page` field).
+          form.per-page(method="GET" action=`/community/${set.id}#items`)
+            label(for="perPage")= t('Per page')
+            select#perPage(name="limit" onchange="this.form.submit()")
+              each size in paging.sizes
+                option(value=size selected=(size === paging.limit))= size
+            noscript
+              button(type="submit")= t('Show')
 
     //- Play-all controller. Reuses each item's own <audio> element (so the
     //- browser cache and the per-item controls stay in sync) and walks them

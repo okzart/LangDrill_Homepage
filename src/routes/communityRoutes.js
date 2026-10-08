@@ -13,6 +13,10 @@ const TABS = ['list', 'create'];
 
 const DEFAULT_LIMIT = 10;
 const MAX_LIMIT = 50;
+// Items shown per page on a set's own page (/community/:id): the choices
+// its "per page" picker offers, and the one used without `?limit=`.
+const ITEM_PAGE_SIZES = [10, 20, 50, 100];
+const ITEMS_PER_PAGE = 20;
 
 // llm-service caps max_tokens at 1024; ~8 sentences of Korean fit easily
 // (same batch size as Content Sharing's PassageTranslator).
@@ -268,11 +272,35 @@ class CommunityRoutes {
     const set = await this.gatewayClient.get(`/api/sets/${encodeURIComponent(req.params.id)}`, req.auth.token);
     res.render('set-detail', {
       set,
+      paging: CommunityRoutes.itemPaging(set, req.query.page, req.query.limit),
       isOwner: null, // ownership is never exposed to clients - see ContentSharing's dto/setDto.js; Delete just attempts it and shows whatever the service decides (see #remove below).
       downloaded: req.query.downloaded === '1',
       published: req.query.published === '1',
       error: null,
     });
+  }
+
+  // One page of a set's items for set-detail.pug: `items` to show, `first`
+  // the index of the first of them (so the list keeps numbering through),
+  // and the pager's numbers. `limit` is one of ITEM_PAGE_SIZES; `query` is
+  // what the pager's links carry besides `page`. Sliced here for the same reason as the set
+  // list in #showCommunity - GET /api/sets/:id returns the whole set.
+  static itemPaging(set, pageParam, limitParam) {
+    const all = Array.isArray(set?.items) ? set.items.filter((it) => it && typeof it === 'object') : [];
+    const limit = ITEM_PAGE_SIZES.includes(Number(limitParam)) ? Number(limitParam) : ITEMS_PER_PAGE;
+    const totalPages = Math.max(1, Math.ceil(all.length / limit));
+    const page = Math.min(Math.max(1, parseInt(pageParam, 10) || 1), totalPages);
+    const first = (page - 1) * limit;
+    return {
+      items: all.slice(first, first + limit),
+      first,
+      page,
+      totalPages,
+      total: all.length,
+      limit,
+      sizes: ITEM_PAGE_SIZES,
+      query: limit === ITEMS_PER_PAGE ? '' : `limit=${limit}&`,
+    };
   }
 
   async download(req, res) {
@@ -315,7 +343,7 @@ class CommunityRoutes {
       // it's shown inline rather than the generic error page.
       if (err instanceof GatewayError && err.status === 403) {
         const set = await this.gatewayClient.get(`/api/sets/${encodeURIComponent(id)}`, req.auth.token);
-        return res.render('set-detail', { set, isOwner: false, downloaded: false, published: false, error: err.message });
+        return res.render('set-detail', { set, paging: CommunityRoutes.itemPaging(set, 1), isOwner: false, downloaded: false, published: false, error: err.message });
       }
       next(err);
     }

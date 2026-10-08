@@ -114,7 +114,7 @@ This app never talks to `:3000`/`:3002`/`:3003` directly.
 | `GET /feed?type=&offset=` (the feed's "Load more"; HTML fragment) | login | `GET /api/sets`, then `GET /api/sets/:id` for each of the next 8 |
 | `GET /profile` | login | `GET /api/auth/me` |
 | `GET /progress` | login | `GET /api/progress/me` (read-only dashboard; progress is recorded by the app, and editing is admin-only via `/admin/users/:id/progress`) |
-| `GET /community` (`?tab=list\|create`; List's `?editId=` loads a row's inline editor), `GET /community/:id` | login | `GET /api/sets`, `GET /api/sets/:id` |
+| `GET /community` (`?tab=list\|create`; List's `?editId=` loads a row's inline editor), `GET /community/:id` (`?page=`, `?limit=10\|20\|50\|100` from the pager's "Per page" picker - a set's items are shown 20 per page by default, by field, never as raw JSON; vocab's Play button plays the page on screen) | login | `GET /api/sets`, `GET /api/sets/:id` |
 | `POST /community/publish` (Create tab) | login | `POST /api/sets` |
 | `POST /community/:id/update` (List row's inline "Update" editor) | login | `PATCH /api/sets/:id` (owner-only) |
 | `POST /community/translate` `{ sentences }` (1-8 English sentences; the item builder's "Fill all empty Korean prompts with AI" button, which sends the items whose `ko` is empty a batch at a time - `answer`, or `model` for writing; JSON `{ error }` on failure) | login | `POST /api/llm/chat/completions` (non-streaming) → `{ translations }`, same length, `null` where the model gave no Korean line. Nothing is saved until the user saves the set |
