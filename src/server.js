@@ -46,11 +46,10 @@ const scanRoutes = new ScanRoutes(gatewayClient);
 const transcribeRoutes = new TranscribeRoutes(gatewayClient);
 const mapRoutes = new MapRoutes(gatewayClient);
 
+// Matches Content Sharing's own JSON body limit (its server.js).
+const BODY_LIMIT = '5mb';
+
 const app = express();
-// Parses JSON bodies (unused by this app's own forms, kept for parity/
-// future API-style endpoints) and classic HTML form submissions.
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser(process.env.COOKIE_SECRET));
 
 // Static files for the pages that are too big to keep inline (the
@@ -67,6 +66,13 @@ app.set('view engine', 'pug');
 app.use(currentUser);
 // UI language (EN/KO): res.locals.t / lang for views, req.t for routes.
 app.use(i18n.middleware);
+// Parses JSON bodies (the pages' own fetch() calls) and classic HTML form
+// submissions. After currentUser/i18n so that a body it rejects still gets a
+// translated error page, and well above Express's 100 kB default: a whole
+// drill set travels in one form field (/community's item builder), and
+// URL-encoding makes each Korean character nine bytes.
+app.use(express.json({ limit: BODY_LIMIT }));
+app.use(express.urlencoded({ extended: true, limit: BODY_LIMIT }));
 app.get('/lang/:code', i18n.switchRoute);
 
 app.use(authRoutes.router);

@@ -111,7 +111,7 @@ html(lang=lang || "en")
         span#rec-time
         button#transcribe-btn.primary(type="button" disabled)= t('Transcribe')
       p#rec-hint.hint(hidden)
-      p.hint= t('Up to 300 MB and 30 minutes. From a video only the sound is used.')
+      p.hint= t('Up to 300 MB and 2 hours. From a video only the sound is used. A recording longer than 30 minutes is split into parts that you work through one at a time.')
       #tx-progress(hidden)
         .top
           span#tx-label(aria-live="polite")
@@ -123,6 +123,9 @@ html(lang=lang || "en")
           span(data-step="work")= t('2 Extract & transcribe')
           span(data-step="receive")= t('3 Receive')
       #source-status.status
+      #parts(hidden)
+        p#parts-note.hint
+        #part-chips.chips
 
     section#editor(hidden)
       h2= t('2. Pick the part to use')
@@ -245,6 +248,7 @@ html(lang=lang || "en")
         fileInput.addEventListener('change', function () {
           var f = fileInput.files[0];
           source = f ? { blob: f, name: f.name } : null;
+          $('parts').hidden = true;
           transcribeBtn.disabled = !source;
           sourceStatus.textContent = f ? f.name + ' (' + (f.size / 1048576).toFixed(1) + ' MB)' : '';
         });
@@ -272,6 +276,7 @@ html(lang=lang || "en")
               var ext = type.indexOf('mp4') !== -1 ? 'm4a' : type.indexOf('ogg') !== -1 ? 'ogg' : 'webm';
               var blob = new Blob(recChunks, { type: type });
               source = { blob: blob, name: 'recording.' + ext };
+              $('parts').hidden = true;
               fileInput.value = '';
               transcribeBtn.disabled = false;
               sourceStatus.textContent = t('Recording ready ({time}) - click Transcribe.', { time: fmt((Date.now() - recStarted) / 1000) });
@@ -372,9 +377,17 @@ html(lang=lang || "en")
         transcribeBtn.addEventListener('click', function () {
           if (!source) return;
           if (items.length && !confirm(t('Start over with a new source? Items already added stay in your set.'))) return;
+          transcribe(1);
+        });
+
+        // `part` picks one part of a recording too long for one go (see
+        // renderParts); the file is uploaded again for each part, since no
+        // server keeps it.
+        function transcribe(part) {
           clearError();
           var form = new FormData();
           form.append('language', $('language').value);
+          form.append('part', String(part));
           form.append('file', source.blob, source.name);
           transcribeBtn.disabled = true;
           sourceStatus.textContent = '';
@@ -384,8 +397,37 @@ html(lang=lang || "en")
           postWithProgress('/studio/transcribe', form)
             .then(function (result) { loadTranscript(result); })
             .catch(function (err) { if (!err.cancelled) showError(err.message); sourceStatus.textContent = err.cancelled ? t('Cancelled.') : ''; })
-            .then(function () { txXhr = null; progress.stop(); transcribeBtn.disabled = !source; });
-        });
+            .then(function () { txXhr = null; progress.stop(); transcribeBtn.disabled = !source; setPartsDisabled(false); });
+        }
+
+        // A long recording comes back one part at a time: a chip per part
+        // switches to it. Items already added stay in the set.
+        function setPartsDisabled(off) {
+          document.querySelectorAll('#part-chips .chip').forEach(function (chip) { chip.disabled = off; });
+        }
+        function renderParts(part) {
+          var many = !!part && part.count > 1;
+          $('parts').hidden = !many;
+          if (!many) return;
+          $('parts-note').textContent = t('This recording is split into {count} parts. Showing part {n}: {start} - {end}. Add the items you want, then move to another part.', { count: part.count, n: part.index, start: fmt(part.start), end: fmt(part.end) });
+          var box = $('part-chips');
+          box.innerHTML = '';
+          for (var n = 1; n <= part.count; n++) {
+            (function (n) {
+              var chip = document.createElement('button');
+              chip.type = 'button';
+              chip.className = 'chip' + (n === part.index ? ' on' : '');
+              chip.textContent = t('Part {n}', { n: n });
+              chip.addEventListener('click', function () {
+                if (!source || n === part.index) return;
+                setPartsDisabled(true);
+                transcribeBtn.disabled = true;
+                transcribe(n);
+              });
+              box.appendChild(chip);
+            })(n);
+          }
+        }
 
         function loadTranscript(result) {
           data = result;
@@ -396,6 +438,7 @@ html(lang=lang || "en")
           player.src = URL.createObjectURL(audioBlob);
           sourceStatus.textContent = (result.source.hadVideo ? t('Audio extracted from video') + ' · ' : '') +
             t('{duration} · {n} sentences · language: {lang}', { duration: fmt(result.duration), n: result.sentences.length, lang: result.language || '?' });
+          renderParts(result.part);
           renderTranscript();
           clearSelection();
           $('editor').hidden = false;
@@ -411,7 +454,8 @@ html(lang=lang || "en")
             row.className = 'sentence';
             var ts = document.createElement('span');
             ts.className = 't';
-            ts.textContent = fmt(s.start);
+            // Shown as the time in the whole recording, not in this part.
+            ts.textContent = fmt(s.start + (data.part ? data.part.start : 0));
             var words = document.createElement('span');
             words.className = 'words';
             for (var i = s.firstWord; i <= s.lastWord; i++) {

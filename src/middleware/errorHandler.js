@@ -16,6 +16,7 @@ const Session = require('./session');
 //     error page. The status and message already come from the
 //     service's own validation/authorization/not-found errors, so there's
 //     nothing more specific to add here.
+// A request body over the parsers' limit (server.js) gets a 413 page.
 // Anything else is an unexpected bug rather than an expected failure
 // case, so it's logged server-side and answered with a generic 500
 // instead of leaking internals to the browser.
@@ -26,6 +27,10 @@ function errorHandler(err, req, res, next) {
       return res.redirect(`/login?next=${encodeURIComponent(req.originalUrl)}`);
     }
     return res.status(err.status).render('error', { status: err.status, message: err.message });
+  }
+  // express.json()/urlencoded() rejecting a body that is over their limit.
+  if (err && err.type === 'entity.too.large') {
+    return res.status(413).render('error', { status: 413, message: 'That is too much to save at once - split it into smaller sets.' });
   }
   console.error(err);
   res.status(500).render('error', { status: 500, message: 'Something went wrong.' });

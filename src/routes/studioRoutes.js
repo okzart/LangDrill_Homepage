@@ -21,11 +21,13 @@ const AsyncHandler = require('../middleware/asyncHandler');
 const Session = require('../middleware/session');
 const { GatewayError } = require('../errors');
 
-// audio-split-service's own limits are 300 MB per upload and 30 minutes of
-// audio for /transcribe; this only rejects obviously oversized uploads early.
+// audio-split-service's own limits are 300 MB and 2 hours per upload; it
+// transcribes at most 30 minutes per request, so a longer recording comes
+// back one part at a time (the form's `part` field - the page sends the file
+// again for each). This only rejects obviously oversized uploads early.
 const MAX_UPLOAD_BYTES = 300 * 1024 * 1024;
 // The page re-sends the extracted mp3 (mono 96 kbps ≈ 0.7 MB/min, so ≤ ~22 MB
-// for 30 minutes) with every crop request.
+// for a 30-minute part) with every crop request.
 const MAX_CLIP_SOURCE_BYTES = 32 * 1024 * 1024;
 // Matches audio-split-service's MAX_CLIP_SECONDS default.
 const MAX_CLIP_SECONDS = 120;
