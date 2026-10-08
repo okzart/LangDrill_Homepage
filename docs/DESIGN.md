@@ -142,6 +142,7 @@ This app never talks to `:3000`/`:3002`/`:3003` directly.
 | `POST /admin/listening/generate` `{ script, voices?, format?, seed?, cfg_scale?, temperature? }` (called by the page's `fetch`; other fields are dropped; JSON `{ error }` on failure) | admin | `POST /api/listening/generate` (`response: "json"`) → audio (base64) + words with speakers. The page plays it with a speaker-grouped read-along transcript, offers the audio and a timestamps JSON as downloads, and keeps this visit's takes in memory for comparison |
 | `GET /admin/users`, `POST .../update`, `.../delete` | admin | `GET/POST/PATCH/DELETE /api/admin/api/users...` |
 | `GET/POST /admin/users/:id/progress`, `.../delete` | admin | `GET/PATCH/DELETE /api/progress/admin/users/:id` - the same dashboard as `/progress` above the edit form, previewing edits live before Save |
+| `GET /admin/storage`, `POST /admin/storage/audio-dir` (`path`, `deleteOld?` - a form) | admin | `GET /api/sets/admin/storage` (where the audio folder and the MongoDB database are, their sizes per collection, and free disk space), `POST /api/sets/admin/storage/audio-dir` (moves the audio folder: copies the files, switches Content Sharing over, remembers the choice). MongoDB's own data folder is shown but can't be changed from here |
 
 Every login-gated page redirects an unauthenticated visitor to
 `/login?next=<original path>` and sends them back there after a successful

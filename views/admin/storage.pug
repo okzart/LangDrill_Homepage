@@ -1,0 +1,132 @@
+//- Storage (see routes/adminRoutes.js#showStorage): where the content lives
+//- and how much room it takes - Content Sharing's MongoDB database and its
+//- audio folder - and a form to move the audio folder. `report` is Content
+//- Sharing's GET /sets/admin/storage.
+- var size = function (b) { return b >= 1073741824 ? (b / 1073741824).toFixed(1) + ' GB' : b >= 1048576 ? (b / 1048576).toFixed(1) + ' MB' : (b / 1024).toFixed(0) + ' KB'; }
+- var db = report.database, audio = report.audio
+- var sourceLabel = { default: t('the built-in default'), env: t('the AUDIO_DIR setting'), setting: t('chosen on this page') }
+doctype html
+html(lang=lang || "en")
+  head
+    meta(charset="UTF-8")
+    title= 'LanguageDrill — ' + t('Admin: Storage')
+    include ../_style
+    style.
+      .hint { font-size: 0.8rem; color: #666; }
+      td.path { font-family: monospace; font-size: 0.85rem; word-break: break-all; }
+      td.num, th.num { text-align: right; }
+      .meter { height: 8px; margin-top: 0.3rem; background: #e3eaf5; border-radius: 4px; overflow: hidden; max-width: 22rem; }
+      .meter > span { display: block; height: 100%; background: #2a78d6; }
+      .meter.high > span { background: #c0392b; }
+      .move label.check { display: flex; align-items: center; gap: 0.4rem; }
+      .move label.check input { width: auto; margin: 0; }
+  body
+    include ../_nav
+    h1= t('Storage')
+
+    if error
+      .error= t(error)
+    if moved
+      .success
+        = t('Audio folder moved: {n} file(s) are now in the new folder.', { n: moved.copied })
+        if moved.deleted
+          = ' ' + t('{n} removed from the old folder.', { n: moved.deleted })
+        if moved.left
+          = ' ' + t('{n} still in the old folder ({path}) - delete them by hand once you are happy with the move.', { n: moved.left, path: moved.from })
+
+    mixin disk(used, total)
+      - var pct = total > 0 ? Math.round(used / total * 100) : 0
+      = t('{used} used of {total} ({pct}%) - {free} free', { used: size(used), total: size(total), pct: pct, free: size(Math.max(0, total - used)) })
+      .meter(class=(pct >= 90 ? 'high' : ''))
+        span(style=`width: ${pct}%`)
+
+    section
+      h2= t('Audio files')
+      table
+        tr
+          th= t('Folder')
+          td.path= audio.dir
+        tr
+          th= t('Path comes from')
+          td= sourceLabel[audio.source] || audio.source
+        tr
+          th= t('Audio files')
+          td #{audio.files} (#{size(audio.bytes)})
+        if audio.otherFiles
+          tr
+            th= t('Other files in the folder')
+            td= audio.otherFiles
+        if audio.disk
+          tr
+            th= t('Disk')
+            td
+              +disk(audio.disk.totalBytes - audio.disk.freeBytes, audio.disk.totalBytes)
+      p.hint
+        = t('Narrated vocab sentences and the clips made in Studio, one mp3 each. Files no set uses any more can be deleted on the')
+        = ' '
+        a(href="/admin/audio")= t('Vocab audio')
+        = ' ' + t('page.')
+
+      h3= t('Move the audio folder')
+      form.move(method="POST" action="/admin/storage/audio-dir" onsubmit=`return confirm(${JSON.stringify(t('Move the audio folder? New audio is saved there from now on.'))})`)
+        label(for="path")= t('New folder (absolute path on the Content Sharing server)')
+        input#path(type="text" name="path" required placeholder="/mnt/bigdisk/languagedrill-audio")
+        label.check
+          input(type="checkbox" name="deleteOld")
+          = t('Delete each file from the old folder once its copy is confirmed')
+        button(type="submit")= t('Move audio folder')
+      p.hint= t('Every audio file is copied to the new folder (it is created if needed), the service switches to it at once, and the choice is remembered across restarts. Without the checkbox the old files stay where they are. If Content Sharing runs in Docker, the folder must be inside a mounted volume - a path that exists only inside the container is lost when the container is rebuilt. This page first used: {path}', { path: audio.startDir })
+
+    section
+      h2= t('MongoDB database')
+      table
+        tr
+          th= t('Database')
+          td.path= db.name
+        tr
+          th= t('Connection')
+          td.path= db.uri
+        if db.server
+          tr
+            th= t('Data folder')
+            td.path= db.server.dataPath || t('unknown')
+          tr
+            th= t('Server version')
+            td= db.server.version
+        tr
+          th= t('Size on disk')
+          td= t('{total} ({data} of data, {indexes} of indexes)', { total: size(db.totalBytes), data: size(db.storageBytes), indexes: size(db.indexBytes) })
+        if db.disk
+          tr
+            th= t('Disk')
+            td
+              +disk(db.disk.usedBytes, db.disk.totalBytes)
+      p.hint= t('The data folder belongs to the MongoDB server, so it cannot be changed from here: it is the dbPath in the server\'s mongod.conf, or the mongo-data volume in deploy/docker-compose.yml when the stack runs in Docker.')
+
+      h3= t('Collections')
+      table
+        tr
+          th= t('Collection')
+          th.num= t('Documents')
+          th.num= t('Data')
+          th.num= t('On disk')
+          th.num= t('Indexes')
+        each c in db.collections
+          tr
+            td= c.name
+            td.num= c.documents
+            td.num= size(c.dataBytes)
+            td.num= size(c.storageBytes)
+            td.num= size(c.indexBytes)
+
+      if db.server
+        h3= t('All databases on this server')
+        table
+          tr
+            th= t('Database')
+            th.num= t('On disk')
+          each d in db.server.databases
+            tr
+              td= d.name + (d.name === db.name ? ' — ' + t('this page') : '')
+              td.num= size(d.bytes)
+        p.hint= t('Accounts and progress records are kept by their own services in the other languagedrill databases; admin, config and local are MongoDB\'s own.')

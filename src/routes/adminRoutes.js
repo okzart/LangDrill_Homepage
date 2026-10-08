@@ -1,6 +1,6 @@
 // Presentation layer for /admin/* - user management (Authentication's
-// admin API) and, per user, their progress record (Progress Stats' admin
-// API). Both through the API Gateway, never a backend service directly
+// admin API), per user, their progress record (Progress Stats' admin
+// API), and Content Sharing's audio cleanup and storage report. Both through the API Gateway, never a backend service directly
 // (see docs/DESIGN.md §1). requireLogin + requireAdmin are applied on
 // every route individually here (same convention as Authentication's own
 // adminRoutes.js), rather than relying on how server.js happens to mount
@@ -45,6 +45,45 @@ class AdminRoutes {
 
     this.router.get('/admin/audio', ...guard, AsyncHandler.wrap(this.showAudio.bind(this)));
     this.router.post('/admin/audio/cleanup', ...guard, AsyncHandler.wrap(this.cleanupAudio.bind(this)));
+
+    this.router.get('/admin/storage', ...guard, AsyncHandler.wrap(this.showStorage.bind(this)));
+    this.router.post('/admin/storage/audio-dir', ...guard, AsyncHandler.wrap(this.moveAudioDir.bind(this)));
+  }
+
+  // Where the content lives and how much room it takes (Content Sharing's
+  // services/storageService.js): the MongoDB database, and the audio folder
+  // with a form to move it. `moved` is the result of a move just made.
+  async showStorage(req, res) {
+    const report = await this.gatewayClient.get('/api/sets/admin/storage', req.auth.token);
+    const moved = req.query.moved !== undefined
+      ? {
+          copied: Number(req.query.moved) || 0,
+          deleted: Number(req.query.deleted) || 0,
+          left: Number(req.query.left) || 0,
+          from: typeof req.query.from === 'string' ? req.query.from : '',
+        }
+      : null;
+    res.render('admin/storage', { report, moved, error: req.query.error || null });
+  }
+
+  // Copying a large folder takes a while, hence postLong.
+  async moveAudioDir(req, res) {
+    try {
+      const result = await this.gatewayClient.postLong(
+        '/api/sets/admin/storage/audio-dir',
+        { path: String(req.body?.path || ''), deleteOld: req.body?.deleteOld === 'on' },
+        req.auth.token
+      );
+      const qs = new URLSearchParams({
+        moved: String(result.copiedFiles + result.alreadyThere),
+        deleted: String(result.deletedFiles),
+        left: String(result.leftBehind),
+        from: result.from,
+      });
+      res.redirect(`/admin/storage?${qs}`);
+    } catch (err) {
+      withError(res, '/admin/storage', err);
+    }
   }
 
   // Orphaned vocab audio (Content Sharing's services/audioJanitor.js): a
