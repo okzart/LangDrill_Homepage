@@ -76,6 +76,8 @@ html(lang=lang || "en")
       .modes input { width: auto; margin: 0; }
       #auto { margin-top: 1.25rem; padding-top: 0.75rem; border-top: 1px solid #eee; }
       #auto h3 { margin: 0 0 0.25rem; }
+      #auto label.check { display: flex; align-items: center; gap: 0.4rem; }
+      #auto label.check input { width: auto; margin: 0; min-height: 0; }
       #auto-result { margin: 0.5rem 0 0; padding-left: 1.2rem; }
       #existing-picker { margin-top: 0.75rem; padding: 0.75rem; background: #fafafa; border: 1px solid #eee; border-radius: 6px; }
       #existing-picker[hidden], #set-search-box[hidden], #chosen-set[hidden] { display: none; }
@@ -131,7 +133,7 @@ html(lang=lang || "en")
         #part-chips.chips
       #auto
         h3= t('Or do it all automatically')
-        p.hint= t('Skips steps 2 and 3: transcribes the whole recording (every part of a long one), makes a Full sentence item from every sentence, and publishes them as a listening set. More than {max} sentences are published as several sets.', { max: maxItems })
+        p.hint= t('Skips steps 2 and 3: transcribes the whole recording (every part of a long one), makes a Full sentence item from every sentence, translates each into Korean, and publishes them as a listening set. More than {max} sentences are published as several sets.', { max: maxItems })
         .grid2
           div
             label(for="auto-name")= t('Set name')
@@ -139,6 +141,9 @@ html(lang=lang || "en")
           div
             label(for="auto-author")= t('Author (optional)')
             input#auto-author(type="text")
+        label.check
+          input#auto-ko(type="checkbox" checked)
+          = ' ' + t('Add the Korean meaning of every sentence with AI')
         .actions
           button#auto-btn.primary(type="button")= t('Transcribe and publish automatically')
           button#auto-stop(type="button" hidden)= t('Stop')
@@ -484,7 +489,8 @@ html(lang=lang || "en")
 
         // ---- Automatic: source → published set(s) in one go -----------------
         // Transcribes every part, crops every sentence into a Full sentence
-        // item and publishes them, MAX_ITEMS per set at most. If it stops
+        // item, adds its Korean meaning (optional; English recordings only)
+        // and publishes them, MAX_ITEMS per set at most. If it stops
         // half-way (an error, or Stop), the items made so far land in the
         // draft of step 3 instead of being lost.
         var autoRunning = false, autoStop = false;
@@ -497,6 +503,7 @@ html(lang=lang || "en")
           if (!name) return showError(t('Give the set a name.'));
           var author = $('auto-author').value.trim();
           var mine = source, status = $('auto-status'), made = [], skipped = 0, published = [];
+          var wantKo = $('auto-ko').checked, english = true, koNote = '';
           var stopped = function () { var err = new Error(t('Stopped.')); err.cancelled = true; return err; };
           var busy = function (on) {
             autoRunning = on;
@@ -538,10 +545,41 @@ html(lang=lang || "en")
               if (source !== mine) throw stopped();
               transcribedSource = mine;
               loadTranscript(result);
+              if (!/^en/i.test(result.language || 'en')) english = false;
               var count = result.part ? result.part.count : 1;
               var label = count > 1 ? t('Part {n} of {count}:', { n: n, count: count }) + ' ' : '';
               return cropPart(label).then(function () { return n < count ? runPart(n + 1) : null; });
             });
+          }
+
+          // Korean meanings for `made`, a few sentences per request (POST
+          // /community/translate, the Community editor's translator). Never
+          // a reason not to publish: if the AI is down, or skips a sentence,
+          // those items simply go out without Korean and `koNote` says so.
+          function translateAll() {
+            if (!wantKo || !made.length) return null;
+            if (!english) { koNote = t('Korean meanings were not added: the recording is not in English.'); return null; }
+            var at = 0, filled = 0, BATCH = 8;
+            var finish = function (problem) {
+              if (filled < made.length) koNote = t('Korean meanings added to {n} of {total} items.', { n: filled, total: made.length }) + (problem ? ' (' + problem + ')' : '');
+              return null;
+            };
+            var next = function () {
+              if (autoStop) throw stopped();
+              if (at >= made.length) return finish();
+              var batch = made.slice(at, at + BATCH);
+              status.textContent = t('Translating {n} / {total}…', { n: at + batch.length, total: made.length });
+              return call('/community/translate', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ sentences: batch.map(function (item) { return item.answer.slice(0, 500); }) }) })
+                .then(function (body) {
+                  batch.forEach(function (item, k) {
+                    var ko = (body.translations || [])[k];
+                    if (ko) { item.ko = ko; filled++; }
+                  });
+                  at += batch.length;
+                  return next();
+                }, function (err) { return finish(err.message); });
+            };
+            return next();
           }
 
           // `made` in sets of equal size, none over MAX_ITEMS.
@@ -581,12 +619,13 @@ html(lang=lang || "en")
 
           busy(true);
           $('auto-result').hidden = true;
-          Promise.resolve().then(function () { return runPart(1); }).then(publishAll)
+          Promise.resolve().then(function () { return runPart(1); }).then(translateAll).then(publishAll)
             .then(function () {
               busy(false);
               showPublished();
               var msg = published.length > 1 ? t('Published {n} sets.', { n: published.length }) : t('Published.');
               if (skipped) msg += ' ' + t('{n} skipped (empty or longer than {max} s).', { n: skipped, max: MAX_CLIP });
+              if (koNote) msg += ' ' + koNote;
               status.textContent = msg;
               clearSelection();
             })
