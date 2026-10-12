@@ -28,14 +28,31 @@ nav.site(aria-label=t('Main'))
         +icon('search', 17)
   if currentUser
     .links
+      //- Five tabs; every other page is under "More", so the bar stays
+      //- readable. A page that lives under "More" lights that tab up.
       +tab('/dashboard', 'home', t('Home'), isActive('/dashboard') || here === '/')
       +tab('/community', 'users', t('Community'), isActive('/community'))
       +tab('/studio', 'studio', t('Studio'), isActive('/studio'))
-      +tab('/scan', 'scan', t('Scan'), isActive('/scan'))
       +tab('/chat', 'chat', t('Chat'), isActive('/chat'))
-      +tab('/call', 'video', t('Call'), isActive('/call'))
-      +tab('/passages', 'book', t('Passages'), isActive('/passages'))
-      +tab('/progress', 'chart', t('Progress'), isActive('/progress'))
+      +tab('/friends', 'friends', t('Friends'), isActive('/friends'))
+      -
+        var more = [
+          { href: '/call', icon: 'video', label: t('Video call') },
+          { href: '/scan', icon: 'scan', label: t('Scan') },
+          { href: '/passages', icon: 'book', label: t('Passages') },
+          { href: '/progress', icon: 'chart', label: t('Progress') },
+          { href: '/map', icon: 'pin', label: t('Around me') },
+        ]
+      - var inMore = more.some(function (item) { return isActive(item.href); })
+      details.more-menu
+        summary.tab(class=inMore ? 'active' : '' title=t('More') aria-label=t('More'))
+          +icon('more', 22)
+          span.tab-label= t('More')
+        .menu
+          each item in more
+            a(href=item.href class=isActive(item.href) ? 'active' : '' aria-current=(isActive(item.href) ? 'page' : false))
+              +icon(item.icon, 18)
+              = item.label
     .me
       +langSwitch
       if currentUser.role === 'admin'
@@ -67,13 +84,13 @@ nav.site(aria-label=t('Main'))
       +langSwitch
       a.logout(href="/login")= t('Log in')
       a.cta(href="/register")= t('Get started')
-//- Close the admin menu on an outside click or Escape.
+//- Close the dropdown menus (More, Admin) on an outside click or Escape.
 script.
   (function () {
-    var menu = document.querySelector('nav.site details.admin-menu');
-    if (!menu) return;
-    document.addEventListener('click', function (e) { if (menu.open && !menu.contains(e.target)) menu.open = false; });
-    document.addEventListener('keydown', function (e) { if (e.key === 'Escape') menu.open = false; });
+    var menus = document.querySelectorAll('nav.site details');
+    if (!menus.length) return;
+    document.addEventListener('click', function (e) { menus.forEach(function (menu) { if (menu.open && !menu.contains(e.target)) menu.open = false; }); });
+    document.addEventListener('keydown', function (e) { if (e.key === 'Escape') menus.forEach(function (menu) { menu.open = false; }); });
   })();
 
 //- Incoming video calls ring on every page (src/public/call/incoming.js);
@@ -81,5 +98,5 @@ script.
 //- script comes back empty and incoming.js does nothing.
 if currentUser && here !== '/call'
   script(src="/call/protocol.js" defer)
-  script(src="/assets/call/signalingClient.js" defer)
-  script(src="/assets/call/incoming.js" defer)
+  script(src=asset('call/signalingClient.js') defer)
+  script(src=asset('call/incoming.js') defer)

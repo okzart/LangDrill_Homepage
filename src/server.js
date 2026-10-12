@@ -1,5 +1,6 @@
 // Loads variables from .env into process.env (PORT, GATEWAY_URL, COOKIE_SECRET)
 require('dotenv').config();
+const fs = require('fs');
 const path = require('path');
 const express = require('express');
 const cookieParser = require('cookie-parser');
@@ -20,6 +21,7 @@ const ScanRoutes = require('./routes/scanRoutes');
 const TranscribeRoutes = require('./routes/transcribeRoutes');
 const MapRoutes = require('./routes/mapRoutes');
 const CallRoutes = require('./routes/callRoutes');
+const FriendsRoutes = require('./routes/friendsRoutes');
 const { attachSignalingProxy } = require('./services/signalingProxy');
 
 // Fail fast: without COOKIE_SECRET the session cookie can't be signed, so
@@ -48,6 +50,7 @@ const scanRoutes = new ScanRoutes(gatewayClient);
 const transcribeRoutes = new TranscribeRoutes(gatewayClient);
 const mapRoutes = new MapRoutes(gatewayClient);
 const callRoutes = new CallRoutes(gatewayClient);
+const friendsRoutes = new FriendsRoutes(gatewayClient);
 
 // Matches Content Sharing's own JSON body limit (its server.js).
 const BODY_LIMIT = '5mb';
@@ -60,6 +63,22 @@ app.use(cookieParser(process.env.COOKIE_SECRET));
 // shared Docker image recipe (deploy/node-service.Dockerfile copies src/ and
 // views/) picks them up without a change.
 app.use('/assets', express.static(path.join(__dirname, 'public'), { maxAge: '1h' }));
+// asset('call/callPage.js') → '/assets/call/callPage.js?v=<when the file last
+// changed>', for views. Browsers keep /assets files for an hour; without the
+// version a page could run last hour's script against today's markup.
+const assetVersions = new Map();
+app.locals.asset = (file) => {
+  let version = assetVersions.get(file);
+  if (version === undefined || process.env.NODE_ENV !== 'production') {
+    try {
+      version = Math.floor(fs.statSync(path.join(__dirname, 'public', file)).mtimeMs).toString(36);
+    } catch {
+      version = '0';
+    }
+    assetVersions.set(file, version);
+  }
+  return `/assets/${file}?v=${version}`;
+};
 
 app.set('views', path.join(__dirname, '..', 'views'));
 app.set('view engine', 'pug');
@@ -91,6 +110,7 @@ app.use(scanRoutes.router);
 app.use(transcribeRoutes.router);
 app.use(mapRoutes.router);
 app.use(callRoutes.router);
+app.use(friendsRoutes.router);
 
 // Simple liveness check, useful for uptime monitors / load balancers
 app.get('/health', (req, res) => res.json({ status: 'ok' }));

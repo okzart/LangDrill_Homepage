@@ -1,0 +1,121 @@
+//- Friends (see routes/friendsRoutes.js): the people this user is friends
+//- with - each with a live "online" mark and buttons to call them - the
+//- requests waiting for an answer in either direction, and a form to ask
+//- someone new by email. Online status comes from the signaling connection
+//- every page keeps (src/public/call/incoming.js), asked per friend.
+doctype html
+html(lang=lang || "en")
+  head
+    meta(charset="UTF-8")
+    meta(name="viewport" content="width=device-width, initial-scale=1")
+    title= 'LanguageDrill — ' + t('Friends')
+    include _style
+    style.
+      .hint { font-size: 0.82rem; color: #666; }
+      .add-row { display: flex; gap: 0.5rem; align-items: flex-end; }
+      .add-row > div { flex: 1; }
+      .add-row button { flex: none; }
+      ul.people { list-style: none; margin: 0.5rem 0 0; padding: 0; }
+      ul.people > li { display: flex; flex-wrap: wrap; gap: 0.4rem 0.75rem; align-items: center; padding: 0.55rem 0; border-bottom: 1px solid #eee; }
+      ul.people .who { flex: 1 1 14rem; min-width: 0; overflow-wrap: anywhere; }
+      ul.people .buttons { display: flex; gap: 0.4rem; flex-wrap: wrap; align-items: center; }
+      ul.people form { margin: 0; }
+      ul.people button, ul.people .btn { margin-top: 0; }
+      .dot { display: inline-block; width: 9px; height: 9px; margin-right: 0.45rem; border-radius: 50%; background: #c4c4c4; vertical-align: middle; }
+      .dot.on { background: #2c9c4a; }
+      .presence { margin-left: 0.5rem; font-size: 0.8rem; color: #888; }
+      .presence.on { color: #1f7a3d; }
+      .empty { color: #888; font-size: 0.9rem; }
+      a.btn.dim { opacity: 0.55; }
+  body
+    include _nav
+    h1= t('Friends')
+
+    if error
+      .error= t(error)
+    if done
+      .success
+        if done === 'sent'
+          = t('Friend request sent to {email}. You will be friends once they accept.', { email: who })
+        else if done === 'friends'
+          = who ? t('You and {email} are now friends.', { email: who }) : t('You are now friends.')
+        else if done === 'declined'
+          = t('Request declined.')
+        else if done === 'withdrawn'
+          = t('Request withdrawn.')
+        else
+          = t('Removed from your friends.')
+
+    if incoming.length
+      section
+        h2= t('Friend requests ({n})', { n: incoming.length })
+        ul.people
+          each person in incoming
+            li
+              span.who= person.email
+              .buttons
+                form(method="POST" action=`/friends/requests/${person.requestId}/accept`)
+                  button.primary(type="submit")= t('Accept')
+                form(method="POST" action=`/friends/requests/${person.requestId}/decline`)
+                  button(type="submit")= t('Decline')
+
+    section
+      h2= t('Your friends ({n})', { n: friends.length })
+      if friends.length
+        ul.people#friend-list
+          each person in friends
+            li(data-email=person.email)
+              span.who
+                span.dot(aria-hidden="true")
+                = person.email
+                span.presence
+              .buttons
+                a.btn.dim(href=`/call?email=${encodeURIComponent(person.email)}&start=call` data-call)= t('Video call')
+                a.btn.dim(href=`/call?email=${encodeURIComponent(person.email)}&start=stream` data-call)= t('Live stream')
+                form(method="POST" action=`/friends/${person.id}/remove` onsubmit=`return confirm(${JSON.stringify(t('Remove {email} from your friends?', { email: person.email }))})`)
+                  button.link(type="submit")= t('Remove')
+        p.hint= t('A green dot means your friend has LanguageDrill open right now and can be called. In a live stream only you are seen and heard.')
+      else
+        p.empty= t('No friends yet. Add someone below - once they accept, they appear here and you can call them.')
+
+    section
+      h2= t('Add a friend')
+      form(method="POST" action="/friends/request")
+        .add-row
+          div
+            label(for="friend-email")= t('Their email')
+            input#friend-email(type="email" name="email" required autocomplete="off" placeholder="friend@example.com")
+          button.primary(type="submit")= t('Send request')
+      p.hint= t('They must have a LanguageDrill account with that email. They will see your request on this page and can accept or decline it.')
+
+    if outgoing.length
+      section
+        h2= t('Waiting for an answer ({n})', { n: outgoing.length })
+        ul.people
+          each person in outgoing
+            li
+              span.who= person.email
+              .buttons
+                form(method="POST" action=`/friends/requests/${person.requestId}/withdraw`)
+                  button(type="submit")= t('Withdraw')
+
+    //- Who is online: ask the signaling connection about each friend; it
+    //- answers now and again whenever that changes.
+    script.
+      window.addEventListener('DOMContentLoaded', function () {
+        var client = window.LDSignaling;
+        var rows = {};
+        document.querySelectorAll('#friend-list li[data-email]').forEach(function (li) { rows[li.dataset.email.toLowerCase()] = li; });
+        if (!client || !Object.keys(rows).length) return;
+        client.on('presence.update', function (message) {
+          var li = rows[message.payload.email];
+          if (!li) return;
+          var on = message.payload.online;
+          li.querySelector('.dot').classList.toggle('on', on);
+          var label = li.querySelector('.presence');
+          label.classList.toggle('on', on);
+          label.textContent = on ? t('online') : t('offline');
+          li.querySelectorAll('[data-call]').forEach(function (a) { a.classList.toggle('dim', !on); });
+        });
+        Object.keys(rows).forEach(function (email) { client.send('presence.query', { payload: { email: email } }); });
+      });

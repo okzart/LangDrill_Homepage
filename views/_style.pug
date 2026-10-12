@@ -110,14 +110,24 @@ style.
   nav.site .nav-search input:focus { border-color: var(--accent); background: var(--surface); }
   nav.site .nav-search .icon { position: absolute; left: 0.8rem; top: 50%; transform: translateY(-50%); color: var(--muted); pointer-events: none; }
   nav.site .links { display: flex; align-items: stretch; height: 63px; }
-  nav.site .links a.tab {
+  nav.site .links .tab {
     position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px;
     min-width: 76px; padding: 0 13.6px; margin-bottom: -1px; border-bottom: 3px solid transparent;
     color: var(--muted); transition: background 0.15s, color 0.15s;
   }
-  nav.site .links a.tab:hover { color: var(--blue-700); background: rgba(65, 97, 128, 0.06); }
-  nav.site .links a.tab.active { color: var(--blue-700); background: var(--blue-100); border-bottom-color: var(--blue-700); }
+  nav.site .links .tab:hover { color: var(--blue-700); background: rgba(65, 97, 128, 0.06); }
+  nav.site .links .tab.active { color: var(--blue-700); background: var(--blue-100); border-bottom-color: var(--blue-700); }
   nav.site .links .tab-label { font-size: 12px; font-weight: 500; line-height: 1; white-space: nowrap; }
+  /* "More": the pages that don't get a tab of their own, in a dropdown. Its
+     summary looks and behaves like a tab. */
+  nav.site details.more-menu { position: relative; display: flex; }
+  nav.site details.more-menu > summary { list-style: none; cursor: pointer; }
+  nav.site details.more-menu > summary::-webkit-details-marker { display: none; }
+  nav.site details.more-menu[open] > summary { color: var(--blue-700); background: rgba(65, 97, 128, 0.06); }
+  nav.site .more-menu .menu { position: absolute; left: 50%; transform: translateX(-50%); top: calc(100% + 8px); min-width: 210px; padding: 6px; display: grid; gap: 2px; background: var(--surface); border: 1px solid var(--line); border-radius: 14px; box-shadow: var(--shadow-lg); }
+  nav.site .more-menu .menu a { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 10px; color: var(--text); font-weight: 500; }
+  nav.site .more-menu .menu a:hover, nav.site .more-menu .menu a.active { background: var(--blue-100); color: var(--blue-800); }
+  nav.site .more-menu .menu a .icon { color: var(--blue-700); }
   nav.site .me { justify-self: end; display: flex; align-items: center; gap: 10px; }
   nav.site .seg { display: inline-flex; overflow: hidden; border: 1px solid var(--line); border-radius: 999px; }
   nav.site .seg a { padding: 6px 10px; font-size: 13px; font-weight: 500; line-height: 1.55; color: var(--text); }
@@ -141,7 +151,7 @@ style.
   nav.site form.inline button.link:hover { background: rgba(29, 31, 32, 0.07); color: var(--text); }
   nav.site .cta { display: inline-flex; align-items: center; height: 36px; padding: 0 14px; border-radius: 999px; background: var(--accent); color: var(--n-100) !important; font-family: var(--display); font-size: 15px; font-weight: 600; }
   nav.site .logout { color: var(--text); font-family: var(--display); font-size: 15px; font-weight: 600; padding: 0 6px; }
-  @media (max-width: 1180px) { nav.site .links a.tab { min-width: 62px; padding: 0 8px; } }
+  @media (max-width: 1180px) { nav.site .links .tab { min-width: 62px; padding: 0 8px; } }
   @media (max-width: 1040px) {
     nav.site .nav-search { flex-basis: 36px; }
     nav.site .nav-search input { width: 36px; padding: 0; color: transparent; cursor: pointer; }
@@ -157,9 +167,13 @@ style.
       position: fixed; left: 0; right: 0; bottom: 0; z-index: 60; height: auto;
       padding: 0 0 env(safe-area-inset-bottom); background: var(--surface); border-top: 1px solid var(--line); box-shadow: 0 -2px 10px rgba(43, 43, 45, 0.12);
     }
-    nav.site .links a.tab { flex: 1; min-width: 0; height: 58px; padding: 0 2px; margin: -1px 0 0; border-bottom: 0; border-top: 3px solid transparent; }
-    nav.site .links a.tab.active { border-top-color: var(--blue-700); }
+    nav.site .links .tab { flex: 1; min-width: 0; height: 58px; padding: 0 2px; margin: -1px 0 0; border-bottom: 0; border-top: 3px solid transparent; }
+    nav.site .links .tab.active { border-top-color: var(--blue-700); }
     nav.site .links .tab-label { font-size: 11px; }
+    /* In the bottom bar the menu opens upwards, from the right edge. */
+    nav.site details.more-menu { flex: 1; min-width: 0; }
+    nav.site details.more-menu > summary { width: 100%; }
+    nav.site .more-menu .menu { top: auto; bottom: calc(100% + 8px); left: auto; right: 6px; transform: none; }
     body:has(nav.site .links) { padding-bottom: 80px; }
   }
   @media (max-width: 420px) { nav.site .brand .wordmark { display: none; } nav.site .seg a { padding: 6px 8px; } nav.site .links .tab-label { font-size: 10px; letter-spacing: -0.01em; } }

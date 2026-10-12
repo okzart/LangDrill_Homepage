@@ -29,6 +29,10 @@
   var peer = null; // the person looked up: { userId, email, online }
   var ringTimer = null;
   var micOn = true, camOn = true;
+  // Set when the page was opened for one particular person (from the Friends
+  // page): { email, mode }. The "start a call" form is then replaced by a
+  // panel about that person.
+  var direct = null;
 
   var FAILURES = {
     insecure_context: t('Video calls need a secure (https) connection and a browser that supports them - open this site over https.'),
@@ -43,7 +47,8 @@
 
   function show(next) {
     view = next;
-    $('start').hidden = next !== 'idle';
+    $('start').hidden = next !== 'idle' || !!direct;
+    $('direct').hidden = next !== 'idle' || !direct;
     $('ringing').hidden = next !== 'outgoing';
     $('incoming').hidden = next !== 'incoming';
     $('in-call').hidden = next !== 'in-call';
@@ -54,6 +59,13 @@
     var ready = view === 'idle' && client.state === 'open' && !insecure && !!peer && peer.online && !!peer.userId;
     $('btn-call').disabled = !ready;
     $('btn-stream').disabled = !ready;
+    if (direct) {
+      $('direct-call').disabled = !ready;
+      $('direct-call').textContent = direct.mode === 'stream' ? t('Live stream (they watch you)') : t('Video call');
+      $('direct-text').textContent = !peer ? t('Checking whether {email} is online…', { email: direct.email })
+        : peer.online ? t('{email} is online.', { email: direct.email })
+          : t('{email} is not online right now. This updates as soon as they open LanguageDrill.', { email: direct.email });
+    }
   }
 
   // ---- Finding the other person ---------------------------------------------
@@ -173,6 +185,36 @@
     if (view !== 'incoming') return;
     client.send('call.reject', { callId: call.id, to: call.peerId, payload: { reason: 'declined' } });
     backToIdle();
+  });
+
+  // Arriving from the Friends page: /call?email=<friend>&start=call|stream
+  // fills the email in and starts that kind of call as soon as the friend
+  // shows as online. The address is tidied so a reload doesn't call again.
+  var autoStart = null;
+  (function () {
+    var params = new URLSearchParams(location.search);
+    var email = (params.get('email') || '').trim().toLowerCase();
+    if (!email) return;
+    $('peer-email').value = email;
+    if (Protocol.MODES.indexOf(params.get('start')) !== -1) autoStart = params.get('start');
+    direct = { email: email, mode: autoStart || 'call' };
+    if (window.history && history.replaceState) history.replaceState(null, '', location.pathname);
+  })();
+  client.on('presence.update', function (message) {
+    if (!autoStart || message.payload.email !== typedEmail()) return;
+    var mode = autoStart;
+    autoStart = null; // one attempt: if they are offline the page just says so
+    if (message.payload.online && view === 'idle' && !insecure) startCall(mode);
+  });
+  $('direct-call').addEventListener('click', function () { if (direct) startCall(direct.mode); });
+  $('direct-other').addEventListener('click', function () {
+    direct = null;
+    autoStart = null;
+    peer = null;
+    $('peer-email').value = '';
+    $('presence-line').textContent = '';
+    clearMessages();
+    show('idle');
   });
 
   // An invitation accepted from another page arrives here through

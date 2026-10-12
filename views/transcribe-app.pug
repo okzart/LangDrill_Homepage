@@ -32,9 +32,9 @@ html(lang=lang || "en")
          each they overflow the panel in the Beside and Float layouts. */
       #sub-list-header button, #timeline-controls button { width: auto; height: auto; min-width: 26px; }
       #sub-list-header { flex-wrap: wrap; }
-    link(rel="stylesheet" href="/assets/transcribe/transcribe.css")
-    script(src="/assets/transcribe/lame.min.js")
-    script(src="/assets/transcribe/transcribe.js" defer)
+    link(rel="stylesheet" href=asset('transcribe/transcribe.css'))
+    script(src=asset('transcribe/lame.min.js'))
+    script(src=asset('transcribe/transcribe.js') defer)
   body(data-max-upload-mb=maxUploadMb)
     main
       #content

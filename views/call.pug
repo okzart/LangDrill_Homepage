@@ -58,6 +58,15 @@ html(lang=lang || "en")
         button#btn-stream(type="button" disabled)= t('Live stream (they watch you)')
       p.hint= t('The other person must be logged in with LanguageDrill open in a browser tab. A video call shares both cameras; in a live stream only you are seen and heard.')
 
+    //- Arriving from the Friends page (/call?email=…&start=…): the person is
+    //- already chosen, so this takes the place of the form above.
+    section#direct.panel(hidden)
+      p#direct-text(aria-live="polite")
+      .actions
+        button#direct-call.primary(type="button" disabled)
+        a.btn(href="/friends")= t('Back to friends')
+        button#direct-other.link(type="button")= t('Call someone else by email')
+
     section#ringing.panel(hidden)
       p#ringing-text(aria-live="polite")
       button#btn-cancel(type="button")= t('Cancel')
@@ -85,6 +94,6 @@ html(lang=lang || "en")
     //- The protocol is served by signaling-service itself (through
     //- /call/protocol.js), so page and server can't disagree about it.
     script(src="/call/protocol.js")
-    script(src="/assets/call/signalingClient.js")
-    script(src="/assets/call/peerSession.js")
-    script(src="/assets/call/callPage.js")
+    script(src=asset('call/signalingClient.js'))
+    script(src=asset('call/peerSession.js'))
+    script(src=asset('call/callPage.js'))

@@ -8,6 +8,8 @@
   var t = window.t, Protocol = window.SignalingProtocol;
   var HANDOFF_KEY = 'ld_call_accept';
   var client = new window.SignalingClient({ url: (location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/call/ws', protocol: Protocol });
+  // Shared with pages that want to know who is online (views/friends.pug).
+  window.LDSignaling = client;
   var ringing = null; // { callId, from, fromEmail, mode, at }
   var box = null, timer = null;
 
