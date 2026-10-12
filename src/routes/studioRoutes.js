@@ -38,6 +38,10 @@ const MAX_CLIP_SECONDS = 120;
 // (`part.count`) replaces that guess once a part has been transcribed.
 const MAX_PART_SECONDS = 30 * 60;
 const PART_SLACK_SECONDS = 10;
+// POST /studio/clips crops this many clips at a time (audio-split-service's
+// ffmpeg runs are short and independent), and at most this many per request.
+const CLIP_CONCURRENCY = 6;
+const MAX_CLIPS_PER_REQUEST = 150;
 const LANGUAGES = ['en', 'ko', 'auto'];
 const ITEM_TYPES = ['dictation', 'full', 'choice', 'order'];
 const MAX_OPTIONS = 6;
@@ -54,13 +58,18 @@ class StudioRoutes {
     this.gatewayClient = gatewayClient;
     this.router = express.Router();
 
-    this.router.get('/studio', requireLogin, (req, res) => res.render('studio', { maxClipSeconds: MAX_CLIP_SECONDS, maxItems: MAX_ITEMS, maxPartSeconds: MAX_PART_SECONDS, partSlackSeconds: PART_SLACK_SECONDS }));
+    this.router.get('/studio', requireLogin, (req, res) => res.render('studio', { maxClipSeconds: MAX_CLIP_SECONDS, maxClipsPerRequest: MAX_CLIPS_PER_REQUEST, maxItems: MAX_ITEMS, maxPartSeconds: MAX_PART_SECONDS, partSlackSeconds: PART_SLACK_SECONDS }));
     // Multipart body streamed straight through - never parsed or buffered here.
     this.router.post('/studio/transcribe', AsyncHandler.wrap(this.transcribe.bind(this)));
     this.router.post(
       '/studio/clip',
       express.raw({ type: ['audio/*', 'application/octet-stream'], limit: MAX_CLIP_SOURCE_BYTES }),
       AsyncHandler.wrap(this.clip.bind(this))
+    );
+    this.router.post(
+      '/studio/clips',
+      express.raw({ type: ['audio/*', 'application/octet-stream'], limit: MAX_CLIP_SOURCE_BYTES }),
+      AsyncHandler.wrap(this.clips.bind(this))
     );
     this.router.post('/studio/publish', AsyncHandler.wrap(this.publish.bind(this)));
     // Adding to an existing listening set instead of publishing a new one.
@@ -120,6 +129,63 @@ class StudioRoutes {
     } catch (err) {
       this.fail(res, err, 'Cropping is unavailable right now (is audio-split-service running?)');
     }
+  }
+
+  // Many clips from one upload - what "Add all sentences" and the automatic
+  // mode use, so the extracted mp3 (tens of MB for a long part) crosses the
+  // network once instead of once per sentence. Body: the mp3; query:
+  // ranges=start-end,start-end,... (seconds). Answers newline-delimited JSON
+  // as the clips finish, in any order: { i, audioUrl, duration } or
+  // { i, error } per range (`i` = its position in `ranges`), then
+  // { done: true }. One failed range doesn't stop the others.
+  async clips(req, res) {
+    if (!req.auth) return res.status(401).json({ error: req.t('Not logged in') });
+    if (!Buffer.isBuffer(req.body) || req.body.length === 0) {
+      return res.status(400).json({ error: req.t('Send the audio as the request body') });
+    }
+    const ranges = String(req.query.ranges || '').split(',').filter(Boolean).map((pair) => {
+      const [start, end] = pair.split('-').map(Number);
+      return { start, end };
+    });
+    const valid = ranges.length > 0 && ranges.length <= MAX_CLIPS_PER_REQUEST
+      && ranges.every((r) => Number.isFinite(r.start) && Number.isFinite(r.end) && r.start >= 0 && r.end > r.start && r.end - r.start <= MAX_CLIP_SECONDS);
+    if (!valid) {
+      return res.status(400).json({ error: req.t('ranges must be 1-{max} start-end pairs of at most {seconds} s each', { max: MAX_CLIPS_PER_REQUEST, seconds: MAX_CLIP_SECONDS }) });
+    }
+
+    res.status(200).set({ 'Content-Type': 'application/x-ndjson; charset=utf-8', 'Cache-Control': 'no-store', 'X-Accel-Buffering': 'no' });
+    res.flushHeaders();
+    let gone = false; // the page stopped or left: don't start more cuts
+    res.on('close', () => { gone = true; });
+    const source = new Blob([req.body], { type: 'audio/mpeg' }); // shared by every cut's form
+    const unavailable = req.t('Cropping is unavailable right now (is audio-split-service running?)');
+    let next = 0;
+    const worker = async () => {
+      while (!gone && next < ranges.length) {
+        const i = next++;
+        const { start, end } = ranges[i];
+        let line;
+        try {
+          const form = new FormData();
+          form.append('file', source, 'source.mp3');
+          form.append('start', String(start));
+          form.append('end', String(end));
+          form.append('format', 'mp3');
+          form.append('fade_ms', '20');
+          form.append('mono', 'true');
+          const cut = await this.gatewayClient.postMultipartBinary('/api/split/cut', form, req.auth.token);
+          const stored = await this.gatewayClient.postRaw('/api/sets/clips', cut.buffer, 'audio/mpeg', req.auth.token);
+          line = { i, audioUrl: stored.audioUrl, duration: Number(cut.headers.get('x-clip-duration')) || end - start };
+        } catch (err) {
+          if (!(err instanceof GatewayError)) console.error(err);
+          const down = !(err instanceof GatewayError) || err.status === 502 || err.status === 504;
+          line = { i, error: down ? unavailable : req.t(err.message) };
+        }
+        if (!gone) res.write(`${JSON.stringify(line)}\n`);
+      }
+    };
+    await Promise.all(Array.from({ length: Math.min(CLIP_CONCURRENCY, ranges.length) }, worker));
+    if (!gone) res.end(`${JSON.stringify({ done: true })}\n`);
   }
 
   // Body (JSON): { name, desc, author, items }. Answers { id } of the new set.

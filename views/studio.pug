@@ -244,6 +244,7 @@ html(lang=lang || "en")
       (function () {
         var MAX_CLIP = #{maxClipSeconds};
         var MAX_ITEMS = #{maxItems};
+        var MAX_CLIPS_PER_REQUEST = #{maxClipsPerRequest};
         var MAX_PART = #{maxPartSeconds}, PART_SLACK = #{partSlackSeconds};
         var MAX_RECORD_SECONDS = 10 * 60;
         var WORD = /[A-Za-z']+/g;
@@ -264,6 +265,52 @@ html(lang=lang || "en")
               return data;
             });
           });
+        }
+
+        // Crops many stretches of the extracted audio at once (POST
+        // /studio/clips): the audio is uploaded once per MAX_CLIPS_PER_REQUEST
+        // ranges instead of once per clip, and the server cuts several at a
+        // time. Resolves with one entry per range, in the same order:
+        // { audioUrl, duration } or { error }. `onProgress(done)` is called
+        // as clips finish; `signal` (an AbortSignal) cancels it.
+        function cropMany(ranges, onProgress, signal) {
+          var results = new Array(ranges.length), done = 0;
+          function group(offset) {
+            if (offset >= ranges.length) return results;
+            var part = ranges.slice(offset, offset + MAX_CLIPS_PER_REQUEST);
+            var query = part.map(function (r) { return r.start + '-' + r.end; }).join(',');
+            var take = function (line) {
+              if (!line.trim()) return;
+              var row = JSON.parse(line);
+              if (typeof row.i !== 'number') return;
+              results[offset + row.i] = row.error ? { error: row.error } : { audioUrl: row.audioUrl, duration: row.duration };
+              if (onProgress) onProgress(++done);
+            };
+            return fetch('/studio/clips?ranges=' + query, { method: 'POST', headers: { 'Content-Type': 'audio/mpeg' }, body: audioBlob, signal: signal })
+              .then(function (res) {
+                if (res.status === 401) { location.href = '/login?next=/studio'; throw new Error('Not logged in'); }
+                if (!res.ok) return res.json().catch(function () { return {}; }).then(function (body) { throw new Error(body.error || t('Request failed ({status})', { status: res.status })); });
+                if (!res.body || !res.body.getReader) return res.text().then(function (text) { text.split('\n').forEach(take); });
+                // One JSON line per finished clip, read as they arrive.
+                var reader = res.body.getReader(), decoder = new TextDecoder(), pending = '';
+                var pump = function () {
+                  return reader.read().then(function (chunk) {
+                    pending += decoder.decode(chunk.value || new Uint8Array(0), { stream: !chunk.done });
+                    var lines = pending.split('\n');
+                    pending = chunk.done ? '' : lines.pop();
+                    lines.forEach(take);
+                    return chunk.done ? null : pump();
+                  });
+                };
+                return pump();
+              })
+              .then(function () {
+                // The connection ended before every clip was reported.
+                for (var i = 0; i < part.length; i++) if (!results[offset + i]) results[offset + i] = { error: t('The connection failed during the upload.') };
+                return group(offset + part.length);
+              });
+          }
+          return Promise.resolve().then(function () { return group(0); });
         }
 
         // ---- 1. Source: file or recording --------------------------------
@@ -490,11 +537,15 @@ html(lang=lang || "en")
         // ---- Automatic: source → published set(s) in one go -----------------
         // Transcribes every part, crops every sentence into a Full sentence
         // item, adds its Korean meaning (optional; English recordings only)
-        // and publishes them, MAX_ITEMS per set at most. If it stops
+        // and publishes them, MAX_ITEMS per set at most. Cropping (one upload
+        // per part, several cuts at a time - cropMany) and translating (two
+        // requests at a time, what the LLM service runs side by side) go on
+        // together: they use different services and neither needs the other. If it stops
         // half-way (an error, or Stop), the items made so far land in the
         // draft of step 3 instead of being lost.
         var autoRunning = false, autoStop = false;
-        $('auto-stop').addEventListener('click', function () { autoStop = true; if (txXhr) txXhr.abort(); });
+        var autoAbort = null; // cancels the crop request in flight
+        $('auto-stop').addEventListener('click', function () { autoStop = true; if (txXhr) txXhr.abort(); if (autoAbort) autoAbort.abort(); });
         $('auto-btn').addEventListener('click', function () {
           if (autoRunning) return;
           clearError();
@@ -504,6 +555,7 @@ html(lang=lang || "en")
           var author = $('auto-author').value.trim();
           var mine = source, status = $('auto-status'), made = [], skipped = 0, published = [];
           var wantKo = $('auto-ko').checked, english = true, koNote = '';
+          var koWanted = 0, koFilled = 0, koProblem = '';
           var stopped = function () { var err = new Error(t('Stopped.')); err.cancelled = true; return err; };
           var busy = function (on) {
             autoRunning = on;
@@ -512,6 +564,31 @@ html(lang=lang || "en")
             transcribeBtn.disabled = on || !source;
             $('auto-stop').hidden = !on;
           };
+
+          // Korean for `jobs` (job.ko), eight sentences per request and two
+          // requests at a time. Never rejects: what the AI skips, or the
+          // rest once it fails, simply stays without Korean (see koNote).
+          function translateJobs(jobs, progress) {
+            if (!wantKo || !english || !jobs.length) return Promise.resolve();
+            koWanted += jobs.length;
+            var at = 0, seen = 0, failed = false, BATCH = 8;
+            var worker = function () {
+              if (autoStop || failed || at >= jobs.length) return null;
+              var batch = jobs.slice(at, at + BATCH);
+              at += batch.length;
+              return call('/community/translate', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ sentences: batch.map(function (job) { return job.answer.slice(0, 500); }) }) })
+                .then(function (body) {
+                  batch.forEach(function (job, k) {
+                    var ko = (body.translations || [])[k];
+                    if (ko) { job.ko = ko; koFilled++; }
+                  });
+                  seen += batch.length;
+                  progress(seen);
+                  return worker();
+                }, function (err) { failed = true; koProblem = koProblem || err.message; return null; });
+            };
+            return Promise.all([worker(), worker()]);
+          }
 
           // Every sentence of the transcript on screen → an item in `made`.
           function cropPart(label) {
@@ -522,20 +599,38 @@ html(lang=lang || "en")
               if (!answer || !(r.end > r.start) || r.end - r.start > MAX_CLIP) skipped++;
               else todo.push({ range: r, answer: answer });
             });
-            var at = 0;
-            var next = function () {
-              if (autoStop) throw stopped();
-              if (at >= todo.length) return null;
-              var job = todo[at];
-              status.textContent = label + t('Cropping {n} / {total}…', { n: at + 1, total: todo.length });
-              return call('/studio/clip?start=' + job.range.start + '&end=' + job.range.end, { method: 'POST', headers: { 'Content-Type': 'audio/mpeg' }, body: audioBlob })
-                .then(function (clip) {
-                  made.push({ type: 'full', answer: job.answer, audioUrl: clip.audioUrl });
-                  at++;
-                  return next();
-                });
+            if (!todo.length) return Promise.resolve();
+            var cropped = 0, translated = 0;
+            var show = function () {
+              if (!autoRunning || autoStop) return; // a late reply after it ended
+              status.textContent = label + t('Cropping {n} / {total}…', { n: cropped, total: todo.length }) +
+                (wantKo && english ? ' ' + t('Translating {n} / {total}…', { n: translated, total: todo.length }) : '');
             };
-            return Promise.resolve().then(next);
+            show();
+            autoAbort = window.AbortController ? new AbortController() : null;
+            var translating = translateJobs(todo, function (n) { translated = n; show(); });
+            return cropMany(todo.map(function (job) { return job.range; }), function (n) { cropped = n; show(); }, autoAbort ? autoAbort.signal : undefined)
+              .then(function (clips) {
+                var firstError = '', kept = [];
+                clips.forEach(function (clip, k) {
+                  if (clip.error) { firstError = firstError || clip.error; skipped++; return; }
+                  todo[k].audioUrl = clip.audioUrl;
+                  kept.push(todo[k]);
+                });
+                // Nothing cropped at all is the service being down, not a bad sentence.
+                if (!kept.length) throw new Error(firstError);
+                return translating.then(function () {
+                  if (autoStop) throw stopped();
+                  kept.forEach(function (job) {
+                    var item = { type: 'full', answer: job.answer, audioUrl: job.audioUrl };
+                    if (job.ko) item.ko = job.ko;
+                    made.push(item);
+                  });
+                });
+              }, function (err) {
+                // Stop aborts the request; the clips it had made are lost with it.
+                throw autoStop ? stopped() : err;
+              });
           }
 
           function runPart(n) {
@@ -552,34 +647,11 @@ html(lang=lang || "en")
             });
           }
 
-          // Korean meanings for `made`, a few sentences per request (POST
-          // /community/translate, the Community editor's translator). Never
-          // a reason not to publish: if the AI is down, or skips a sentence,
-          // those items simply go out without Korean and `koNote` says so.
-          function translateAll() {
-            if (!wantKo || !made.length) return null;
-            if (!english) { koNote = t('Korean meanings were not added: the recording is not in English.'); return null; }
-            var at = 0, filled = 0, BATCH = 8;
-            var finish = function (problem) {
-              if (filled < made.length) koNote = t('Korean meanings added to {n} of {total} items.', { n: filled, total: made.length }) + (problem ? ' (' + problem + ')' : '');
-              return null;
-            };
-            var next = function () {
-              if (autoStop) throw stopped();
-              if (at >= made.length) return finish();
-              var batch = made.slice(at, at + BATCH);
-              status.textContent = t('Translating {n} / {total}…', { n: at + batch.length, total: made.length });
-              return call('/community/translate', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ sentences: batch.map(function (item) { return item.answer.slice(0, 500); }) }) })
-                .then(function (body) {
-                  batch.forEach(function (item, k) {
-                    var ko = (body.translations || [])[k];
-                    if (ko) { item.ko = ko; filled++; }
-                  });
-                  at += batch.length;
-                  return next();
-                }, function (err) { return finish(err.message); });
-            };
-            return next();
+          // Called once every part is done: says so if some items got no Korean.
+          function noteKorean() {
+            if (wantKo && !english) koNote = t('Korean meanings were not added: the recording is not in English.');
+            else if (wantKo && koFilled < koWanted) koNote = t('Korean meanings added to {n} of {total} items.', { n: koFilled, total: koWanted }) + (koProblem ? ' (' + koProblem + ')' : '');
+            return null;
           }
 
           // `made` in sets of equal size, none over MAX_ITEMS.
@@ -619,12 +691,12 @@ html(lang=lang || "en")
 
           busy(true);
           $('auto-result').hidden = true;
-          Promise.resolve().then(function () { return runPart(1); }).then(translateAll).then(publishAll)
+          Promise.resolve().then(function () { return runPart(1); }).then(noteKorean).then(publishAll)
             .then(function () {
               busy(false);
               showPublished();
               var msg = published.length > 1 ? t('Published {n} sets.', { n: published.length }) : t('Published.');
-              if (skipped) msg += ' ' + t('{n} skipped (empty or longer than {max} s).', { n: skipped, max: MAX_CLIP });
+              if (skipped) msg += ' ' + t('{n} skipped (empty, longer than {max} s, or not cropped).', { n: skipped, max: MAX_CLIP });
               if (koNote) msg += ' ' + koNote;
               status.textContent = msg;
               clearSelection();
@@ -900,32 +972,30 @@ html(lang=lang || "en")
           var room = Math.max(0, MAX_ITEMS - items.length - (mode === 'existing' ? keptIndexes().length : 0));
           var over = Math.max(0, todo.length - room);
           todo = todo.slice(0, room);
-          var added = 0;
-          function done(err) {
-            btn.disabled = false;
-            $('add-item').disabled = false;
-            var msg = t('Added {n} of {total} sentences.', { n: added, total: data.sentences.length });
-            if (skipped) msg += ' ' + t('{n} skipped (empty or longer than {max} s).', { n: skipped, max: MAX_CLIP });
-            if (over) msg += ' ' + t('{n} left out: a set holds at most {max} items - publish this one, then add the rest to a new set.', { n: over, max: MAX_ITEMS });
-            status.textContent = msg;
-            if (err) showError(err.message);
-          }
-          function next() {
-            if (added >= todo.length) return done();
-            var job = todo[added];
-            status.textContent = t('Cropping {n} / {total}…', { n: added + 1, total: todo.length });
-            call('/studio/clip?start=' + job.range.start + '&end=' + job.range.end, { method: 'POST', headers: { 'Content-Type': 'audio/mpeg' }, body: audioBlob })
-              .then(function (clip) {
-                items.push({ type: type, answer: job.answer, audioUrl: clip.audioUrl });
-                added++;
-                renderItems();
-                next();
-              })
-              .catch(done);
-          }
           btn.disabled = true;
           $('add-item').disabled = true;
-          next();
+          status.textContent = t('Cropping {n} / {total}…', { n: 0, total: todo.length });
+          var added = 0, failed = 0, firstError = '';
+          cropMany(todo.map(function (job) { return job.range; }), function (n) { status.textContent = t('Cropping {n} / {total}…', { n: n, total: todo.length }); })
+            .then(function (clips) {
+              clips.forEach(function (clip, k) {
+                if (clip.error) { failed++; firstError = firstError || clip.error; return; }
+                items.push({ type: type, answer: todo[k].answer, audioUrl: clip.audioUrl });
+                added++;
+              });
+              renderItems();
+            })
+            .catch(function (err) { firstError = err.message; failed = todo.length - added; })
+            .then(function () {
+              btn.disabled = false;
+              $('add-item').disabled = false;
+              var msg = t('Added {n} of {total} sentences.', { n: added, total: data.sentences.length });
+              if (skipped) msg += ' ' + t('{n} skipped (empty or longer than {max} s).', { n: skipped, max: MAX_CLIP });
+              if (over) msg += ' ' + t('{n} left out: a set holds at most {max} items - publish this one, then add the rest to a new set.', { n: over, max: MAX_ITEMS });
+              if (failed) msg += ' ' + t('{n} could not be cropped.', { n: failed });
+              status.textContent = msg;
+              if (firstError) showError(firstError);
+            });
         });
 
         // ---- 3. Draft set: new, or added to an existing listening set ------
