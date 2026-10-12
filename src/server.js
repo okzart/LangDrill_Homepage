@@ -19,6 +19,8 @@ const StudioRoutes = require('./routes/studioRoutes');
 const ScanRoutes = require('./routes/scanRoutes');
 const TranscribeRoutes = require('./routes/transcribeRoutes');
 const MapRoutes = require('./routes/mapRoutes');
+const CallRoutes = require('./routes/callRoutes');
+const { attachSignalingProxy } = require('./services/signalingProxy');
 
 // Fail fast: without COOKIE_SECRET the session cookie can't be signed, so
 // every login would be silently unverifiable (see middleware/session.js).
@@ -45,6 +47,7 @@ const studioRoutes = new StudioRoutes(gatewayClient);
 const scanRoutes = new ScanRoutes(gatewayClient);
 const transcribeRoutes = new TranscribeRoutes(gatewayClient);
 const mapRoutes = new MapRoutes(gatewayClient);
+const callRoutes = new CallRoutes(gatewayClient);
 
 // Matches Content Sharing's own JSON body limit (its server.js).
 const BODY_LIMIT = '5mb';
@@ -87,6 +90,7 @@ app.use(studioRoutes.router);
 app.use(scanRoutes.router);
 app.use(transcribeRoutes.router);
 app.use(mapRoutes.router);
+app.use(callRoutes.router);
 
 // Simple liveness check, useful for uptime monitors / load balancers
 app.get('/health', (req, res) => res.json({ status: 'ok' }));
@@ -103,6 +107,10 @@ app.use(errorHandler);
 
 const PORT = process.env.PORT || 3004;
 
-app.listen(PORT, () => {
+const server = app.listen(PORT, () => {
   console.log(`Homepage server listening on http://localhost:${PORT}`);
 });
+
+// The video-call signaling WebSocket (/call/ws): carried to the gateway with
+// the caller's token, like every other gateway call - see services/signalingProxy.js.
+attachSignalingProxy(server, { gatewayUrl: gatewayClient.baseUrl, cookieSecret: process.env.COOKIE_SECRET });

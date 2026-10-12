@@ -7,13 +7,15 @@
   "scripts": {
     "start": "node src/server.js",
     "dev": "node --watch src/server.js",
-    "i18n:check": "node scripts/i18n-check.js"
+    "i18n:check": "node scripts/i18n-check.js",
+    "test": "node --test test/*.test.js"
   },
   "dependencies": {
     "cookie-parser": "^1.4.6",
     "dotenv": "^16.4.5",
     "express": "^4.19.2",
     "pug": "^3.0.4",
-    "undici": "^7.30.0"
+    "undici": "^7.30.0",
+    "ws": "^8.22.0"
   }
 }

@@ -1,0 +1,90 @@
+//- Video call: a peer-to-peer call (WebRTC) with another logged-in user,
+//- found by email. Two kinds: a two-way video call, or a one-way live
+//- stream the other person only watches. The page's script (src/public/call/)
+//- talks to signaling-service through /call/ws to set the call up; camera
+//- and microphone then flow directly between the two browsers, never through
+//- a LanguageDrill server. See src/routes/callRoutes.js and docs/p2p-video.md
+//- (gateway repo).
+doctype html
+html(lang=lang || "en")
+  head
+    meta(charset="UTF-8")
+    meta(name="viewport" content="width=device-width, initial-scale=1")
+    title= 'LanguageDrill — ' + t('Video call')
+    include _style
+    style.
+      .hint { font-size: 0.82rem; color: #666; }
+      .status { font-size: 0.9rem; min-height: 1.3rem; }
+      .status.on { color: #1f7a3d; }
+      .status.off { color: #888; }
+      .actions { display: flex; gap: 0.5rem; flex-wrap: wrap; align-items: center; margin-top: 0.75rem; }
+      .actions button { margin-top: 0; }
+      #peer-row { display: flex; gap: 0.5rem; align-items: flex-end; }
+      #peer-row > div { flex: 1; }
+      #peer-row button { flex: none; }
+      .panel { padding: 1rem; border: 1px solid #e3e3e3; border-radius: 10px; background: #fafbfd; }
+      .panel p { margin: 0 0 0.5rem; }
+      .stage { position: relative; background: #111; border-radius: 12px; overflow: hidden; aspect-ratio: 16 / 9; max-height: 70vh; }
+      .stage video { display: block; width: 100%; height: 100%; object-fit: contain; background: #111; }
+      #local-video { position: absolute; right: 12px; bottom: 12px; width: 24%; min-width: 96px; height: auto; aspect-ratio: 4 / 3; object-fit: cover; border: 2px solid rgba(255, 255, 255, 0.85); border-radius: 8px; transform: scaleX(-1); }
+      #stage-note { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; padding: 1rem; color: #ddd; font-size: 0.95rem; text-align: center; pointer-events: none; }
+      .call-bar { display: flex; gap: 0.5rem; flex-wrap: wrap; align-items: center; margin-top: 0.75rem; }
+      .call-bar button { margin-top: 0; }
+      .call-bar .spacer { flex: 1; }
+      .pill { display: inline-flex; align-items: center; gap: 0.4rem; padding: 0.2rem 0.7rem; border-radius: 999px; font-size: 0.82rem; background: #eee; color: #444; }
+      .pill::before { content: ''; width: 8px; height: 8px; border-radius: 50%; background: #999; }
+      .pill.good::before { background: #2c9c4a; }
+      .pill.wait::before { background: #e0a100; }
+      .pill.bad::before { background: #c0392b; }
+      button.off { background: #fbe3e3; border-color: #c0392b; color: #7a1f1f; }
+  body
+    include _nav
+    h1= t('Video call')
+    p.hint= t('Call another LanguageDrill user directly, browser to browser. Your camera and microphone go straight to the other person - they never pass through our servers.')
+
+    #call-error.error(hidden)
+    #call-info.success(hidden)
+
+    section#start
+      h2= t('Start a call')
+      #peer-row
+        div
+          label(for="peer-email")= t("The other person's email")
+          input#peer-email(type="email" autocomplete="off" placeholder="friend@example.com")
+        button#check-btn(type="button")= t('Check')
+      p#presence-line.status(aria-live="polite")
+      .actions
+        button#btn-call.primary(type="button" disabled)= t('Video call')
+        button#btn-stream(type="button" disabled)= t('Live stream (they watch you)')
+      p.hint= t('The other person must be logged in with LanguageDrill open in a browser tab. A video call shares both cameras; in a live stream only you are seen and heard.')
+
+    section#ringing.panel(hidden)
+      p#ringing-text(aria-live="polite")
+      button#btn-cancel(type="button")= t('Cancel')
+
+    section#incoming.panel(hidden)
+      p#incoming-text(aria-live="assertive")
+      .actions
+        button#btn-accept.primary(type="button")= t('Accept')
+        button#btn-reject(type="button")= t('Decline')
+
+    section#in-call(hidden)
+      .stage
+        video#remote-video(autoplay playsinline)
+        video#local-video(autoplay playsinline muted)
+        #stage-note
+      .call-bar
+        span#status-pill.pill(aria-live="polite")
+        span.spacer
+        button#btn-mic(type="button")= t('Mute')
+        button#btn-cam(type="button")= t('Camera off')
+        button#btn-upgrade(type="button" hidden)= t('Switch to two-way call')
+        button#btn-end.danger(type="button")= t('End call')
+      p#call-notice.hint(aria-live="polite")
+
+    //- The protocol is served by signaling-service itself (through
+    //- /call/protocol.js), so page and server can't disagree about it.
+    script(src="/call/protocol.js")
+    script(src="/assets/call/signalingClient.js")
+    script(src="/assets/call/peerSession.js")
+    script(src="/assets/call/callPage.js")

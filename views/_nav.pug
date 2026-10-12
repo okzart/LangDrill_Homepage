@@ -33,6 +33,7 @@ nav.site(aria-label=t('Main'))
       +tab('/studio', 'studio', t('Studio'), isActive('/studio'))
       +tab('/scan', 'scan', t('Scan'), isActive('/scan'))
       +tab('/chat', 'chat', t('Chat'), isActive('/chat'))
+      +tab('/call', 'video', t('Call'), isActive('/call'))
       +tab('/passages', 'book', t('Passages'), isActive('/passages'))
       +tab('/progress', 'chart', t('Progress'), isActive('/progress'))
     .me
@@ -74,3 +75,11 @@ script.
     document.addEventListener('click', function (e) { if (menu.open && !menu.contains(e.target)) menu.open = false; });
     document.addEventListener('keydown', function (e) { if (e.key === 'Escape') menu.open = false; });
   })();
+
+//- Incoming video calls ring on every page (src/public/call/incoming.js);
+//- the /call page handles its own. If signaling-service is down the protocol
+//- script comes back empty and incoming.js does nothing.
+if currentUser && here !== '/call'
+  script(src="/call/protocol.js" defer)
+  script(src="/assets/call/signalingClient.js" defer)
+  script(src="/assets/call/incoming.js" defer)
