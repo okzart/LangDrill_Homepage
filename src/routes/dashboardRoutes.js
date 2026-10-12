@@ -10,6 +10,7 @@
 const express = require('express');
 const { requireLogin } = require('../middleware/requireLogin');
 const AsyncHandler = require('../middleware/asyncHandler');
+const Avatar = require('../services/avatar');
 const { GatewayError } = require('../errors');
 
 const PAGE_SIZE = 8;
@@ -92,7 +93,11 @@ class DashboardRoutes {
 
   async showProfile(req, res) {
     const profile = await this.gatewayClient.get('/api/auth/me', req.auth.token);
-    res.render('profile', { profile });
+    // The image may have been changed elsewhere (the mobile app): this is
+    // where the copy remembered for the top bar catches up.
+    Avatar.remember(res, profile);
+    const avatar = Avatar.siteUrl(profile.avatarUrl);
+    res.render('profile', { profile, avatar, myAvatar: avatar });
   }
 }
 

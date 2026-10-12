@@ -5,6 +5,7 @@
 const express = require('express');
 const AsyncHandler = require('../middleware/asyncHandler');
 const Session = require('../middleware/session');
+const Avatar = require('../services/avatar');
 const { GatewayError } = require('../errors');
 
 // Only ever redirect to a same-site relative path. `next` arrives as a
@@ -45,6 +46,9 @@ class AuthRoutes {
     try {
       const { token } = await this.gatewayClient.post('/api/auth/login', { email, password });
       Session.setToken(res, token);
+      // Their profile image for the top bar (services/avatar.js). Login
+      // itself must not fail because this one extra lookup did.
+      await this.gatewayClient.get('/api/auth/me', token).then((user) => Avatar.remember(res, user), () => Avatar.forget(res));
       res.redirect(nextPath);
     } catch (err) {
       // Wrong credentials (401) or a missing field (400) are expected,
@@ -145,6 +149,7 @@ class AuthRoutes {
 
   logout(req, res) {
     Session.clearToken(res);
+    Avatar.forget(res);
     res.redirect('/login');
   }
 }

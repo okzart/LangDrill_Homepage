@@ -148,7 +148,7 @@ html(lang=lang || "en")
       aside.rail.rail-left(aria-label=t('Shortcuts'))
         div
           a.me-link(href="/profile")
-            +avatar(me, 42)
+            +avatar(me, 42, myAvatar)
             span.who
               strong= meName
               small= me
@@ -241,7 +241,7 @@ html(lang=lang || "en")
                 +icon('flame', 15)
                 = t('{n}-day streak · {done}/{goal} today', { n: streak, done: done, goal: goal })
           .compose
-            +avatar(me, 42)
+            +avatar(me, 42, myAvatar)
             a.fake-input(href="/chat")= t('What do you want to practise today?')
           .actions
             a(href="/chat")

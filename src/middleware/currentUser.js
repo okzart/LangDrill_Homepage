@@ -1,5 +1,6 @@
 const Session = require('./session');
 const { decodeJwtPayload, isExpired } = require('../services/jwt');
+const Avatar = require('../services/avatar');
 
 // Runs on every request (mounted app-wide in server.js). Makes the caller's
 // token/claims available two ways:
@@ -21,6 +22,9 @@ function currentUser(req, res, next) {
     }
   }
   res.locals.currentUser = req.auth?.user;
+  // Their profile image, if they have one (see services/avatar.js) - for the
+  // top bar on every page.
+  res.locals.myAvatar = Avatar.remembered(req, req.auth?.user?.sub);
   // For the nav's "you are here" highlight (views/_nav.pug).
   res.locals.currentPath = req.path;
   next();

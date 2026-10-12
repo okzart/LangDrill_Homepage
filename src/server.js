@@ -22,6 +22,7 @@ const TranscribeRoutes = require('./routes/transcribeRoutes');
 const MapRoutes = require('./routes/mapRoutes');
 const CallRoutes = require('./routes/callRoutes');
 const FriendsRoutes = require('./routes/friendsRoutes');
+const AvatarRoutes = require('./routes/avatarRoutes');
 const { attachSignalingProxy } = require('./services/signalingProxy');
 
 // Fail fast: without COOKIE_SECRET the session cookie can't be signed, so
@@ -51,6 +52,7 @@ const transcribeRoutes = new TranscribeRoutes(gatewayClient);
 const mapRoutes = new MapRoutes(gatewayClient);
 const callRoutes = new CallRoutes(gatewayClient);
 const friendsRoutes = new FriendsRoutes(gatewayClient);
+const avatarRoutes = new AvatarRoutes(gatewayClient);
 
 // Matches Content Sharing's own JSON body limit (its server.js).
 const BODY_LIMIT = '5mb';
@@ -111,6 +113,7 @@ app.use(transcribeRoutes.router);
 app.use(mapRoutes.router);
 app.use(callRoutes.router);
 app.use(friendsRoutes.router);
+app.use(avatarRoutes.router);
 
 // Simple liveness check, useful for uptime monitors / load balancers
 app.get('/health', (req, res) => res.json({ status: 'ok' }));

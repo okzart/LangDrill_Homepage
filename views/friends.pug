@@ -23,12 +23,15 @@ html(lang=lang || "en")
       ul.people button, ul.people .btn { margin-top: 0; }
       .dot { display: inline-block; width: 9px; height: 9px; margin-right: 0.45rem; border-radius: 50%; background: #c4c4c4; vertical-align: middle; }
       .dot.on { background: #2c9c4a; }
+      ul.people .who { display: flex; align-items: center; gap: 0.6rem; }
+      ul.people .who .name { min-width: 0; overflow-wrap: anywhere; }
       .presence { margin-left: 0.5rem; font-size: 0.8rem; color: #888; }
       .presence.on { color: #1f7a3d; }
       .empty { color: #888; font-size: 0.9rem; }
       a.btn.dim { opacity: 0.55; }
   body
     include _nav
+    include mixins/feed
     h1= t('Friends')
 
     if error
@@ -52,7 +55,9 @@ html(lang=lang || "en")
         ul.people
           each person in incoming
             li
-              span.who= person.email
+              span.who
+                +avatar(person.email, 36, person.avatar)
+                span.name= person.email
               .buttons
                 form(method="POST" action=`/friends/requests/${person.requestId}/accept`)
                   button.primary(type="submit")= t('Accept')
@@ -66,9 +71,11 @@ html(lang=lang || "en")
           each person in friends
             li(data-email=person.email)
               span.who
-                span.dot(aria-hidden="true")
-                = person.email
-                span.presence
+                +avatar(person.email, 40, person.avatar)
+                span.name
+                  span.dot(aria-hidden="true")
+                  = person.email
+                  span.presence
               .buttons
                 a.btn.dim(href=`/call?email=${encodeURIComponent(person.email)}&start=call` data-call)= t('Video call')
                 a.btn.dim(href=`/call?email=${encodeURIComponent(person.email)}&start=stream` data-call)= t('Live stream')
@@ -94,7 +101,9 @@ html(lang=lang || "en")
         ul.people
           each person in outgoing
             li
-              span.who= person.email
+              span.who
+                +avatar(person.email, 36, person.avatar)
+                span.name= person.email
               .buttons
                 form(method="POST" action=`/friends/requests/${person.requestId}/withdraw`)
                   button(type="submit")= t('Withdraw')

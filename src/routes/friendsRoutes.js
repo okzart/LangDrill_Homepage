@@ -10,6 +10,7 @@ const express = require('express');
 const { requireLogin } = require('../middleware/requireLogin');
 const AsyncHandler = require('../middleware/asyncHandler');
 const { GatewayError } = require('../errors');
+const Avatar = require('../services/avatar');
 
 // ?done= codes → the message views/friends.pug shows.
 const DONE = ['sent', 'friends', 'declined', 'withdrawn', 'removed'];
@@ -29,10 +30,12 @@ class FriendsRoutes {
 
   async show(req, res) {
     const lists = await this.gatewayClient.get('/api/friends', req.auth.token);
+    // Each person's profile image, as an address this site serves (or null).
+    const withAvatar = (people) => (people || []).map((person) => ({ ...person, avatar: Avatar.siteUrl(person.avatarUrl) }));
     res.render('friends', {
-      friends: lists.friends || [],
-      incoming: lists.incoming || [],
-      outgoing: lists.outgoing || [],
+      friends: withAvatar(lists.friends),
+      incoming: withAvatar(lists.incoming),
+      outgoing: withAvatar(lists.outgoing),
       done: DONE.includes(req.query.done) ? req.query.done : null,
       who: typeof req.query.who === 'string' ? req.query.who.slice(0, 320) : '',
       error: typeof req.query.error === 'string' ? req.query.error.slice(0, 300) : null,

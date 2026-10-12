@@ -40,8 +40,14 @@ include icons
     return parts;
   }
 
-mixin avatar(name, size)
-  span.av(class=ldTone(name) style=`--av:${size || 40}px` aria-hidden="true")= String(name || '?').trim().charAt(0).toUpperCase() || '?'
+//- A round avatar: the person's profile image when `image` (an address on
+//- this site, see services/avatar.js) is given, otherwise their initial on a
+//- colour. If the image fails to load, the initial shows instead.
+mixin avatar(name, size, image)
+  span.av(class=ldTone(name) style=`--av:${size || 40}px` aria-hidden="true")
+    = String(name || '?').trim().charAt(0).toUpperCase() || '?'
+    if image
+      img(src=image alt="" loading="lazy" onerror="this.remove()")
 
 mixin answer(text, blanks)
   span.en

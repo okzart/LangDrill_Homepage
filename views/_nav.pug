@@ -74,7 +74,11 @@ nav.site(aria-label=t('Main'))
             a(href="/admin/listening" class=isActive('/admin/listening') ? 'active' : '')
               +icon('headphones', 18)
               = t('Listening (Dia2)')
-      a.avatar(href="/profile" title=t('Profile - {email}', { email: currentUser.email }) aria-label=t('Profile - {email}', { email: currentUser.email }))= (currentUser.email || '?').charAt(0)
+      a.avatar(href="/profile" title=t('Profile - {email}', { email: currentUser.email }) aria-label=t('Profile - {email}', { email: currentUser.email }))
+        = (currentUser.email || '?').charAt(0)
+        //- Their profile image over the initial; gone again if it won't load.
+        if myAvatar
+          img(src=myAvatar alt="" onerror="this.remove()")
       form.inline(method="POST" action="/logout")
         button.link(type="submit" title=t('Log out') aria-label=t('Log out'))
           +icon('logout', 18)

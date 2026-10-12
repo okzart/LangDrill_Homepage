@@ -7,7 +7,22 @@ html(lang=lang || "en")
     include _style
     style.
       .profile { display: grid; grid-template-columns: auto 1fr; gap: 1.5rem; align-items: center; padding: 1.8rem; }
-      .profile .big-avatar { display: grid; place-items: center; width: 88px; height: 88px; border-radius: 28px; background: var(--blue-700); color: #fff; font-family: var(--display); font-size: 2.4rem; font-weight: 650; text-transform: uppercase; box-shadow: 0 16px 30px -14px rgba(29, 45, 61, 0.45); }
+      .profile .big-avatar img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+      .photo-actions { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; margin-top: 0.9rem; }
+      .photo-actions button, .photo-actions label.btn { margin: 0; }
+      .photo-actions input[type=file] { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+      #photo-status { font-size: 0.85rem; color: var(--muted); }
+      .hint { font-size: 0.8rem; color: var(--muted); }
+      .crop-row { display: flex; flex-wrap: wrap; gap: 1.5rem; align-items: flex-start; }
+      #crop-view { position: relative; flex: none; width: min(280px, 100%); aspect-ratio: 1 / 1; overflow: hidden; border-radius: 14px; background: #111; cursor: grab; touch-action: none; user-select: none; }
+      #crop-view:active { cursor: grabbing; }
+      #crop-view:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+      #crop-image { position: absolute; left: 0; top: 0; max-width: none; transform-origin: 0 0; pointer-events: none; }
+      /* Everything outside the circle is dimmed: the image is shown round. */
+      .crop-ring { position: absolute; inset: 0; border-radius: 50%; box-shadow: 0 0 0 200px rgba(0, 0, 0, 0.5); border: 2px solid rgba(255, 255, 255, 0.9); pointer-events: none; }
+      .crop-side { flex: 1 1 14rem; min-width: 0; }
+      .crop-side input[type=range] { width: 100%; padding: 0; min-height: 0; }
+      .profile .big-avatar { position: relative; overflow: hidden; display: grid; place-items: center; width: 88px; height: 88px; border-radius: 28px; background: var(--blue-700); color: #fff; font-family: var(--display); font-size: 2.4rem; font-weight: 650; text-transform: uppercase; box-shadow: 0 16px 30px -14px rgba(29, 45, 61, 0.45); }
       .profile h2 { margin: 0; font-size: 1.5rem; word-break: break-all; }
       .pill { display: inline-flex; align-items: center; gap: 0.35rem; margin-top: 0.45rem; padding: 0.2rem 0.65rem; border-radius: 999px; font-size: 0.75rem; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; background: var(--violet-soft); color: var(--violet); }
       .pill.admin { background: var(--gold-soft); color: #94621a; }
@@ -21,13 +36,45 @@ html(lang=lang || "en")
     include mixins/icons
     .page-head
       h1= t('Profile')
+    #photo-error.error(hidden)
     section.profile
-      .big-avatar= (profile.email || '?').charAt(0)
+      //- The initial shows through when there is no image (or it won't load).
+      #big-avatar.big-avatar
+        = (profile.email || '?').charAt(0)
+        if avatar
+          img(src=avatar alt=t('Your profile image') onerror="this.remove()")
       div
         h2= profile.email
         span.pill(class=profile.role === 'admin' ? 'admin' : '')
           +icon(profile.role === 'admin' ? 'shield' : 'user', 14)
           = t(profile.role)
+        //- Profile image: picked here, cropped to a square and scaled down
+        //- in the browser, then sent to POST /profile/avatar
+        //- (routes/avatarRoutes.js). Shown to you and to other users -
+        //- your friends list entry, for one.
+        .photo-actions
+          label.btn(for="photo-file")= avatar ? t('Change image') : t('Add a profile image')
+          input#photo-file(type="file" accept="image/jpeg,image/png,image/webp,image/*")
+          button#photo-remove.link(type="button" hidden=!avatar)= t('Remove image')
+          span#photo-status(aria-live="polite")
+        p.hint= t('Other users see this image next to your name. After choosing a picture you decide which part of it is used.')
+    //- Shown after a picture is picked: the user chooses the square part of
+    //- it to use - drag to move, zoom with the slider, the mouse wheel or
+    //- two fingers. The circle shows how it will look.
+    section#cropper(hidden)
+      h2= t('Choose the part to use')
+      .crop-row
+        #crop-view(tabindex="0" role="application" aria-label=t('Drag to move the picture; use the slider to zoom'))
+          img#crop-image(alt="" draggable="false")
+          .crop-ring(aria-hidden="true")
+        .crop-side
+          label(for="crop-zoom")= t('Zoom')
+          input#crop-zoom(type="range" min="1" max="4" step="0.01" value="1")
+          p.hint= t('Drag the picture to move it. Zoom with the slider, the mouse wheel or two fingers.')
+          .photo-actions
+            button#crop-save.primary(type="button")= t('Use this')
+            button#crop-cancel(type="button")= t('Cancel')
+
     section
       h2= t('Account details')
       .facts
@@ -44,3 +91,201 @@ html(lang=lang || "en")
           .k= t('User ID')
           .v
             code= profile.id
+
+    script.
+      (function () {
+        var SIZE = 256; // the square, in pixels, that is uploaded
+        var $ = function (id) { return document.getElementById(id); };
+        var input = $('photo-file'), status = $('photo-status'), errorBox = $('photo-error'), removeBtn = $('photo-remove');
+        function showError(message) { errorBox.textContent = message; errorBox.hidden = false; status.textContent = ''; }
+
+        // The image everywhere it shows on this page: the big one here and
+        // the small one in the top bar.
+        function show(url) {
+          [[$('big-avatar'), t('Your profile image')], [document.querySelector('nav.site a.avatar'), '']].forEach(function (pair) {
+            var holder = pair[0];
+            if (!holder) return;
+            var old = holder.querySelector('img');
+            if (old) old.remove();
+            if (!url) return;
+            var img = document.createElement('img');
+            img.alt = pair[1];
+            img.onerror = function () { img.remove(); };
+            img.src = url;
+            holder.appendChild(img);
+          });
+          removeBtn.hidden = !url;
+          document.querySelector('label[for="photo-file"]').textContent = url ? t('Change image') : t('Add a profile image');
+        }
+
+        function send(url, options) {
+          return fetch(url, options).then(function (res) {
+            if (res.status === 401) { location.href = '/login?next=/profile'; throw new Error(t('Not logged in')); }
+            return res.json().catch(function () { return {}; }).then(function (body) {
+              if (!res.ok) throw new Error(body.error || t('Something went wrong.'));
+              return body;
+            });
+          });
+        }
+
+        // ---- Choosing the part of the picture -------------------------------
+        // The picture sits in a square window (`view` pixels wide) at
+        // `scale` (screen pixels per picture pixel), its top-left corner at
+        // (x, y) relative to the window. It always covers the window, so
+        // the window never shows an empty edge.
+        var cropper = $('cropper'), cropView = $('crop-view'), cropImage = $('crop-image'), zoom = $('crop-zoom');
+        var picture = null; // { width, height, url }
+        var crop = { scale: 1, x: 0, y: 0, min: 1 };
+
+        // Keeps the picture covering the window.
+        function clampCrop(c, pic, view) {
+          c.scale = Math.max(c.min, Math.min(c.min * 4, c.scale));
+          c.x = Math.min(0, Math.max(view - pic.width * c.scale, c.x));
+          c.y = Math.min(0, Math.max(view - pic.height * c.scale, c.y));
+          return c;
+        }
+        // The square of the picture (in its own pixels) the window shows.
+        function sourceSquare(c, view) {
+          return { x: -c.x / c.scale, y: -c.y / c.scale, size: view / c.scale };
+        }
+        function viewSize() { return cropView.clientWidth; }
+        function paintCrop() {
+          clampCrop(crop, picture, viewSize());
+          cropImage.style.transform = 'translate(' + crop.x + 'px,' + crop.y + 'px) scale(' + crop.scale + ')';
+          zoom.value = String(crop.scale / crop.min);
+        }
+        // Zooms to `scale`, keeping the point (px, py) of the window still.
+        function zoomTo(scale, px, py) {
+          var before = crop.scale;
+          crop.scale = Math.max(crop.min, Math.min(crop.min * 4, scale));
+          crop.x = px - (px - crop.x) * (crop.scale / before);
+          crop.y = py - (py - crop.y) * (crop.scale / before);
+          paintCrop();
+        }
+
+        function openCropper(file) {
+          var url = URL.createObjectURL(file), probe = new Image();
+          probe.onload = function () {
+            if (!probe.naturalWidth || !probe.naturalHeight) { URL.revokeObjectURL(url); return showError(t('That file is not an image this browser can read.')); }
+            closeCropper();
+            picture = { width: probe.naturalWidth, height: probe.naturalHeight, url: url };
+            cropImage.src = url;
+            cropper.hidden = false;
+            // Start with the whole shorter side in view, centred.
+            var view = viewSize();
+            crop.min = view / Math.min(picture.width, picture.height);
+            crop.scale = crop.min;
+            crop.x = (view - picture.width * crop.scale) / 2;
+            crop.y = (view - picture.height * crop.scale) / 2;
+            paintCrop();
+            status.textContent = '';
+            cropper.scrollIntoView({ block: 'nearest' });
+            cropView.focus({ preventScroll: true });
+          };
+          probe.onerror = function () { URL.revokeObjectURL(url); showError(t('That file is not an image this browser can read.')); };
+          probe.src = url;
+        }
+        function closeCropper() {
+          if (picture) URL.revokeObjectURL(picture.url);
+          picture = null;
+          cropImage.removeAttribute('src');
+          cropper.hidden = true;
+        }
+
+        // Drag with one pointer; pinch with two.
+        var pointers = {}, pinch = null;
+        function pointerList() { return Object.keys(pointers).map(function (id) { return pointers[id]; }); }
+        function local(e) { var box = cropView.getBoundingClientRect(); return { x: e.clientX - box.left, y: e.clientY - box.top }; }
+        cropView.addEventListener('pointerdown', function (e) {
+          if (!picture) return;
+          cropView.setPointerCapture(e.pointerId);
+          pointers[e.pointerId] = local(e);
+          pinch = null;
+        });
+        cropView.addEventListener('pointermove', function (e) {
+          if (!picture || !pointers[e.pointerId]) return;
+          var was = pointers[e.pointerId], now = local(e);
+          pointers[e.pointerId] = now;
+          var list = pointerList();
+          if (list.length === 1) {
+            crop.x += now.x - was.x;
+            crop.y += now.y - was.y;
+            paintCrop();
+          } else if (list.length === 2) {
+            var distance = Math.hypot(list[0].x - list[1].x, list[0].y - list[1].y);
+            var centre = { x: (list[0].x + list[1].x) / 2, y: (list[0].y + list[1].y) / 2 };
+            if (pinch && pinch.distance > 0) zoomTo(crop.scale * distance / pinch.distance, centre.x, centre.y);
+            pinch = { distance: distance };
+          }
+        });
+        ['pointerup', 'pointercancel', 'pointerleave'].forEach(function (type) {
+          cropView.addEventListener(type, function (e) { delete pointers[e.pointerId]; pinch = null; });
+        });
+        cropView.addEventListener('wheel', function (e) {
+          if (!picture) return;
+          e.preventDefault();
+          var at = local(e);
+          zoomTo(crop.scale * (e.deltaY < 0 ? 1.08 : 1 / 1.08), at.x, at.y);
+        }, { passive: false });
+        zoom.addEventListener('input', function () {
+          if (picture) zoomTo(crop.min * Number(zoom.value), viewSize() / 2, viewSize() / 2);
+        });
+        // Arrow keys move, + and - zoom, for people not using a pointer.
+        cropView.addEventListener('keydown', function (e) {
+          if (!picture) return;
+          var step = e.shiftKey ? 40 : 10, half = viewSize() / 2;
+          if (e.key === 'ArrowLeft') crop.x += step;
+          else if (e.key === 'ArrowRight') crop.x -= step;
+          else if (e.key === 'ArrowUp') crop.y += step;
+          else if (e.key === 'ArrowDown') crop.y -= step;
+          else if (e.key === '+' || e.key === '=') return void (e.preventDefault(), zoomTo(crop.scale * 1.1, half, half));
+          else if (e.key === '-' || e.key === '_') return void (e.preventDefault(), zoomTo(crop.scale / 1.1, half, half));
+          else return;
+          e.preventDefault();
+          paintCrop();
+        });
+
+        // The chosen square, scaled to SIZE, as a JPEG.
+        function croppedJpeg() {
+          return new Promise(function (resolve, reject) {
+            var square = sourceSquare(crop, viewSize());
+            var canvas = document.createElement('canvas');
+            canvas.width = canvas.height = SIZE;
+            var context = canvas.getContext('2d');
+            context.fillStyle = '#fff'; // behind a transparent PNG
+            context.fillRect(0, 0, SIZE, SIZE);
+            context.imageSmoothingQuality = 'high';
+            context.drawImage(cropImage, square.x, square.y, square.size, square.size, 0, 0, SIZE, SIZE);
+            canvas.toBlob(function (blob) { blob ? resolve(blob) : reject(new Error(t('That file is not an image this browser can read.'))); }, 'image/jpeg', 0.86);
+          });
+        }
+
+        input.addEventListener('change', function () {
+          var file = input.files[0];
+          input.value = ''; // so picking the same file again still fires
+          if (!file) return;
+          errorBox.hidden = true;
+          openCropper(file);
+        });
+        $('crop-cancel').addEventListener('click', closeCropper);
+        $('crop-save').addEventListener('click', function () {
+          if (!picture) return;
+          var save = $('crop-save');
+          errorBox.hidden = true;
+          save.disabled = true;
+          status.textContent = t('Uploading…');
+          croppedJpeg()
+            .then(function (blob) { return send('/profile/avatar', { method: 'POST', headers: { 'Content-Type': 'image/jpeg' }, body: blob }); })
+            .then(function (result) { closeCropper(); show(result.avatarUrl); status.textContent = t('Profile image saved.'); })
+            .catch(function (err) { showError(err.message); })
+            .then(function () { save.disabled = false; });
+        });
+
+        removeBtn.addEventListener('click', function () {
+          if (!confirm(t('Remove your profile image?'))) return;
+          errorBox.hidden = true;
+          send('/profile/avatar/remove', { method: 'POST' })
+            .then(function () { show(null); status.textContent = t('Profile image removed.'); })
+            .catch(function (err) { showError(err.message); });
+        });
+      })();
