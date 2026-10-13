@@ -88,6 +88,7 @@ html(lang=lang || "en")
                     span.email= person.email
               .buttons
                 a.btn(href=`/messages/${encodeURIComponent(person.id)}`)= t('Message')
+                a.btn(href=`/schedule?with=${encodeURIComponent(person.id)}`)= t('Schedule')
                 a.btn.dim(href=`/call?email=${encodeURIComponent(person.email)}&start=call` data-call)= t('Video call')
                 a.btn.dim(href=`/call?email=${encodeURIComponent(person.email)}&start=stream` data-call)= t('Live stream')
                 form(method="POST" action=`/friends/${person.id}/remove` onsubmit=`return confirm(${JSON.stringify(t('Remove {email} from your friends?', { email: person.email }))})`)

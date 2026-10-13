@@ -38,6 +38,7 @@ nav.site(aria-label=t('Main'))
       -
         var more = [
           { href: '/messages', icon: 'mail', label: t('Messages') },
+          { href: '/schedule', icon: 'calendar', label: t('Schedule') },
           { href: '/call', icon: 'video', label: t('Video call') },
           { href: '/scan', icon: 'scan', label: t('Scan') },
           { href: '/passages', icon: 'book', label: t('Passages') },
@@ -126,3 +127,8 @@ if currentUser
         })
         .catch(function () {});
     })();
+
+//- A scheduled video call coming due pops up on whatever page the user is
+//- on (src/public/schedule/reminder.js).
+if currentUser
+  script(src=asset('schedule/reminder.js') defer)

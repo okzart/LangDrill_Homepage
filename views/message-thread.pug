@@ -20,6 +20,9 @@ html(lang=lang || "en")
       .msg .text { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
       .msg time { display: block; margin-top: 0.2rem; font-size: 0.72rem; color: var(--muted); }
       .msg.mine time { text-align: right; }
+      .msg.notice { align-self: center; max-width: min(34rem, 94%); background: #fff8e6; border: 1px solid #f0dfae; text-align: center; }
+      .msg.notice time { text-align: center; }
+      .msg.notice a { margin-left: 0.4rem; font-weight: 600; }
       .older { align-self: center; font-size: 0.85rem; }
       form.write { position: sticky; bottom: 0; display: flex; gap: 0.5rem; align-items: flex-end; padding: 0.6rem 0; background: var(--bg, #fff); border-top: 1px solid var(--line); }
       form.write textarea { flex: 1; min-height: 2.6rem; max-height: 10rem; margin: 0; resize: vertical; }
@@ -43,6 +46,13 @@ html(lang=lang || "en")
       if older
         a.older(href=`/messages/${encodeURIComponent(person.id)}`)= t('Back to the latest messages')
       each m in messages
+        //- A notice about a scheduled call: the page's script words it, with
+        //- the time in this browser's zone (until then, the English fallback).
+        if m.kind
+          .msg.notice(data-kind=m.kind data-mine=(m.mine ? '1' : '0') data-start=m.meeting.startAt data-minutes=m.meeting.durationMinutes)
+            p.text= m.text
+            time(datetime=m.createdAt)= new Date(m.createdAt).toLocaleString(lang === 'ko' ? 'ko-KR' : 'en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
+          - continue
         .msg(class=m.mine ? 'mine' : '')
           p.text= m.text
           time(datetime=m.createdAt)= new Date(m.createdAt).toLocaleString(lang === 'ko' ? 'ko-KR' : 'en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
@@ -58,6 +68,30 @@ html(lang=lang || "en")
     script.
       (function () {
         var thread = document.getElementById('thread'), box = document.getElementById('text');
+        var NAME = !{JSON.stringify(person.displayName).replace(/</g, '\\u003c')};
+
+        // Words a notice about a scheduled call, for this reader: who did
+        // what, and when the call is in their own time zone.
+        function describe(row, kind, mine, startAt, minutes) {
+          var start = new Date(startAt), end = new Date(start.getTime() + Number(minutes || 0) * 60000);
+          var locale = window.LD_LANG === 'ko' ? 'ko-KR' : 'en-US';
+          var time = function (d) { return d.toLocaleTimeString(locale, { hour: 'numeric', minute: '2-digit' }); };
+          var when = start.toLocaleDateString(locale, { weekday: 'short', month: 'short', day: 'numeric' }) + ', ' + time(start) + ' - ' + time(end);
+          var vars = { name: NAME, when: when };
+          var text = kind === 'meeting.invite' ? (mine ? t('You invited {name} to a video call: {when}.', vars) : t('{name} invited you to a video call: {when}.', vars))
+            : kind === 'meeting.accepted' ? (mine ? t('You accepted the video call: {when}.', vars) : t('{name} accepted the video call: {when}.', vars))
+              : kind === 'meeting.declined' ? (mine ? t('You declined the video call: {when}.', vars) : t('{name} declined the video call: {when}.', vars))
+                : kind === 'meeting.cancelled' ? (mine ? t('You cancelled the video call: {when}.', vars) : t('{name} cancelled the video call: {when}.', vars))
+                  : kind === 'meeting.due' ? t('It\'s time for your video call with {name} ({when}).', vars) : null;
+          if (!text) return;
+          var p = row.querySelector('.text');
+          p.textContent = '📅 ' + text;
+          var link = document.createElement('a');
+          link.href = '/schedule';
+          link.textContent = kind === 'meeting.invite' && !mine ? t('Answer') : t('Open schedule');
+          p.appendChild(link);
+        }
+        thread.querySelectorAll('.msg.notice').forEach(function (row) { describe(row, row.dataset.kind, row.dataset.mine === '1', row.dataset.start, row.dataset.minutes); });
         var LIVE = !{JSON.stringify(!older)}, LOCALE = !{JSON.stringify(lang === 'ko' ? 'ko-KR' : 'en-US')};
         var last = thread.dataset.last;
         if (LIVE) document.getElementById('latest').scrollIntoView({ block: 'end' });
@@ -76,13 +110,14 @@ html(lang=lang || "en")
           var empty = document.getElementById('empty');
           if (empty) empty.remove();
           var row = document.createElement('div'), text = document.createElement('p'), time = document.createElement('time');
-          row.className = 'msg' + (message.mine ? ' mine' : '');
+          row.className = 'msg' + (message.kind ? ' notice' : message.mine ? ' mine' : '');
           text.className = 'text';
           text.textContent = message.text; // as text, never as markup
           time.dateTime = message.createdAt;
           time.textContent = new Date(message.createdAt).toLocaleString(LOCALE, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
           row.appendChild(text);
           row.appendChild(time);
+          if (message.kind && message.meeting) describe(row, message.kind, message.mine, message.meeting.startAt, message.meeting.durationMinutes);
           thread.appendChild(row);
         }
         function poll() {

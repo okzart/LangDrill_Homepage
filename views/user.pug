@@ -47,6 +47,7 @@ html(lang=lang || "en")
         .friend-actions
           //- Anyone can be left a message, friend or not.
           a.btn(href=`/messages/${encodeURIComponent(person.id)}`)= t('Message')
+          a.btn(href=`/schedule?with=${encodeURIComponent(person.id)}`)= t('Schedule a call')
           if friendship.status === 'friends'
             span.state= t('You are friends.')
             if friendship.email

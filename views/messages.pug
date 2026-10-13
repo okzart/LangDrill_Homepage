@@ -33,7 +33,20 @@ html(lang=lang || "en")
               span.top
                 span.name= c.user.displayName
                 time(datetime=c.last.createdAt)= ldTimeAgo(new Date(c.last.createdAt).getTime(), lang)
-              span.last= (c.last.mine ? t('You: ') : '') + c.last.text.replace(/\s+/g, ' ')
+              //- A notice about a scheduled call (it has a `kind`) is worded here;
+              //- anything else is what the person wrote.
+              -
+                var NOTICE = {
+                  'meeting.invite': t('Video call invitation'),
+                  'meeting.accepted': t('Video call accepted'),
+                  'meeting.declined': t('Video call declined'),
+                  'meeting.cancelled': t('Video call cancelled'),
+                  'meeting.due': t('It\'s time for your video call'),
+                }
+              if c.last.kind
+                span.last= '📅 ' + (NOTICE[c.last.kind] || c.last.text)
+              else
+                span.last= (c.last.mine ? t('You: ') : '') + c.last.text.replace(/\s+/g, ' ')
             if c.unread
               span.count(title=t('{n} unread', { n: c.unread }))= c.unread
     else
