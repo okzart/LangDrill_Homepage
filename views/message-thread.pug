@@ -1,0 +1,101 @@
+//- One conversation (see routes/messagesRoutes.js): everything this user
+//- and `person` wrote each other, oldest first, and a box to write more.
+//- While the page is open it asks every few seconds for what arrived since
+//- (GET /messages/:id/new). Message text is always shown as text.
+doctype html
+html(lang=lang || "en")
+  head
+    meta(charset="UTF-8")
+    meta(name="viewport" content="width=device-width, initial-scale=1")
+    title= 'LanguageDrill — ' + t('Messages') + ' · ' + person.displayName
+    include _style
+    style.
+      .hint { font-size: 0.82rem; color: var(--muted); }
+      .thread-head { display: flex; gap: 0.8rem; align-items: center; margin-bottom: 0.75rem; }
+      .thread-head h1 { margin: 0; font-size: 1.3rem; overflow-wrap: anywhere; }
+      .thread-head .back { margin-left: auto; font-size: 0.9rem; }
+      #thread { display: flex; flex-direction: column; gap: 0.45rem; padding: 0.5rem 0 1rem; }
+      .msg { max-width: min(34rem, 82%); padding: 0.5rem 0.75rem; border-radius: 14px; background: #eef1f5; align-self: flex-start; }
+      .msg.mine { align-self: flex-end; background: var(--blue-100); }
+      .msg .text { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+      .msg time { display: block; margin-top: 0.2rem; font-size: 0.72rem; color: var(--muted); }
+      .msg.mine time { text-align: right; }
+      .older { align-self: center; font-size: 0.85rem; }
+      form.write { position: sticky; bottom: 0; display: flex; gap: 0.5rem; align-items: flex-end; padding: 0.6rem 0; background: var(--bg, #fff); border-top: 1px solid var(--line); }
+      form.write textarea { flex: 1; min-height: 2.6rem; max-height: 10rem; margin: 0; resize: vertical; }
+      form.write button { flex: none; margin: 0; }
+      @media (max-width: 1020px) { form.write { bottom: 62px; } }
+  body
+    include _nav
+    include mixins/feed
+    .thread-head
+      +avatar(person.displayName, 44, person.avatar, person.id)
+      h1
+        a(href=`/users/${encodeURIComponent(person.id)}`)= person.displayName
+      a.back(href="/messages")= t('← All messages')
+
+    if error
+      .error= t(error)
+
+    #thread(data-last=(messages.length ? messages[messages.length - 1].createdAt : ''))
+      if hasMore
+        a.older(href=`/messages/${encodeURIComponent(person.id)}?before=${encodeURIComponent(messages[0].createdAt)}`)= t('Earlier messages')
+      if older
+        a.older(href=`/messages/${encodeURIComponent(person.id)}`)= t('Back to the latest messages')
+      each m in messages
+        .msg(class=m.mine ? 'mine' : '')
+          p.text= m.text
+          time(datetime=m.createdAt)= new Date(m.createdAt).toLocaleString(lang === 'ko' ? 'ko-KR' : 'en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
+      if !messages.length
+        p.hint#empty= t('No messages with {name} yet. Say hello.', { name: person.displayName })
+    span#latest
+
+    form.write(method="POST" action=`/messages/${encodeURIComponent(person.id)}`)
+      textarea#text(name="text" required maxlength=maxLength rows="1" placeholder=t('Write a message to {name}…', { name: person.displayName }) aria-label=t('Message'))= draft
+      button.primary(type="submit")= t('Send')
+    p.hint= t('They will see it the next time they open LanguageDrill. Enter sends; Shift+Enter starts a new line.')
+
+    script.
+      (function () {
+        var thread = document.getElementById('thread'), box = document.getElementById('text');
+        var LIVE = !{JSON.stringify(!older)}, LOCALE = !{JSON.stringify(lang === 'ko' ? 'ko-KR' : 'en-US')};
+        var last = thread.dataset.last;
+        if (LIVE) document.getElementById('latest').scrollIntoView({ block: 'end' });
+        if (LIVE) box.focus({ preventScroll: true });
+
+        // Enter sends, Shift+Enter is a new line (not while composing Korean).
+        box.addEventListener('keydown', function (e) {
+          if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) {
+            e.preventDefault();
+            if (box.value.trim()) box.form.requestSubmit ? box.form.requestSubmit() : box.form.submit();
+          }
+        });
+
+        if (!LIVE) return; // an earlier page: nothing new belongs on it
+        function add(message) {
+          var empty = document.getElementById('empty');
+          if (empty) empty.remove();
+          var row = document.createElement('div'), text = document.createElement('p'), time = document.createElement('time');
+          row.className = 'msg' + (message.mine ? ' mine' : '');
+          text.className = 'text';
+          text.textContent = message.text; // as text, never as markup
+          time.dateTime = message.createdAt;
+          time.textContent = new Date(message.createdAt).toLocaleString(LOCALE, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+          row.appendChild(text);
+          row.appendChild(time);
+          thread.appendChild(row);
+        }
+        function poll() {
+          if (document.hidden) return;
+          fetch(location.pathname + '/new?after=' + encodeURIComponent(last || '1970-01-01T00:00:00.000Z'), { headers: { Accept: 'application/json' } })
+            .then(function (res) { return res.ok ? res.json() : { messages: [] }; })
+            .then(function (body) {
+              var nearBottom = window.innerHeight + window.scrollY >= document.body.scrollHeight - 160;
+              (body.messages || []).forEach(function (message) { add(message); last = message.createdAt; });
+              if ((body.messages || []).length && nearBottom) document.getElementById('latest').scrollIntoView({ block: 'end', behavior: 'smooth' });
+            })
+            .catch(function () {});
+        }
+        setInterval(poll, 8000);
+        document.addEventListener('visibilitychange', function () { if (!document.hidden) poll(); });
+      })();

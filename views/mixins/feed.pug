@@ -42,8 +42,17 @@ include icons
 
 //- A round avatar: the person's profile image when `image` (an address on
 //- this site, see services/avatar.js) is given, otherwise their initial on a
-//- colour. If the image fails to load, the initial shows instead.
-mixin avatar(name, size, image)
+//- colour. If the image fails to load, the initial shows instead. With
+//- `userId` it is a link to that person's profile page (/users/:id) - don't
+//- pass one where the avatar already sits inside a link.
+mixin avatar(name, size, image, userId)
+  if userId
+    a.av-link(href=`/users/${encodeURIComponent(userId)}` title=t("See {name}'s profile", { name: name }) aria-label=t("See {name}'s profile", { name: name }))
+      +avatarFace(name, size, image)
+  else
+    +avatarFace(name, size, image)
+
+mixin avatarFace(name, size, image)
   span.av(class=ldTone(name) style=`--av:${size || 40}px` aria-hidden="true")
     = String(name || '?').trim().charAt(0).toUpperCase() || '?'
     if image
@@ -61,9 +70,12 @@ mixin feedPost(post)
   - var url = `/community/${encodeURIComponent(post.id)}`
   article.post(data-type=post.type class=`post-${post.type}`)
     header.post-head
-      +avatar(post.author, 42)
+      +avatar(post.author, 42, post.authorAvatar, post.authorId)
       .who
-        .name= post.author
+        if post.authorId
+          a.name(href=`/users/${encodeURIComponent(post.authorId)}`)= post.author
+        else
+          .name= post.author
         .sub
           = t('shared a {type} set', { type: t(post.type) })
           |  · 

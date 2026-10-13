@@ -18,10 +18,18 @@ function currentUser(req, res, next) {
   if (token) {
     const payload = decodeJwtPayload(token);
     if (payload && !isExpired(payload)) {
-      req.auth = { token, user: { sub: payload.sub, email: payload.email, role: payload.role || 'user' } };
+      // `name`: the display name others see - the nickname, or a neutral
+      // stand-in (Authentication's dto/userDto.js#displayName, repeated
+      // here for a token issued before it carried one).
+      const name = typeof payload.name === 'string' && payload.name ? payload.name : `learner-${String(payload.sub || '').replace(/[^A-Za-z0-9]/g, '').slice(0, 6).toLowerCase()}`;
+      req.auth = { token, user: { sub: payload.sub, email: payload.email, role: payload.role || 'user', name } };
     }
   }
   res.locals.currentUser = req.auth?.user;
+  // The name their drill sets are published under: their display name.
+  // Content Sharing takes it from the login token and ignores anything a
+  // form sends, so the forms only show it.
+  res.locals.authorName = req.auth?.user?.name || '';
   // Their profile image, if they have one (see services/avatar.js) - for the
   // top bar on every page.
   res.locals.myAvatar = Avatar.remembered(req, req.auth?.user?.sub);

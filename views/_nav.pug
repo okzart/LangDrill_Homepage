@@ -37,6 +37,7 @@ nav.site(aria-label=t('Main'))
       +tab('/friends', 'friends', t('Friends'), isActive('/friends'))
       -
         var more = [
+          { href: '/messages', icon: 'mail', label: t('Messages') },
           { href: '/call', icon: 'video', label: t('Video call') },
           { href: '/scan', icon: 'scan', label: t('Scan') },
           { href: '/passages', icon: 'book', label: t('Passages') },
@@ -48,11 +49,15 @@ nav.site(aria-label=t('Main'))
         summary.tab(class=inMore ? 'active' : '' title=t('More') aria-label=t('More'))
           +icon('more', 22)
           span.tab-label= t('More')
+          //- Lit by the script below when there are unread messages.
+          span.unread-dot#nav-unread-dot(hidden)
         .menu
           each item in more
             a(href=item.href class=isActive(item.href) ? 'active' : '' aria-current=(isActive(item.href) ? 'page' : false))
               +icon(item.icon, 18)
               = item.label
+              if item.href === '/messages'
+                span.unread-count#nav-unread-count(hidden)
     .me
       +langSwitch
       if currentUser.role === 'admin'
@@ -104,3 +109,20 @@ if currentUser && here !== '/call'
   script(src="/call/protocol.js" defer)
   script(src=asset('call/signalingClient.js') defer)
   script(src=asset('call/incoming.js') defer)
+
+//- Unread messages: a dot on "More" and the number next to Messages in its
+//- menu. One small request per page (GET /messages/unread); silent on failure.
+if currentUser
+  script.
+    (function () {
+      fetch('/messages/unread', { headers: { Accept: 'application/json' } })
+        .then(function (res) { return res.ok ? res.json() : { count: 0 }; })
+        .then(function (body) {
+          var n = body.count || 0, dot = document.getElementById('nav-unread-dot'), count = document.getElementById('nav-unread-count');
+          if (!n || !dot || !count) return;
+          dot.hidden = false;
+          count.hidden = false;
+          count.textContent = n > 99 ? '99+' : String(n);
+        })
+        .catch(function () {});
+    })();

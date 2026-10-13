@@ -20,8 +20,11 @@ mixin itemBuilder(formAction, prefill, submitLabel)
     input#name(type="text" name="name" required value=p.name)
     label(for="desc")= t('Description')
     input#desc(type="text" name="desc" value=p.desc)
-    label(for="author")= t('Author (display name)')
-    input#author(type="text" name="author" value=p.author placeholder=currentUser.email)
+    //- Not a choice: a set is published under its owner's own name, set by
+    //- Content Sharing from the account. Shown, never sent.
+    label(for="author")= t('Author')
+    input#author(type="text" value=authorName readonly disabled)
+    p.hint= t('Sets are published under your nickname. You can change it on your profile page.')
 
     //- Vocab only: the tts voice every item's answer sentence is narrated
     //- in (shown/hidden by the type <select> - see community.pug's script).

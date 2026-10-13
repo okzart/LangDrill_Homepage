@@ -40,4 +40,23 @@ function remembered(req, userId) {
   return owner === userId && /^\/avatar\/[^/?#]+(\?v=[^#"'<>\s]*)?$/.test(url || '') ? url : null;
 }
 
-module.exports = { siteUrl, remember, forget, remembered };
+// Adds `authorAvatar` - the image of whoever published it, as an address on
+// this site, or null - to each of `sets` (cards or full sets from Content
+// Sharing, which name their publisher in `authorId`). One lookup for all of
+// them. Never throws: a page of sets is still a page of sets without
+// pictures, so on any failure every `authorAvatar` is simply null.
+async function withAuthorAvatars(gatewayClient, token, sets) {
+  const list = Array.isArray(sets) ? sets : [];
+  const ids = [...new Set(list.map((set) => set?.authorId).filter(Boolean))].slice(0, 200);
+  let avatars = {};
+  if (ids.length) {
+    try {
+      avatars = (await gatewayClient.get(`/api/auth/avatars?ids=${ids.map(encodeURIComponent).join(',')}`, token))?.avatars || {};
+    } catch (error) {
+      avatars = {};
+    }
+  }
+  return list.map((set) => ({ ...set, authorAvatar: siteUrl(avatars[set?.authorId]) }));
+}
+
+module.exports = { siteUrl, remember, forget, remembered, withAuthorAvatars };

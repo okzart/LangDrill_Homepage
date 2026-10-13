@@ -8,6 +8,7 @@ const { requireLogin } = require('../middleware/requireLogin');
 const AsyncHandler = require('../middleware/asyncHandler');
 const { GatewayError } = require('../errors');
 const { loadVoiceOptions } = require('../services/voiceOptions');
+const Avatar = require('../services/avatar');
 
 const TABS = ['list', 'create'];
 
@@ -72,7 +73,8 @@ class CommunityRoutes {
     const total = allSets.length;
     const totalPages = Math.max(1, Math.ceil(total / limit));
     const page = Math.min(Math.max(1, parseInt(req.query.page, 10) || 1), totalPages);
-    const sets = allSets.slice((page - 1) * limit, page * limit);
+    // The page's sets, each with its author's profile image (services/avatar.js).
+    const sets = await Avatar.withAuthorAvatars(this.gatewayClient, req.auth.token, allSets.slice((page - 1) * limit, page * limit));
 
     // `pagerBase` links to a different page of the same filter; `returnTo`
     // additionally pins the current page, so a row's Update/Delete action
@@ -269,11 +271,13 @@ class CommunityRoutes {
   }
 
   async showOne(req, res) {
-    const set = await this.gatewayClient.get(`/api/sets/${encodeURIComponent(req.params.id)}`, req.auth.token);
+    const [set] = await Avatar.withAuthorAvatars(this.gatewayClient, req.auth.token, [
+      await this.gatewayClient.get(`/api/sets/${encodeURIComponent(req.params.id)}`, req.auth.token),
+    ]);
     res.render('set-detail', {
       set,
       paging: CommunityRoutes.itemPaging(set, req.query.page, req.query.limit),
-      isOwner: null, // ownership is never exposed to clients - see ContentSharing's dto/setDto.js; Delete just attempts it and shows whatever the service decides (see #remove below).
+      isOwner: null, // not worked out here: Delete just attempts it and shows whatever the service decides (see #remove below).
       downloaded: req.query.downloaded === '1',
       published: req.query.published === '1',
       error: null,

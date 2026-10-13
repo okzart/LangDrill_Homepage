@@ -1,0 +1,81 @@
+//- Another user's public profile (see routes/usersRoutes.js): the name they
+//- go by and their image, the sets they have published, and the friend
+//- action that fits how the viewer stands with them. Their email appears
+//- only once the two are friends (friends add each other by email anyway).
+doctype html
+html(lang=lang || "en")
+  head
+    meta(charset="UTF-8")
+    meta(name="viewport" content="width=device-width, initial-scale=1")
+    title= 'LanguageDrill — ' + person.displayName
+    include _style
+    style.
+      .hint { font-size: 0.82rem; color: var(--muted); }
+      .person { display: flex; flex-wrap: wrap; gap: 1.5rem; align-items: center; padding: 1.6rem; }
+      .person .av { --av: 96px; font-size: 2.4rem; }
+      .person h1 { margin: 0; font-size: 1.6rem; overflow-wrap: anywhere; }
+      .person .since { margin: 0.2rem 0 0; color: var(--muted); font-size: 0.9rem; }
+      .person .email { margin: 0.2rem 0 0; font-size: 0.9rem; overflow-wrap: anywhere; }
+      .friend-actions { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; margin-top: 0.9rem; }
+      .friend-actions form { margin: 0; }
+      .friend-actions button, .friend-actions .btn { margin-top: 0; }
+      .state { font-size: 0.9rem; color: var(--muted); }
+      ul.their-sets { list-style: none; margin: 0.5rem 0 0; padding: 0; }
+      ul.their-sets li { padding: 0.6rem 0; border-bottom: 1px solid #eee; }
+      ul.their-sets .meta { font-size: 0.82rem; color: var(--muted); }
+      ul.their-sets p { margin: 0.2rem 0 0; font-size: 0.9rem; }
+  body
+    include _nav
+    include mixins/feed
+
+    if error
+      .error= t(error)
+    if done === 'sent'
+      .success= t('Friend request sent. You will be friends once they accept.')
+    else if done === 'friends'
+      .success= t('You are now friends.')
+
+    section.person
+      +avatar(person.displayName, 96, person.avatar)
+      div
+        h1= person.displayName
+        if person.createdAt
+          p.since= t('Member since {date}', { date: new Date(person.createdAt).toLocaleDateString(lang === 'ko' ? 'ko-KR' : 'en-US', { year: 'numeric', month: 'long' }) })
+        if friendship.status === 'friends' && friendship.email
+          p.email= friendship.email
+
+        .friend-actions
+          //- Anyone can be left a message, friend or not.
+          a.btn(href=`/messages/${encodeURIComponent(person.id)}`)= t('Message')
+          if friendship.status === 'friends'
+            span.state= t('You are friends.')
+            if friendship.email
+              a.btn(href=`/call?email=${encodeURIComponent(friendship.email)}&start=call`)= t('Video call')
+              a.btn(href=`/call?email=${encodeURIComponent(friendship.email)}&start=stream`)= t('Live stream')
+            a.btn(href="/friends")= t('Friends')
+          else if friendship.status === 'outgoing'
+            span.state= t('Friend request sent - waiting for their answer.')
+            form(method="POST" action=`/friends/requests/${friendship.requestId}/withdraw`)
+              button(type="submit")= t('Withdraw')
+          else if friendship.status === 'incoming'
+            span.state= t('They asked to be your friend.')
+            form(method="POST" action=`/friends/requests/${friendship.requestId}/accept`)
+              button.primary(type="submit")= t('Accept')
+            form(method="POST" action=`/friends/requests/${friendship.requestId}/decline`)
+              button(type="submit")= t('Decline')
+          else
+            form(method="POST" action=`/users/${person.id}/friend`)
+              button.primary(type="submit")= t('Add friend')
+
+    section
+      h2= t('Published sets ({n})', { n: sets.length })
+      if sets.length
+        ul.their-sets
+          each set in sets
+            li
+              a(href=`/community/${encodeURIComponent(set.id)}`)= set.name
+              .meta= t('{type} · {downloads} downloads · {count} items', { type: t(set.type), downloads: set.downloads, count: set.count })
+              if set.desc
+                p= set.desc
+      else
+        p.hint= t('No published sets yet.')

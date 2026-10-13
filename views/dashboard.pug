@@ -330,8 +330,10 @@ html(lang=lang || "en")
             ul.rank
               each c in creators
                 li
-                  a(href=`/community?q=${encodeURIComponent(c.author)}`)
-                    +avatar(c.author, 34)
+                  //- To their profile page (which lists their sets); a creator
+                  //- from before publishers were recorded goes to a search.
+                  a(href=(c.authorId ? `/users/${encodeURIComponent(c.authorId)}` : `/community?q=${encodeURIComponent(c.author)}`))
+                    +avatar(c.author, 34, c.avatar)
                     span.t
                       b= c.author
                       small= t(c.sets === 1 ? '1 set' : '{n} sets', { n: c.sets }) + ' · ' + t(c.downloads === 1 ? '1 download' : '{d} downloads', { d: c.downloads })

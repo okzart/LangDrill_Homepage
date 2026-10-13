@@ -139,8 +139,8 @@ html(lang=lang || "en")
             label(for="auto-name")= t('Set name')
             input#auto-name(type="text" placeholder=t('e.g. Ordering at a restaurant'))
           div
-            label(for="auto-author")= t('Author (optional)')
-            input#auto-author(type="text")
+            label(for="auto-author")= t('Author')
+            input#auto-author(type="text" value=authorName readonly disabled title=t('Sets are published under your nickname. You can change it on your profile page.'))
         label.check
           input#auto-ko(type="checkbox" checked)
           = ' ' + t('Add the Korean meaning of every sentence with AI')
@@ -232,8 +232,8 @@ html(lang=lang || "en")
           label(for="set-name")= t('Set name')
           input#set-name(type="text" placeholder=t('e.g. Ordering at a restaurant'))
         div
-          label(for="set-author")= t('Author (optional)')
-          input#set-author(type="text")
+          label(for="set-author")= t('Author')
+          input#set-author(type="text" value=authorName readonly disabled title=t('Sets are published under your nickname. You can change it on your profile page.'))
       label(for="set-desc")= t('Description (optional)')
       input#set-desc(type="text")
       .actions
@@ -552,7 +552,6 @@ html(lang=lang || "en")
           var name = $('auto-name').value.trim();
           if (!source) return showError(t('Choose a file or make a recording first.'));
           if (!name) return showError(t('Give the set a name.'));
-          var author = $('auto-author').value.trim();
           var mine = source, status = $('auto-status'), made = [], skipped = 0, published = [];
           var wantKo = $('auto-ko').checked, english = true, koNote = '';
           var koWanted = 0, koFilled = 0, koProblem = '';
@@ -665,7 +664,7 @@ html(lang=lang || "en")
               var setName = sets > 1 ? name + ' (' + n + '/' + sets + ')' : name;
               var batch = made.slice(0, per);
               status.textContent = t('Publishing "{name}"…', { name: setName });
-              return call('/studio/publish', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: setName, author: author, desc: '', items: batch }) })
+              return call('/studio/publish', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: setName, desc: '', items: batch }) })
                 .then(function (result) {
                   made = made.slice(per);
                   published.push({ id: result.id, name: setName, count: batch.length });
@@ -1116,14 +1115,13 @@ html(lang=lang || "en")
             clearError();
             $('existing-picker').hidden = mode !== 'existing';
             if (mode === 'existing') {
-              draftFields = { name: $('set-name').value, desc: $('set-desc').value, author: $('set-author').value };
+              draftFields = { name: $('set-name').value, desc: $('set-desc').value };
               if (!target) { showSearch(); searchSets(); }
             } else {
               chooseSet(null);
               if (draftFields) {
                 $('set-name').value = draftFields.name;
                 $('set-desc').value = draftFields.desc;
-                $('set-author').value = draftFields.author;
               }
             }
             updatePublishButton();
@@ -1189,7 +1187,6 @@ html(lang=lang || "en")
           if (target) {
             $('set-name').value = set.name || '';
             $('set-desc').value = set.desc || '';
-            $('set-author').value = set.author || '';
             $('chosen-label').textContent = t('Adding to "{name}" ({n} items, by {author})', { name: set.name, n: target.items.length, author: set.author });
             $('set-search-box').hidden = true;
             $('chosen-set').hidden = false;
@@ -1208,7 +1205,7 @@ html(lang=lang || "en")
           var name = $('set-name').value.trim();
           if (!name) { $('set-name').focus(); return showError('Give the set a name.'); }
           var btn = $('publish'), status = $('publish-status');
-          var fields = { name: name, desc: $('set-desc').value, author: $('set-author').value };
+          var fields = { name: name, desc: $('set-desc').value };
           var url, body;
           if (mode === 'existing') {
             if (!target) return showError(t('Pick the listening set to add to.'));

@@ -21,6 +21,7 @@ html(lang=lang || "en")
     include _style
     style.
       .hint { font-size: 0.8rem; color: #666; }
+      .author { display: inline-flex; align-items: center; gap: 0.5rem; }
       .actions-bar { position: sticky; top: 0; z-index: 10; display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; background: #fff; padding: 0.5rem 0; margin-bottom: 1rem; border-bottom: 1px solid #ddd; }
       .actions-bar .spacer { flex: 1; }
       .actions-bar button, .actions-bar .btn { margin-top: 0; }
@@ -54,6 +55,7 @@ html(lang=lang || "en")
       ul.options li.correct { color: #1d1f20; font-weight: 600; }
   body
     include _nav
+    include mixins/feed
     h1= set.name
 
     //- Page actions, pinned to the top of the viewport while scrolling so
@@ -82,7 +84,13 @@ html(lang=lang || "en")
           td= t(set.type)
         tr
           th= t('Author')
-          td= set.author
+          td
+            span.author
+              +avatar(set.author, 28, set.authorAvatar, set.authorId)
+              if set.authorId
+                a(href=`/users/${encodeURIComponent(set.authorId)}`)= set.author
+              else
+                = set.author
         if set.type === 'vocab'
           tr
             th= t('Audio voice')

@@ -25,6 +25,7 @@ html(lang=lang || "en")
       .dot.on { background: #2c9c4a; }
       ul.people .who { display: flex; align-items: center; gap: 0.6rem; }
       ul.people .who .name { min-width: 0; overflow-wrap: anywhere; }
+      ul.people .who .email { display: block; font-size: 0.8rem; color: #888; }
       .presence { margin-left: 0.5rem; font-size: 0.8rem; color: #888; }
       .presence.on { color: #1f7a3d; }
       .empty { color: #888; font-size: 0.9rem; }
@@ -32,6 +33,13 @@ html(lang=lang || "en")
   body
     include _nav
     include mixins/feed
+    //- A person: the name they go by, with the email (which is how friends
+    //- find each other, so they both know it) underneath.
+    mixin person(p)
+      span.name
+        = p.displayName || p.email
+        if p.displayName
+          span.email= p.email
     h1= t('Friends')
 
     if error
@@ -56,8 +64,8 @@ html(lang=lang || "en")
           each person in incoming
             li
               span.who
-                +avatar(person.email, 36, person.avatar)
-                span.name= person.email
+                +avatar(person.displayName || person.email, 36, person.avatar, person.id)
+                +person(person)
               .buttons
                 form(method="POST" action=`/friends/requests/${person.requestId}/accept`)
                   button.primary(type="submit")= t('Accept')
@@ -71,12 +79,15 @@ html(lang=lang || "en")
           each person in friends
             li(data-email=person.email)
               span.who
-                +avatar(person.email, 40, person.avatar)
+                +avatar(person.displayName || person.email, 40, person.avatar, person.id)
                 span.name
                   span.dot(aria-hidden="true")
-                  = person.email
+                  = person.displayName || person.email
                   span.presence
+                  if person.displayName
+                    span.email= person.email
               .buttons
+                a.btn(href=`/messages/${encodeURIComponent(person.id)}`)= t('Message')
                 a.btn.dim(href=`/call?email=${encodeURIComponent(person.email)}&start=call` data-call)= t('Video call')
                 a.btn.dim(href=`/call?email=${encodeURIComponent(person.email)}&start=stream` data-call)= t('Live stream')
                 form(method="POST" action=`/friends/${person.id}/remove` onsubmit=`return confirm(${JSON.stringify(t('Remove {email} from your friends?', { email: person.email }))})`)
@@ -102,8 +113,8 @@ html(lang=lang || "en")
           each person in outgoing
             li
               span.who
-                +avatar(person.email, 36, person.avatar)
-                span.name= person.email
+                +avatar(person.displayName || person.email, 36, person.avatar, person.id)
+                +person(person)
               .buttons
                 form(method="POST" action=`/friends/requests/${person.requestId}/withdraw`)
                   button(type="submit")= t('Withdraw')

@@ -13,6 +13,10 @@ html(lang=lang || "en")
       .photo-actions input[type=file] { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
       #photo-status { font-size: 0.85rem; color: var(--muted); }
       .hint { font-size: 0.8rem; color: var(--muted); }
+      .profile .own-email { margin: 0.15rem 0 0; font-size: 0.9rem; color: var(--muted); word-break: break-all; }
+      .nick-row { display: flex; gap: 0.6rem; align-items: flex-end; max-width: 30rem; }
+      .nick-row > div { flex: 1; }
+      .nick-row button { flex: none; }
       .crop-row { display: flex; flex-wrap: wrap; gap: 1.5rem; align-items: flex-start; }
       #crop-view { position: relative; flex: none; width: min(280px, 100%); aspect-ratio: 1 / 1; overflow: hidden; border-radius: 14px; background: #111; cursor: grab; touch-action: none; user-select: none; }
       #crop-view:active { cursor: grabbing; }
@@ -44,7 +48,9 @@ html(lang=lang || "en")
         if avatar
           img(src=avatar alt=t('Your profile image') onerror="this.remove()")
       div
-        h2= profile.email
+        //- The name other users see; the email under it is shown only here.
+        h2= profile.displayName || profile.email
+        p.own-email= profile.email
         span.pill(class=profile.role === 'admin' ? 'admin' : '')
           +icon(profile.role === 'admin' ? 'shield' : 'user', 14)
           = t(profile.role)
@@ -75,9 +81,32 @@ html(lang=lang || "en")
             button#crop-save.primary(type="button")= t('Use this')
             button#crop-cancel(type="button")= t('Cancel')
 
+    //- Nickname: what other users see instead of the email (on the sets this
+    //- user publishes, in friends lists). POST /profile/nickname.
+    section#nickname
+      h2= t('Nickname')
+      if nicknameError
+        .error= t(nicknameError)
+      if nicknameSaved
+        .success= t('Nickname saved. Your published sets now show it.')
+      form.nick-row(method="POST" action="/profile/nickname")
+        div
+          label(for="nickname-input")= t('The name other users see')
+          input#nickname-input(type="text" name="nickname" value=profile.nickname || '' minlength="2" maxlength="24" autocomplete="nickname" placeholder=t('e.g. Teacher Kim'))
+        button.primary(type="submit")= t('Save')
+      p.hint
+        if profile.nickname
+          = t('Other users see "{name}" - on the sets you publish and in friends lists - never your email. Leave the box empty and save to remove it.', { name: profile.displayName })
+        else
+          = t('You have no nickname yet, so other users see "{name}". Your email is never shown on the sets you publish.', { name: profile.displayName })
+      p.hint= t('2 to 24 characters: letters, numbers, spaces, "_", "-" and ".". Each nickname belongs to one account.')
+
     section
       h2= t('Account details')
       .facts
+        .fact
+          .k= t('Nickname')
+          .v= profile.nickname || '—'
         .fact
           .k= t('Email')
           .v= profile.email

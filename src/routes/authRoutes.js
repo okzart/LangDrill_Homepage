@@ -49,6 +49,9 @@ class AuthRoutes {
       // Their profile image for the top bar (services/avatar.js). Login
       // itself must not fail because this one extra lookup did.
       await this.gatewayClient.get('/api/auth/me', token).then((user) => Avatar.remember(res, user), () => Avatar.forget(res));
+      // Their sets carry their current display name (a nickname set on
+      // another device, or sets from before names were fixed). Best effort.
+      await this.gatewayClient.post('/api/sets/author/refresh', undefined, token).catch(() => {});
       res.redirect(nextPath);
     } catch (err) {
       // Wrong credentials (401) or a missing field (400) are expected,

@@ -120,6 +120,8 @@ style.
   nav.site .links .tab-label { font-size: 12px; font-weight: 500; line-height: 1; white-space: nowrap; }
   /* "More": the pages that don't get a tab of their own, in a dropdown. Its
      summary looks and behaves like a tab. */
+  nav.site .unread-dot { position: absolute; top: 10px; left: calc(50% + 8px); width: 9px; height: 9px; border-radius: 50%; background: #d64545; box-shadow: 0 0 0 2px var(--surface); }
+  nav.site .unread-count { margin-left: auto; min-width: 1.3rem; padding: 0 0.35rem; border-radius: 999px; background: #d64545; color: #fff; font-size: 0.72rem; font-weight: 700; line-height: 1.3rem; text-align: center; }
   nav.site details.more-menu { position: relative; display: flex; }
   nav.site details.more-menu > summary { list-style: none; cursor: pointer; }
   nav.site details.more-menu > summary::-webkit-details-marker { display: none; }
@@ -179,6 +181,10 @@ style.
   @media (max-width: 420px) { nav.site .brand .wordmark { display: none; } nav.site .seg a { padding: 6px 8px; } nav.site .links .tab-label { font-size: 10px; letter-spacing: -0.01em; } }
 
   /* ---- Avatars & blue tones (feed, rails, stories, shortcuts) ---------- */
+  .post-head a.name { display: block; color: inherit; text-decoration: none; }
+  .post-head a.name:hover { text-decoration: underline; }
+  a.av-link { display: inline-flex; flex: none; border-radius: 50%; text-decoration: none; }
+  a.av-link:hover .av, a.av-link:focus-visible .av { box-shadow: 0 0 0 3px var(--blue-100), 0 0 0 4px var(--blue-700); }
   .av img, nav.site .avatar img { position: absolute; inset: 0; width: 100%; height: 100%; border-radius: inherit; object-fit: cover; }
   .av { position: relative; overflow: hidden; display: inline-grid; place-items: center; flex: none; width: var(--av, 40px); height: var(--av, 40px); border-radius: 50%; color: var(--n-100); font-family: var(--display); font-weight: 600; font-size: calc(var(--av, 40px) * 0.45); line-height: 1; }
   .tone-1 { background: #749dc4; } .tone-2 { background: #597ea3; } .tone-3 { background: #416180; }

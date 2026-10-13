@@ -1,0 +1,40 @@
+//- Messages (see routes/messagesRoutes.js): one row per person this user has
+//- exchanged messages with, most recent first, with the last message and a
+//- mark for unread ones. A row opens the conversation.
+doctype html
+html(lang=lang || "en")
+  head
+    meta(charset="UTF-8")
+    meta(name="viewport" content="width=device-width, initial-scale=1")
+    title= 'LanguageDrill — ' + t('Messages')
+    include _style
+    style.
+      .hint { font-size: 0.85rem; color: var(--muted); }
+      ul.conversations { list-style: none; margin: 0.5rem 0 0; padding: 0; }
+      ul.conversations li { display: flex; gap: 0.8rem; align-items: center; padding: 0.7rem 0.4rem; border-bottom: 1px solid #eee; border-radius: 8px; }
+      ul.conversations li:hover { background: rgba(65, 97, 128, 0.05); }
+      ul.conversations a.open { flex: 1; min-width: 0; color: inherit; text-decoration: none; }
+      ul.conversations .top { display: flex; gap: 0.5rem; align-items: baseline; }
+      ul.conversations .name { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      ul.conversations time { margin-left: auto; flex: none; font-size: 0.78rem; color: var(--muted); }
+      ul.conversations .last { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 0.9rem; color: var(--muted); }
+      ul.conversations li.unread .last { color: var(--text); font-weight: 600; }
+      .count { flex: none; min-width: 1.4rem; padding: 0.05rem 0.4rem; border-radius: 999px; background: var(--blue-700); color: #fff; font-size: 0.75rem; font-weight: 700; text-align: center; }
+  body
+    include _nav
+    include mixins/feed
+    h1= t('Messages')
+    if conversations.length
+      ul.conversations
+        each c in conversations
+          li(class=c.unread ? 'unread' : '')
+            +avatar(c.user.displayName, 44, c.avatar, c.user.id)
+            a.open(href=`/messages/${encodeURIComponent(c.user.id)}`)
+              span.top
+                span.name= c.user.displayName
+                time(datetime=c.last.createdAt)= ldTimeAgo(new Date(c.last.createdAt).getTime(), lang)
+              span.last= (c.last.mine ? t('You: ') : '') + c.last.text.replace(/\s+/g, ' ')
+            if c.unread
+              span.count(title=t('{n} unread', { n: c.unread }))= c.unread
+    else
+      p.hint= t('No messages yet. Open someone\'s profile - tap their picture on a set or in your friends list - and leave them a message.')

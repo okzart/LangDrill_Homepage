@@ -11,6 +11,7 @@ const express = require('express');
 const { requireLogin } = require('../middleware/requireLogin');
 const AsyncHandler = require('../middleware/asyncHandler');
 const Avatar = require('../services/avatar');
+const Session = require('../middleware/session');
 const { GatewayError } = require('../errors');
 
 const PAGE_SIZE = 8;
@@ -26,6 +27,7 @@ class DashboardRoutes {
     this.router.get('/dashboard', requireLogin, AsyncHandler.wrap(this.showDashboard.bind(this)));
     this.router.get('/feed', requireLogin, AsyncHandler.wrap(this.feedPage.bind(this)));
     this.router.get('/profile', requireLogin, AsyncHandler.wrap(this.showProfile.bind(this)));
+    this.router.post('/profile/nickname', requireLogin, AsyncHandler.wrap(this.setNickname.bind(this)));
   }
 
   async showDashboard(req, res) {
@@ -37,7 +39,9 @@ class DashboardRoutes {
     for (const r of [cardsResult, progressResult]) {
       if (r.status === 'rejected' && r.reason instanceof GatewayError && r.reason.status === 401) throw r.reason;
     }
-    const all = cardsResult.status === 'fulfilled' ? cardsResult.value || [] : [];
+    // Every card with its author's profile image (services/avatar.js), for
+    // the posts, the trending list and the top creators alike.
+    const all = await Avatar.withAuthorAvatars(this.gatewayClient, req.auth.token, cardsResult.status === 'fulfilled' ? cardsResult.value || [] : []);
     const feed = type ? all.filter((c) => c.type === type) : all;
     const posts = await this.withItems(feed.slice(0, PAGE_SIZE), req.auth.token);
     res.render('dashboard', {
@@ -59,7 +63,8 @@ class DashboardRoutes {
     const offset = Math.max(0, parseInt(req.query.offset, 10) || 0);
     const all = (await this.gatewayClient.get('/api/sets', req.auth.token)) || [];
     const feed = type ? all.filter((c) => c.type === type) : all;
-    const posts = await this.withItems(feed.slice(offset, offset + PAGE_SIZE), req.auth.token);
+    const page = await Avatar.withAuthorAvatars(this.gatewayClient, req.auth.token, feed.slice(offset, offset + PAGE_SIZE));
+    const posts = await this.withItems(page, req.auth.token);
     res.set('X-Has-More', feed.length > offset + PAGE_SIZE ? '1' : '0');
     res.set('X-Next-Offset', String(offset + PAGE_SIZE));
     res.render('feed-posts', { posts });
@@ -83,7 +88,9 @@ class DashboardRoutes {
     const byAuthor = new Map();
     for (const c of cards) {
       const name = c.author || '';
-      const entry = byAuthor.get(name) || { author: name, sets: 0, downloads: 0 };
+      const entry = byAuthor.get(name) || { author: name, sets: 0, downloads: 0, avatar: null, authorId: null };
+      entry.avatar = entry.avatar || c.authorAvatar || null; // creators are grouped by display name
+      entry.authorId = entry.authorId || c.authorId || null; // whose profile the row opens
       entry.sets += 1;
       entry.downloads += c.downloads || 0;
       byAuthor.set(name, entry);
@@ -97,7 +104,31 @@ class DashboardRoutes {
     // where the copy remembered for the top bar catches up.
     Avatar.remember(res, profile);
     const avatar = Avatar.siteUrl(profile.avatarUrl);
-    res.render('profile', { profile, avatar, myAvatar: avatar });
+    res.render('profile', {
+      profile,
+      avatar,
+      myAvatar: avatar,
+      nicknameSaved: req.query.nickname === 'saved',
+      nicknameError: typeof req.query.nicknameError === 'string' ? req.query.nicknameError.slice(0, 300) : null,
+    });
+  }
+
+  // The profile page's nickname form. Authentication answers a new login
+  // token carrying the new display name: it replaces the session's, and the
+  // user's published sets are brought to the new name straight away.
+  async setNickname(req, res) {
+    const nickname = typeof req.body?.nickname === 'string' ? req.body.nickname : '';
+    try {
+      const { token } = await this.gatewayClient.patch('/api/auth/me', { nickname }, req.auth.token);
+      Session.setToken(res, token);
+      await this.gatewayClient.post('/api/sets/author/refresh', undefined, token).catch(() => {});
+      res.redirect('/profile?nickname=saved');
+    } catch (err) {
+      if (err instanceof GatewayError && [400, 409].includes(err.status)) {
+        return res.redirect(`/profile?nicknameError=${encodeURIComponent(err.message)}`);
+      }
+      throw err;
+    }
   }
 }
 

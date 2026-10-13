@@ -16,6 +16,7 @@ html(lang=lang || "en")
       #itemList li.editing { background: #eef4ff; border-radius: 4px; padding: 0.1rem 0.4rem; margin-left: -0.4rem; }
       #itemList button { margin: 0 0 0 0.5rem; padding: 0.1rem 0.5rem; font-size: 0.8rem; }
       #cancelEditBtn { margin-left: 0.75rem; }
+      .card .meta.by { display: flex; align-items: center; gap: 0.5rem; }
       #itemListHead { margin-top: 1.25rem; align-items: center; flex-wrap: wrap; }
       #itemListHead #fillKoStatus { margin-left: auto; text-align: right; }
       #itemListHead #fillKoBtn { margin-top: 0; }
@@ -33,6 +34,7 @@ html(lang=lang || "en")
       .pager span { color: #666; }
   body
     include _nav
+    include mixins/feed
     h1= t('Community sets')
 
     if error
@@ -79,7 +81,10 @@ html(lang=lang || "en")
             .card
               h3
                 a(href=`/community/${set.id}`)= set.name
-              .meta= t('{type} · by {author} · {downloads} downloads · {count} items', { type: t(set.type), author: set.author, downloads: set.downloads, count: set.count })
+              //- The author's profile image (or initial) next to the line that names them.
+              .meta.by
+                +avatar(set.author, 28, set.authorAvatar, set.authorId)
+                span= t('{type} · by {author} · {downloads} downloads · {count} items', { type: t(set.type), author: set.author, downloads: set.downloads, count: set.count })
               p= set.desc
               .card-actions
                 form.inline(method="GET" action="/community")
