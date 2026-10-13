@@ -1,0 +1,14 @@
+//- Shared by the assignment pages: how an assignment's state and a task's
+//- kind are worded.
+-
+  function ldAssignmentState(a) {
+    if (a.status === 'cancelled') return t('cancelled');
+    if (a.status === 'done') return t('finished');
+    if (a.status === 'confirmed') return t('confirmed · {done} of {total} done', { done: a.done, total: a.total });
+    return a.mine ? t('not confirmed yet') : t('new - please confirm');
+  }
+  function ldActivity(task) { return task.activity === 'cards' ? t('Flash-card listening') : t('Drill'); }
+  function ldDue(a, language) {
+    if (!a.dueAt) return '';
+    return new Date(a.dueAt).toLocaleDateString(language === 'ko' ? 'ko-KR' : 'en-US', { month: 'short', day: 'numeric' });
+  }

@@ -1,0 +1,83 @@
+//- One assignment (see routes/assignmentsRoutes.js): what it is, who it is
+//- from or for, and its tasks. The student confirms it and ticks tasks off;
+//- the teacher sees the progress and can cancel it.
+doctype html
+html(lang=lang || "en")
+  head
+    meta(charset="UTF-8")
+    meta(name="viewport" content="width=device-width, initial-scale=1")
+    title= 'LanguageDrill — ' + a.title
+    include _style
+    style.
+      .hint { font-size: 0.85rem; color: var(--muted); }
+      .who { display: flex; align-items: center; gap: 0.6rem; margin: 0.4rem 0; }
+      .note { padding: 0.7rem 0.9rem; border-left: 3px solid var(--blue-700); background: var(--blue-100); border-radius: 0 8px 8px 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+      .state { display: inline-block; padding: 0.1rem 0.6rem; border-radius: 999px; border: 1px solid #ddd; font-size: 0.78rem; color: #555; }
+      .state.new { background: #fff3cd; border-color: #f0d58a; color: #6b5200; }
+      .state.done { background: #e3f4e8; border-color: #b6dfc2; color: #1f6a35; }
+      ul.tasks { list-style: none; margin: 0.5rem 0 0; padding: 0; }
+      ul.tasks li { display: flex; flex-wrap: wrap; gap: 0.5rem 0.8rem; align-items: center; padding: 0.65rem 0; border-bottom: 1px solid #eee; }
+      ul.tasks .mark { flex: none; width: 1.5rem; height: 1.5rem; display: grid; place-items: center; border-radius: 50%; border: 2px solid #c8ccd3; color: transparent; font-size: 0.9rem; }
+      ul.tasks li.done .mark { background: #2c9c4a; border-color: #2c9c4a; color: #fff; }
+      ul.tasks .what { flex: 1 1 14rem; min-width: 0; }
+      ul.tasks .kind { display: inline-block; margin-right: 0.4rem; padding: 0 0.5rem; border-radius: 999px; background: #eef1f5; font-size: 0.75rem; }
+      ul.tasks .kind.cards { background: #e8f0fb; }
+      ul.tasks li.done .name { color: var(--muted); }
+      ul.tasks form { margin: 0; }
+      ul.tasks button { margin: 0; }
+      .actions { display: flex; flex-wrap: wrap; gap: 0.6rem; align-items: center; margin-top: 1rem; }
+      .actions form { margin: 0; }
+      .actions button, .actions .btn { margin: 0; }
+  body
+    include _nav
+    include mixins/feed
+    include mixins/assignment
+    - var name = a.with ? a.with.displayName : '?'
+    - var open = a.status === 'assigned' || a.status === 'confirmed' || a.status === 'done'
+    p
+      a(href="/assignments")= t('← All assignments')
+    h1= a.title
+
+    if error
+      .error= t(error)
+    if done === 'given'
+      .success= t('Given to {name}. They have been told in your chat, and you will see there when they confirm it.', { name: name })
+    else if done === 'confirmed'
+      .success= t('Confirmed. {name} has been told.', { name: name })
+
+    .who
+      +avatar(name, 40, a.with && a.with.avatar, a.with && a.with.id)
+      span= a.mine ? t('You gave this to {name}', { name: name }) : t('{name} gave you this', { name: name })
+      span.state(class=(a.status === 'done' ? 'done' : a.status === 'assigned' && !a.mine ? 'new' : ''))= ldAssignmentState(a)
+    if a.dueAt
+      p.hint= t('Due {date}', { date: new Date(a.dueAt).toLocaleString(lang === 'ko' ? 'ko-KR' : 'en-US', { month: 'long', day: 'numeric', hour: 'numeric', minute: '2-digit', timeZoneName: 'short' }) })
+    if a.note
+      p.note= a.note
+
+    section
+      h2= t('Tasks ({done} of {total} done)', { done: a.done, total: a.total })
+      ul.tasks
+        each task in a.tasks
+          li(class=task.doneAt ? 'done' : '')
+            span.mark(aria-hidden="true") ✓
+            span.what
+              span.kind(class=task.activity)= ldActivity(task)
+              //- A flash-card task opens the set at its "Play all".
+              a.name(href=`/community/${encodeURIComponent(task.setId)}${task.activity === 'cards' ? '#playAll' : ''}`)= task.setName
+            //- Only the student ticks tasks, and not on a cancelled assignment.
+            if !a.mine && a.status !== 'cancelled'
+              form(method="POST" action=`/assignments/${encodeURIComponent(a.id)}/tasks/${encodeURIComponent(task.id)}`)
+                input(type="hidden" name="done" value=(task.doneAt ? '0' : '1'))
+                button(type="submit" class=(task.doneAt ? 'link' : ''))= task.doneAt ? t('Not done after all') : t('Mark as done')
+      if !a.mine
+        p.hint= t('Drills are done in the LanguageDrill app; flash-card listening can also be done here with a set\'s "Play all". Tick each task when you have done it - {name} sees your progress.', { name: name })
+
+    .actions
+      if !a.mine && a.status === 'assigned'
+        form(method="POST" action=`/assignments/${encodeURIComponent(a.id)}/confirm`)
+          button.primary(type="submit")= t('Confirm - I\'ve got it')
+      if a.with
+        a.btn(href=`/messages/${encodeURIComponent(a.with.id)}`)= t('Open chat with {name}', { name: name })
+      if a.mine && (a.status === 'assigned' || a.status === 'confirmed')
+        form(method="POST" action=`/assignments/${encodeURIComponent(a.id)}/cancel` onsubmit=`return confirm(${JSON.stringify(t('Cancel this assignment?'))})`)
+          button.link(type="submit")= t('Cancel assignment')

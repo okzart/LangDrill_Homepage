@@ -49,6 +49,7 @@ html(lang=lang || "en")
           a.btn(href=`/messages/${encodeURIComponent(person.id)}`)= t('Message')
           a.btn(href=`/schedule?with=${encodeURIComponent(person.id)}`)= t('Schedule a call')
           if friendship.status === 'friends'
+            a.btn(href=`/assignments/new?to=${encodeURIComponent(person.id)}`)= t('Give an assignment')
             span.state= t('You are friends.')
             if friendship.email
               a.btn(href=`/call?email=${encodeURIComponent(friendship.email)}&start=call`)= t('Video call')

@@ -42,9 +42,13 @@ html(lang=lang || "en")
                   'meeting.declined': t('Video call declined'),
                   'meeting.cancelled': t('Video call cancelled'),
                   'meeting.due': t('It\'s time for your video call'),
+                  'assignment.new': t('New assignment'),
+                  'assignment.confirmed': t('Assignment confirmed'),
+                  'assignment.done': t('Assignment finished'),
+                  'assignment.cancelled': t('Assignment cancelled'),
                 }
               if c.last.kind
-                span.last= '📅 ' + (NOTICE[c.last.kind] || c.last.text)
+                span.last= (c.last.kind.indexOf('assignment.') === 0 ? '📝 ' : '📅 ') + (NOTICE[c.last.kind] || c.last.text) + (c.last.assignment ? ': ' + c.last.assignment.title : '')
               else
                 span.last= (c.last.mine ? t('You: ') : '') + c.last.text.replace(/\s+/g, ' ')
             if c.unread

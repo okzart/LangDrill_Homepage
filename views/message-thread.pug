@@ -23,6 +23,9 @@ html(lang=lang || "en")
       .msg.notice { align-self: center; max-width: min(34rem, 94%); background: #fff8e6; border: 1px solid #f0dfae; text-align: center; }
       .msg.notice time { text-align: center; }
       .msg.notice a { margin-left: 0.4rem; font-weight: 600; }
+      .msg.notice.assignment { background: #eef6ff; border-color: #c9defa; }
+      .msg.notice form.confirm { margin: 0.5rem 0 0; }
+      .msg.notice form.confirm button { margin: 0; }
       .older { align-self: center; font-size: 0.85rem; }
       form.write { position: sticky; bottom: 0; display: flex; gap: 0.5rem; align-items: flex-end; padding: 0.6rem 0; background: var(--bg, #fff); border-top: 1px solid var(--line); }
       form.write textarea { flex: 1; min-height: 2.6rem; max-height: 10rem; margin: 0; resize: vertical; }
@@ -48,7 +51,27 @@ html(lang=lang || "en")
       each m in messages
         //- A notice about a scheduled call: the page's script words it, with
         //- the time in this browser's zone (until then, the English fallback).
-        if m.kind
+        if m.kind && m.assignment
+          //- A notice about an assignment. One that is new and still waiting
+          //- can be confirmed right here.
+          - var v = { name: person.displayName, title: m.assignment.title }
+          -
+            var said = m.kind === 'assignment.new' ? (m.mine ? t('You gave {name} an assignment: "{title}".', v) : t('{name} gave you an assignment: "{title}".', v))
+              : m.kind === 'assignment.confirmed' ? (m.mine ? t('You confirmed the assignment "{title}".', v) : t('{name} confirmed the assignment "{title}".', v))
+              : m.kind === 'assignment.done' ? (m.mine ? t('You finished the assignment "{title}".', v) : t('{name} finished the assignment "{title}".', v))
+              : m.kind === 'assignment.cancelled' ? (m.mine ? t('You cancelled the assignment "{title}".', v) : t('{name} cancelled the assignment "{title}".', v))
+              : m.text
+          .msg.notice.assignment
+            p.text
+              = '📝 ' + said
+              a(href=`/assignments/${encodeURIComponent(m.assignment.id)}`)= t('Open assignment')
+            if m.canConfirm
+              form.confirm(method="POST" action=`/assignments/${encodeURIComponent(m.assignment.id)}/confirm`)
+                input(type="hidden" name="back" value=`/messages/${person.id}#latest`)
+                button.primary(type="submit")= t('Confirm - I\'ve got it')
+            time(datetime=m.createdAt)= new Date(m.createdAt).toLocaleString(lang === 'ko' ? 'ko-KR' : 'en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
+          - continue
+        if m.kind && m.meeting
           .msg.notice(data-kind=m.kind data-mine=(m.mine ? '1' : '0') data-start=m.meeting.startAt data-minutes=m.meeting.durationMinutes)
             p.text= m.text
             time(datetime=m.createdAt)= new Date(m.createdAt).toLocaleString(lang === 'ko' ? 'ko-KR' : 'en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
@@ -91,7 +114,25 @@ html(lang=lang || "en")
           link.textContent = kind === 'meeting.invite' && !mine ? t('Answer') : t('Open schedule');
           p.appendChild(link);
         }
-        thread.querySelectorAll('.msg.notice').forEach(function (row) { describe(row, row.dataset.kind, row.dataset.mine === '1', row.dataset.start, row.dataset.minutes); });
+        thread.querySelectorAll('.msg.notice[data-kind]').forEach(function (row) { describe(row, row.dataset.kind, row.dataset.mine === '1', row.dataset.start, row.dataset.minutes); });
+
+        // The same for a notice about an assignment that arrives while the
+        // page is open (those already here were worded by the server).
+        function describeAssignment(row, kind, mine, assignment) {
+          var vars = { name: NAME, title: assignment.title };
+          var text = kind === 'assignment.new' ? (mine ? t('You gave {name} an assignment: "{title}".', vars) : t('{name} gave you an assignment: "{title}".', vars))
+            : kind === 'assignment.confirmed' ? (mine ? t('You confirmed the assignment "{title}".', vars) : t('{name} confirmed the assignment "{title}".', vars))
+              : kind === 'assignment.done' ? (mine ? t('You finished the assignment "{title}".', vars) : t('{name} finished the assignment "{title}".', vars))
+                : kind === 'assignment.cancelled' ? (mine ? t('You cancelled the assignment "{title}".', vars) : t('{name} cancelled the assignment "{title}".', vars)) : null;
+          if (!text) return;
+          row.className = 'msg notice assignment';
+          var p = row.querySelector('.text');
+          p.textContent = '📝 ' + text;
+          var link = document.createElement('a');
+          link.href = '/assignments/' + encodeURIComponent(assignment.id);
+          link.textContent = kind === 'assignment.new' && !mine ? t('Open and confirm') : t('Open assignment');
+          p.appendChild(link);
+        }
         var LIVE = !{JSON.stringify(!older)}, LOCALE = !{JSON.stringify(lang === 'ko' ? 'ko-KR' : 'en-US')};
         var last = thread.dataset.last;
         if (LIVE) document.getElementById('latest').scrollIntoView({ block: 'end' });
@@ -118,6 +159,7 @@ html(lang=lang || "en")
           row.appendChild(text);
           row.appendChild(time);
           if (message.kind && message.meeting) describe(row, message.kind, message.mine, message.meeting.startAt, message.meeting.durationMinutes);
+          if (message.kind && message.assignment) describeAssignment(row, message.kind, message.mine, message.assignment);
           thread.appendChild(row);
         }
         function poll() {

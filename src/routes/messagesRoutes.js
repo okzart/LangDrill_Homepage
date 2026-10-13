@@ -52,9 +52,17 @@ class MessagesRoutes {
     if (userId === req.auth.user.sub) return res.redirect('/messages');
     const before = typeof req.query.before === 'string' ? `?before=${encodeURIComponent(req.query.before)}` : '';
     const thread = await this.gatewayClient.get(`/api/messages/with/${encodeURIComponent(userId)}${before}`, req.auth.token);
+    // An assignment arrives here as a notice and can be confirmed right in
+    // the chat - but only while it is still waiting for that, which the
+    // notice itself doesn't say.
+    let waiting = new Set();
+    if (thread.messages.some((m) => m.kind === 'assignment.new' && !m.mine)) {
+      const received = await this.gatewayClient.get('/api/assignments?role=received', req.auth.token).catch(() => ({ assignments: [] }));
+      waiting = new Set((received.assignments || []).filter((a) => a.status === 'assigned').map((a) => a.id));
+    }
     res.render('message-thread', {
       person: { ...thread.user, avatar: Avatar.siteUrl(thread.user.avatarUrl) },
-      messages: thread.messages,
+      messages: thread.messages.map((m) => (m.kind === 'assignment.new' && !m.mine && m.assignment && waiting.has(m.assignment.id) ? { ...m, canConfirm: true } : m)),
       hasMore: thread.hasMore,
       older: Boolean(before), // looking at an earlier page: no live updates there
       maxLength: 1000,

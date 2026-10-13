@@ -1,0 +1,103 @@
+//- Give an assignment (see routes/assignmentsRoutes.js): choose a friend,
+//- name the work, and pick community drill sets - each to be done as a drill
+//- and/or listened to as flash cards. The due date is typed in the browser's
+//- local time and sent as UTC (the script at the bottom).
+doctype html
+html(lang=lang || "en")
+  head
+    meta(charset="UTF-8")
+    meta(name="viewport" content="width=device-width, initial-scale=1")
+    title= 'LanguageDrill — ' + t('Give an assignment')
+    include _style
+    style.
+      .hint { font-size: 0.82rem; color: var(--muted); }
+      .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 0 1rem; }
+      @media (max-width: 560px) { .grid2 { grid-template-columns: 1fr; } }
+      #set-filter { margin-bottom: 0.4rem; }
+      .set-list { max-height: 24rem; overflow-y: auto; border: 1px solid var(--line); border-radius: 10px; }
+      table.sets { width: 100%; border-collapse: collapse; }
+      table.sets th { position: sticky; top: 0; background: var(--surface-2, #f6f7f9); font-size: 0.75rem; text-align: left; padding: 0.4rem 0.6rem; }
+      table.sets td { padding: 0.4rem 0.6rem; border-top: 1px solid #eee; vertical-align: middle; }
+      table.sets td.pick, table.sets th.pick { width: 6.5rem; text-align: center; }
+      table.sets input[type=checkbox] { width: auto; min-height: 0; margin: 0; }
+      table.sets .meta { display: block; font-size: 0.78rem; color: var(--muted); }
+      .actions { display: flex; gap: 0.6rem; align-items: center; margin-top: 1rem; }
+      .actions button { margin: 0; }
+  body
+    include _nav
+    h1= t('Give an assignment')
+    p.hint= t('Give a friend some work to do: pick drill sets, and for each choose whether it is to be done as a drill, listened to as flash cards, or both. They get it in your chat and confirm it there.')
+
+    if error
+      .error= t(error)
+
+    if !friends.length
+      p= t('You have no friends to give an assignment to yet.')
+      a.btn(href="/friends")= t('Friends')
+    else
+      form#assign-form(method="POST" action="/assignments")
+        .grid2
+          div
+            label(for="student")= t('For')
+            select#student(name="student" required)
+              each f in friends
+                option(value=f.id selected=(f.id === values.student))= f.displayName
+          div
+            label(for="due-local")= t('Due (optional)')
+            input#due-local(type="datetime-local" name="dueLocal" value=values.dueLocal)
+            input#due-at(type="hidden" name="dueAt")
+        label(for="title")= t('Title')
+        input#title(type="text" name="title" required maxlength="100" value=values.title placeholder=t('e.g. Week 3: at the restaurant'))
+        label(for="note")= t('Note for your friend (optional)')
+        textarea#note(name="note" maxlength="500" rows="2")= values.note
+
+        h2= t('What to do')
+        input#set-filter(type="search" placeholder=t('Filter sets by name or author') aria-label=t('Filter sets by name or author'))
+        .set-list
+          table.sets
+            thead
+              tr
+                th= t('Drill set')
+                th.pick= t('Drill')
+                th.pick= t('Flash-card listening')
+            tbody#set-rows
+              each s in sets
+                tr(data-text=`${s.name} ${s.author}`.toLowerCase())
+                  td
+                    a(href=`/community/${encodeURIComponent(s.id)}` target="_blank" rel="noopener")= s.name
+                    span.meta= t('{type} · by {author} · {count} items', { type: t(s.type), author: s.author, count: s.count })
+                  td.pick
+                    input(type="checkbox" name="drill" value=s.id checked=values.drill.includes(s.id) aria-label=t('Drill') + ': ' + s.name)
+                  td.pick
+                    //- A writing set has nothing to listen to.
+                    if s.type !== 'writing'
+                      input(type="checkbox" name="cards" value=s.id checked=values.cards.includes(s.id) aria-label=t('Flash-card listening') + ': ' + s.name)
+                    else
+                      span.hint —
+        p.hint#picked(aria-live="polite")
+        .actions
+          button.primary(type="submit")= t('Give assignment')
+          a(href="/assignments")= t('Cancel')
+
+      script.
+        (function () {
+          var form = document.getElementById('assign-form'), filter = document.getElementById('set-filter');
+          var rows = Array.prototype.slice.call(document.querySelectorAll('#set-rows tr'));
+          filter.addEventListener('input', function () {
+            var q = filter.value.trim().toLowerCase();
+            // A ticked set stays in view whatever the filter says.
+            rows.forEach(function (row) { row.hidden = q !== '' && row.dataset.text.indexOf(q) === -1 && !row.querySelector('input:checked'); });
+          });
+          function count() {
+            var n = form.querySelectorAll('#set-rows input:checked').length;
+            document.getElementById('picked').textContent = n ? t('{n} tasks chosen (at most 20).', { n: n }) : t('Tick at least one box.');
+          }
+          form.addEventListener('change', count);
+          count();
+          // The due time is typed in local time; the server keeps UTC.
+          form.addEventListener('submit', function () {
+            var local = document.getElementById('due-local').value;
+            var date = local ? new Date(local) : null;
+            document.getElementById('due-at').value = date && !isNaN(date.getTime()) ? date.toISOString() : '';
+          });
+        })();

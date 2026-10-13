@@ -1,0 +1,65 @@
+//- Assignments (see routes/assignmentsRoutes.js): the homework this user has
+//- been given by friends, and the homework they have given.
+doctype html
+html(lang=lang || "en")
+  head
+    meta(charset="UTF-8")
+    meta(name="viewport" content="width=device-width, initial-scale=1")
+    title= 'LanguageDrill — ' + t('Assignments')
+    include _style
+    style.
+      .hint { font-size: 0.85rem; color: var(--muted); }
+      .head { display: flex; align-items: center; gap: 1rem; }
+      .head h1 { margin: 0; flex: 1; }
+      ul.assignments { list-style: none; margin: 0.5rem 0 0; padding: 0; }
+      ul.assignments li { display: flex; gap: 0.8rem; align-items: center; padding: 0.7rem 0.4rem; border-bottom: 1px solid #eee; }
+      ul.assignments a.open { flex: 1; min-width: 0; color: inherit; text-decoration: none; }
+      ul.assignments .title { display: block; font-weight: 600; overflow-wrap: anywhere; }
+      ul.assignments .sub { display: block; font-size: 0.85rem; color: var(--muted); }
+      .state { flex: none; padding: 0.1rem 0.6rem; border-radius: 999px; border: 1px solid #ddd; font-size: 0.75rem; color: #555; white-space: nowrap; }
+      .state.new { background: #fff3cd; border-color: #f0d58a; color: #6b5200; }
+      .state.done { background: #e3f4e8; border-color: #b6dfc2; color: #1f6a35; }
+      .bar { flex: none; width: 5rem; height: 6px; border-radius: 3px; background: #e6e9ee; overflow: hidden; }
+      .bar > span { display: block; height: 100%; background: var(--blue-700); }
+  body
+    include _nav
+    include mixins/feed
+    include mixins/assignment
+    .head
+      h1= t('Assignments')
+      a.btn(href="/assignments/new")= t('+ Give an assignment')
+    if done === 'cancelled'
+      .success= t('Assignment cancelled.')
+
+    mixin row(a)
+      li
+        +avatar(a.with ? a.with.displayName : '?', 40, a.with && a.with.avatar, a.with && a.with.id)
+        a.open(href=`/assignments/${encodeURIComponent(a.id)}`)
+          span.title= a.title
+          span.sub
+            = (a.mine ? t('for {name}', { name: a.with ? a.with.displayName : '?' }) : t('from {name}', { name: a.with ? a.with.displayName : '?' }))
+            = ' · ' + t('{n} tasks', { n: a.total })
+            if a.dueAt
+              = ' · ' + t('due {date}', { date: ldDue(a, lang) })
+        if a.status !== 'cancelled'
+          span.bar(title=t('{done} of {total} done', { done: a.done, total: a.total }))
+            span(style=`width: ${a.total ? Math.round(a.done / a.total * 100) : 0}%`)
+        span.state(class=(a.status === 'done' ? 'done' : a.status === 'assigned' && !a.mine ? 'new' : ''))= ldAssignmentState(a)
+
+    section
+      h2= t('For you ({n})', { n: received.length })
+      if received.length
+        ul.assignments
+          each a in received
+            +row(a)
+      else
+        p.hint= t('Nothing has been assigned to you.')
+
+    section
+      h2= t('Given by you ({n})', { n: given.length })
+      if given.length
+        ul.assignments
+          each a in given
+            +row(a)
+      else
+        p.hint= t('You have not given any assignments. A friend can be given a set of drills and flash-card listening to do.')
