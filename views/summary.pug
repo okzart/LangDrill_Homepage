@@ -1,0 +1,208 @@
+//- Summarize as a meeting (see routes/summaryRoutes.js): pick listening drill
+//- sets, gather their sentences into one transcript, and have the AI
+//- summarize that transcript as if it were one meeting.
+doctype html
+html(lang=lang || "en")
+  head
+    meta(charset="UTF-8")
+    meta(name="viewport" content="width=device-width, initial-scale=1")
+    title= 'LanguageDrill — ' + t('Meeting summary')
+    include _style
+    style.
+      .hint { font-size: 0.85rem; color: var(--muted); }
+      .steps h2 { display: flex; align-items: center; gap: 0.5rem; }
+      .steps h2 .n { display: inline-grid; place-items: center; width: 1.6rem; height: 1.6rem; border-radius: 50%; background: var(--blue-700); color: #fff; font-size: 0.9rem; }
+      .set-list { max-height: 22rem; overflow-y: auto; border: 1px solid var(--line); border-radius: 10px; }
+      .set-list label { display: flex; align-items: center; gap: 0.6rem; margin: 0; padding: 0.5rem 0.7rem; border-top: 1px solid #eee; font-size: 0.92rem; cursor: pointer; }
+      .set-list label:first-child { border-top: 0; }
+      .set-list input { width: auto; min-height: 0; margin: 0; }
+      .set-list .meta { margin-left: auto; font-size: 0.78rem; color: var(--muted); white-space: nowrap; }
+      .set-list .order { min-width: 1.4rem; text-align: center; font-size: 0.75rem; font-weight: 700; color: var(--blue-700); }
+      .actions { display: flex; flex-wrap: wrap; gap: 0.6rem; align-items: center; margin-top: 0.75rem; }
+      .actions button, .actions select { margin: 0; width: auto; }
+      .status { font-size: 0.9rem; min-height: 1.2rem; }
+      #transcript { max-height: 24rem; overflow-y: auto; padding: 0.5rem 0.8rem; border: 1px solid var(--line); border-radius: 10px; background: var(--surface-2, #f7f8fa); font-size: 0.92rem; }
+      #transcript h3 { margin: 0.6rem 0 0.2rem; font-size: 0.85rem; color: var(--blue-700); }
+      #transcript ol { margin: 0; padding-left: 2.2rem; }
+      #transcript li { padding: 0.08rem 0; }
+      #summary-out { padding: 1rem 1.2rem; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); }
+      #summary-out h3 { margin: 0.9rem 0 0.3rem; font-size: 1rem; }
+      #summary-out h3:first-child { margin-top: 0; }
+      #summary-out p, #summary-out li { line-height: 1.5; }
+      #summary-out .none { color: var(--muted); font-style: italic; }
+  body
+    include _nav
+    h1= t('Meeting summary')
+    p.hint= t('Pick listening drill sets: their sentences are put together as one meeting transcript, and the AI summarizes that meeting - overview, key points, decisions and action items.')
+
+    #s-error.error(hidden)
+
+    .steps
+      section
+        h2
+          span.n 1
+          = t('Choose listening sets')
+        input#s-filter(type="search" placeholder=t('Filter by name or author') aria-label=t('Filter by name or author'))
+        if sets.length
+          .set-list#set-list
+            each s in sets
+              label(data-text=`${s.name} ${s.author}`.toLowerCase())
+                input(type="checkbox" value=s.id checked=preselected.includes(s.id))
+                span.order
+                span= s.name
+                span.meta= (s.mine ? t('yours') + ' · ' : t('by {author}', { author: s.author }) + ' · ') + t('{n} sentences', { n: s.count })
+        else
+          p.hint= t('There are no listening sets yet.')
+        p.hint= t('The sets are joined in the order you tick them (the number next to each), up to {max}.', { max: maxSets })
+        .actions
+          button#s-gather.primary(type="button" disabled)= t('Gather the sentences')
+          span#s-picked.status
+
+      section#step-transcript(hidden)
+        h2
+          span.n 2
+          = t('The meeting transcript')
+        p#s-count.hint
+        #transcript
+
+        h2
+          span.n 3
+          = t('Summarize the meeting')
+        .actions
+          label(for="s-lang" style="margin:0")= t('Summary in')
+          select#s-lang
+            option(value="en" selected=(lang !== 'ko'))= t('English')
+            option(value="ko" selected=(lang === 'ko'))= t('Korean')
+          button#s-run.primary(type="button")= t('Summarize as a meeting')
+          span#s-status.status(aria-live="polite")
+        p.hint= t('The sentences have no speaker names, so the summary can\'t say who said what. A long transcript is summarized in parts first, which takes longer.')
+
+      section#step-summary(hidden)
+        #summary-out(aria-live="polite")
+        .actions
+          button#s-copy(type="button")= t('Copy summary')
+          span#s-copied.status
+
+    script.
+      (function () {
+        var $ = function (id) { return document.getElementById(id); };
+        var MAX = !{JSON.stringify(maxSets)};
+        var order = []; // ticked set ids, in the order they were ticked
+        var gathered = null; // the ids the transcript on screen was made from
+        var boxes = Array.prototype.slice.call(document.querySelectorAll('#set-list input'));
+        function showError(m) { $('s-error').textContent = m; $('s-error').hidden = false; $('s-error').scrollIntoView({ block: 'nearest' }); }
+        function call(url, body) {
+          return fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }).then(function (res) {
+            if (res.status === 401) { location.href = '/login?next=/summary'; throw new Error(t('Not logged in')); }
+            return res.json().catch(function () { return {}; }).then(function (data) {
+              if (!res.ok) throw new Error(data.error || t('Something went wrong.'));
+              return data;
+            });
+          });
+        }
+        function refresh() {
+          boxes.forEach(function (box) {
+            var at = order.indexOf(box.value);
+            box.parentNode.querySelector('.order').textContent = at === -1 ? '' : String(at + 1);
+          });
+          $('s-gather').disabled = !order.length;
+          $('s-picked').textContent = order.length ? t('{n} sets chosen.', { n: order.length }) : '';
+        }
+        boxes.forEach(function (box) {
+          if (box.checked) order.push(box.value);
+          box.addEventListener('change', function () {
+            if (box.checked) {
+              if (order.length >= MAX) { box.checked = false; return showError(t('Choose at most {max} sets', { max: MAX })); }
+              order.push(box.value);
+            } else {
+              order = order.filter(function (id) { return id !== box.value; });
+            }
+            refresh();
+          });
+        });
+        refresh();
+        $('s-filter').addEventListener('input', function () {
+          var q = this.value.trim().toLowerCase();
+          boxes.forEach(function (box) { var row = box.parentNode; row.hidden = q !== '' && row.dataset.text.indexOf(q) === -1 && !box.checked; });
+        });
+
+        // 1 → 2: the sentences, set by set.
+        $('s-gather').addEventListener('click', function () {
+          $('s-error').hidden = true;
+          var ids = order.slice();
+          $('s-gather').disabled = true;
+          call('/summary/gather', { sets: ids })
+            .then(function (data) {
+              gathered = ids;
+              var box = $('transcript'), n = 0;
+              box.innerHTML = '';
+              data.sources.forEach(function (source, index) {
+                var lines = data.sentences.filter(function (s) { return s.source === index; });
+                if (!lines.length) return;
+                var head = document.createElement('h3');
+                head.textContent = source.name;
+                var ol = document.createElement('ol');
+                ol.start = n + 1;
+                lines.forEach(function (s) { var li = document.createElement('li'); li.textContent = s.text; ol.appendChild(li); n++; });
+                box.appendChild(head);
+                box.appendChild(ol);
+              });
+              $('s-count').textContent = t('{n} sentences from {sets} sets, about {words} words.', { n: data.sentences.length, sets: data.sources.length, words: Math.round(data.chars / 5.5) });
+              $('step-transcript').hidden = false;
+              $('step-summary').hidden = true;
+              $('step-transcript').scrollIntoView({ block: 'start', behavior: 'smooth' });
+            })
+            .catch(function (err) { showError(err.message); })
+            .then(function () { $('s-gather').disabled = !order.length; });
+        });
+
+        // 2 → 3: the summary.
+        var plain = '';
+        $('s-run').addEventListener('click', function () {
+          if (!gathered) return;
+          $('s-error').hidden = true;
+          var button = $('s-run'), started = Date.now();
+          button.disabled = true;
+          var tick = setInterval(function () { $('s-status').textContent = t('The AI is summarizing… {n} s', { n: Math.round((Date.now() - started) / 1000) }); }, 1000);
+          $('s-status').textContent = t('The AI is summarizing… {n} s', { n: 0 });
+          call('/summary/summarize', { sets: gathered, language: $('s-lang').value })
+            .then(function (data) {
+              var out = $('summary-out'), lines = [];
+              out.innerHTML = '';
+              function heading(text) { var h = document.createElement('h3'); h.textContent = text; out.appendChild(h); lines.push(text); }
+              var LABEL = { 'Key points': t('Key points'), Decisions: t('Decisions'), 'Action items': t('Action items'), 'Open questions': t('Open questions') };
+              heading(t('Overview'));
+              var p = document.createElement('p');
+              p.textContent = data.overview;
+              out.appendChild(p);
+              lines.push(data.overview, '');
+              data.sections.forEach(function (section) {
+                heading(LABEL[section.title] || section.title);
+                if (!section.items.length) {
+                  var none = document.createElement('p');
+                  none.className = 'none';
+                  none.textContent = t('None mentioned.');
+                  out.appendChild(none);
+                  lines.push('- ' + t('None mentioned.'), '');
+                  return;
+                }
+                var ul = document.createElement('ul');
+                section.items.forEach(function (item) { var li = document.createElement('li'); li.textContent = item; ul.appendChild(li); lines.push('- ' + item); });
+                out.appendChild(ul);
+                lines.push('');
+              });
+              plain = lines.join('\n').trim();
+              $('s-status').textContent = t('Done in {n} s.', { n: data.seconds }) + (data.parts > 1 ? ' ' + t('(summarized in {n} parts)', { n: data.parts }) : '');
+              $('step-summary').hidden = false;
+              $('step-summary').scrollIntoView({ block: 'start', behavior: 'smooth' });
+            })
+            .catch(function (err) { showError(err.message); $('s-status').textContent = ''; })
+            .then(function () { clearInterval(tick); button.disabled = false; });
+        });
+
+        $('s-copy').addEventListener('click', function () {
+          var done = function (ok) { $('s-copied').textContent = ok ? t('Copied!') : t('Select the text above and copy it manually (Ctrl/Cmd+C).'); };
+          if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(plain).then(function () { done(true); }, function () { done(false); });
+          else done(false);
+        });
+      })();

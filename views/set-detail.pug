@@ -71,6 +71,8 @@ html(lang=lang || "en")
       //- (routes/extractRoutes.js) - reviewed before anything is saved.
       if set.type === 'listening'
         a.btn(href=`/community/${set.id}/extract`)= t('Make a vocab set')
+        //- This set (and any others picked there) summarized as one meeting.
+        a.btn(href=`/summary?sets=${set.id}`)= t('Summarize as a meeting')
       form.inline(method="POST" action=`/community/${set.id}/delete` onsubmit=`return confirm(${JSON.stringify(t('Unpublish this set? This cannot be undone.'))})`)
         button.danger(type="submit")= t('Unpublish')
 
