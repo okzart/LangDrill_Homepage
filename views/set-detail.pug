@@ -80,6 +80,8 @@ html(lang=lang || "en")
       .error= t(error)
     if published
       .success= t('Published.')
+    if visibilityChanged
+      .success= set.visibility === 'private' ? t('The set is private now: only you can see it.') : t('The set is public now: everyone can see it.')
     if downloaded
       .success= t('Downloaded — download count bumped below.')
 
@@ -101,6 +103,17 @@ html(lang=lang || "en")
           tr
             th= t('Audio voice')
             td= set.voice || t('default')
+        tr
+          th= t('Who can see it')
+          td
+            if set.visibility === 'private'
+              span.badge-private= t('Only me (private)')
+            else
+              = t('Everyone (public)')
+            if isOwner
+              form.inline(method="POST" action=`/community/${set.id}/visibility` style="margin-left:0.6rem")
+                input(type="hidden" name="visibility" value=(set.visibility === 'private' ? 'public' : 'private'))
+                button(type="submit")= set.visibility === 'private' ? t('Make public') : t('Make private')
         tr
           th= t('Downloads')
           td= set.downloads

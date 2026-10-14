@@ -76,7 +76,8 @@ html(lang=lang || "en")
       .modes input { width: auto; margin: 0; }
       #auto { margin-top: 1.25rem; padding-top: 0.75rem; border-top: 1px solid #eee; }
       #auto h3 { margin: 0 0 0.25rem; }
-      #auto label.check { display: flex; align-items: center; gap: 0.4rem; }
+      #auto label.check, #set-private-row { display: flex; align-items: center; gap: 0.4rem; }
+      #set-private-row input { width: auto; margin: 0; min-height: 0; }
       #auto label.check input { width: auto; margin: 0; min-height: 0; }
       #auto-result { margin: 0.5rem 0 0; padding-left: 1.2rem; }
       #existing-picker { margin-top: 0.75rem; padding: 0.75rem; background: #fafafa; border: 1px solid #eee; border-radius: 6px; }
@@ -144,6 +145,9 @@ html(lang=lang || "en")
         label.check
           input#auto-ko(type="checkbox" checked)
           = ' ' + t('Add the Korean meaning of every sentence with AI')
+        label.check
+          input#auto-private(type="checkbox")
+          = ' ' + t('Private - only I can see it')
         .actions
           button#auto-btn.primary(type="button")= t('Transcribe and publish automatically')
           button#auto-stop(type="button" hidden)= t('Stop')
@@ -236,6 +240,10 @@ html(lang=lang || "en")
           input#set-author(type="text" value=authorName readonly disabled title=t('Sets are published under your nickname. You can change it on your profile page.'))
       label(for="set-desc")= t('Description (optional)')
       input#set-desc(type="text")
+      //- A new set only; an existing set keeps its own setting.
+      label.check#set-private-row
+        input#set-private(type="checkbox")
+        = ' ' + t('Private - only I can see it')
       .actions
         button#publish.primary(type="button" disabled)= t('Publish listening set')
         span#publish-status.status
@@ -664,7 +672,7 @@ html(lang=lang || "en")
               var setName = sets > 1 ? name + ' (' + n + '/' + sets + ')' : name;
               var batch = made.slice(0, per);
               status.textContent = t('Publishing "{name}"…', { name: setName });
-              return call('/studio/publish', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: setName, desc: '', items: batch }) })
+              return call('/studio/publish', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: setName, desc: '', items: batch, visibility: $('auto-private').checked ? 'private' : 'public' }) })
                 .then(function (result) {
                   made = made.slice(per);
                   published.push({ id: result.id, name: setName, count: batch.length });
@@ -1218,6 +1226,7 @@ html(lang=lang || "en")
           } else {
             url = '/studio/publish';
             fields.items = items;
+            fields.visibility = $('set-private').checked ? 'private' : 'public';
             status.textContent = t('Publishing…');
           }
           btn.disabled = true;

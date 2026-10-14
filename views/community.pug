@@ -84,6 +84,9 @@ html(lang=lang || "en")
             .card
               h3
                 a(href=`/community/${set.id}`)= set.name
+                if set.visibility === 'private'
+                  = ' '
+                  span.badge-private= t('Private')
               //- The author's profile image (or initial) next to the line that names them.
               .meta.by
                 +avatar(set.author, 28, set.authorAvatar, set.authorId)

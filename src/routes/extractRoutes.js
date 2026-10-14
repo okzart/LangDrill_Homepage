@@ -225,9 +225,12 @@ class ExtractRoutes {
       }
       const name = typeof req.body?.name === 'string' ? req.body.name.trim() : '';
       if (!name) return res.status(400).json({ error: req.t('Give the set a name') });
+      // Made from a private set: private too, so its sentences stay the owner's.
+      const source = await this.gatewayClient.get(`/api/sets/${encodeURIComponent(req.params.id)}`, token);
+      const visibility = source?.visibility === 'private' ? 'private' : 'public';
       const card = await this.gatewayClient.postLong(
         '/api/sets',
-        { type: 'vocab', name, desc: typeof req.body?.desc === 'string' ? req.body.desc.trim() : '', items },
+        { type: 'vocab', name, desc: typeof req.body?.desc === 'string' ? req.body.desc.trim() : '', items, visibility },
         token,
         5 * 60 * 1000
       );

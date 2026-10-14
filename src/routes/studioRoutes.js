@@ -188,7 +188,7 @@ class StudioRoutes {
     if (!gone) res.end(`${JSON.stringify({ done: true })}\n`);
   }
 
-  // Body (JSON): { name, desc, author, items }. Answers { id } of the new set.
+  // Body (JSON): { name, desc, author, items, visibility? }. Answers { id } of the new set.
   async publish(req, res) {
     if (!req.auth) return res.status(401).json({ error: req.t('Not logged in') });
     const { name, desc, author } = req.body || {};
@@ -208,6 +208,7 @@ class StudioRoutes {
           desc: typeof desc === 'string' ? desc.trim() : '',
           author: typeof author === 'string' ? author.trim() : '',
           items,
+          visibility: req.body?.visibility === 'private' ? 'private' : 'public',
         },
         req.auth.token
       );

@@ -62,7 +62,8 @@ class AssignmentsRoutes {
     ]);
     res.status(status).render('assignment-new', {
       friends: (friends.friends || []).map((f) => ({ id: f.id, displayName: f.displayName || f.email })),
-      sets: (sets || []).map((s) => ({ id: s.id, name: s.name, type: s.type, author: s.author, count: s.count })),
+      // A private set can't be opened by the student, so it isn't offered.
+      sets: (sets || []).filter((s) => s.visibility !== 'private').map((s) => ({ id: s.id, name: s.name, type: s.type, author: s.author, count: s.count })),
       error,
       values: { student: '', title: '', note: '', dueLocal: '', drill: [], cards: [], ...values },
     });
@@ -85,7 +86,7 @@ class AssignmentsRoutes {
     };
     // Tasks name sets by id; their names and types are taken from Content
     // Sharing here, not from the form, so an assignment can't mislabel a set.
-    const sets = new Map(((await this.gatewayClient.get('/api/sets', req.auth.token)) || []).map((s) => [s.id, s]));
+    const sets = new Map(((await this.gatewayClient.get('/api/sets', req.auth.token)) || []).filter((s) => s.visibility !== 'private').map((s) => [s.id, s]));
     const tasks = [];
     for (const [activity, ids] of [['drill', values.drill], ['cards', values.cards]]) {
       for (const id of ids) {

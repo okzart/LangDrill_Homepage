@@ -254,6 +254,9 @@ style.
   .error::before, .success::before { position: absolute; left: 13px; top: 11px; width: 18px; height: 18px; border-radius: 50%; display: grid; place-items: center; font-size: 11px; font-weight: 800; color: #fff; }
   .error { background: var(--rose-soft); border: 1px solid rgba(176, 58, 80, 0.3); color: #7b2333; }
   .error::before { content: "!"; background: var(--rose); }
+  /* A private set's marker (community list, set page). */
+  .badge-private { display: inline-block; padding: 0.05rem 0.45rem; border-radius: 999px; background: #fff4d6; color: #7a5300; font-size: 0.75rem; font-weight: 600; vertical-align: middle; }
+  .badge-private::before { content: "🔒 "; }
   .success { background: var(--green-soft); border: 1px solid rgba(47, 125, 91, 0.3); color: #1d5a40; }
   .success::before { content: "✓"; background: var(--green); }
   .hint { color: var(--muted); }

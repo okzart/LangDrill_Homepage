@@ -41,6 +41,7 @@ class CommunityRoutes {
     this.router.post('/community/:id/update', requireLogin, AsyncHandler.wrap(this.update.bind(this)));
     this.router.get('/community/:id', requireLogin, AsyncHandler.wrap(this.showOne.bind(this)));
     this.router.post('/community/:id/download', requireLogin, AsyncHandler.wrap(this.download.bind(this)));
+    this.router.post('/community/:id/visibility', requireLogin, AsyncHandler.wrap(this.setVisibility.bind(this)));
     this.router.post('/community/:id/delete', requireLogin, AsyncHandler.wrap(this.remove.bind(this)));
     this.router.get('/community/audio/:filename', requireLogin, AsyncHandler.wrap(this.audio.bind(this)));
   }
@@ -173,13 +174,14 @@ class CommunityRoutes {
 
   async publish(req, res, next) {
     const { type, name, desc, author, items, voice } = req.body || {};
+    const visibility = CommunityRoutes.visibility(req.body?.visibility);
     let parsedItems;
     try {
       parsedItems = JSON.parse(items || '[]');
     } catch {
       return this.renderCommunity(res, {
         sets: [], type: '', q: '', tab: 'create', editId: '',
-        editSet: { type, name, desc, author, voice, itemsRaw: items },
+        editSet: { type, name, desc, author, voice, visibility, itemsRaw: items },
         editError: null, published: false, deleted: false, updated: false,
         error: 'Items must be valid JSON (an array of objects).',
       });
@@ -188,7 +190,7 @@ class CommunityRoutes {
     try {
       const card = await this.gatewayClient.post(
         '/api/sets',
-        { type, name, desc, author, items: parsedItems, ...CommunityRoutes.voiceField(type, voice) },
+        { type, name, desc, author, visibility, items: parsedItems, ...CommunityRoutes.voiceField(type, voice) },
         req.auth.token
       );
       res.redirect(`/community/${card.id}?published=1`);
@@ -196,7 +198,7 @@ class CommunityRoutes {
       if (err instanceof GatewayError && err.status === 400) {
         return this.renderCommunity(res, {
           sets: [], type: '', q: '', tab: 'create', editId: '',
-          editSet: { type, name, desc, author, voice, items: parsedItems },
+          editSet: { type, name, desc, author, voice, visibility, items: parsedItems },
           editError: null, published: false, deleted: false, updated: false,
           error: err.message,
         });
@@ -215,6 +217,7 @@ class CommunityRoutes {
   async update(req, res, next) {
     const id = req.params.id;
     const { type, name, desc, author, items, voice, returnTo } = req.body || {};
+    const visibility = CommunityRoutes.visibility(req.body?.visibility);
     const backTo = returnTo ? `/community?${returnTo}` : '/community?tab=list';
     const listReturnTo = returnTo || 'tab=list';
     let parsedItems;
@@ -223,7 +226,7 @@ class CommunityRoutes {
     } catch {
       return this.renderCommunity(res, {
         sets: [], type: '', q: '', tab: 'list', editId: id,
-        editSet: { id, type, name, desc, author, voice, itemsRaw: items, returnTo },
+        editSet: { id, type, name, desc, author, voice, visibility, itemsRaw: items, returnTo },
         editError: null, published: false, deleted: false, updated: false,
         page: 1, limit: DEFAULT_LIMIT, total: 0, totalPages: 1, pagerBase: '', returnTo: listReturnTo,
         error: 'Items must be valid JSON (an array of objects).',
@@ -233,7 +236,7 @@ class CommunityRoutes {
     try {
       await this.gatewayClient.patch(
         `/api/sets/${encodeURIComponent(id)}`,
-        { type, name, desc, author, items: parsedItems, ...CommunityRoutes.voiceField(type, voice) },
+        { type, name, desc, author, visibility, items: parsedItems, ...CommunityRoutes.voiceField(type, voice) },
         req.auth.token
       );
       res.redirect(`${backTo}&updated=1`);
@@ -241,7 +244,7 @@ class CommunityRoutes {
       if (err instanceof GatewayError && [400, 403, 404].includes(err.status)) {
         return this.renderCommunity(res, {
           sets: [], type: '', q: '', tab: 'list', editId: id,
-          editSet: { id, type, name, desc, author, voice, items: parsedItems, returnTo },
+          editSet: { id, type, name, desc, author, voice, visibility, items: parsedItems, returnTo },
           editError: null, published: false, deleted: false, updated: false,
           page: 1, limit: DEFAULT_LIMIT, total: 0, totalPages: 1, pagerBase: '', returnTo: listReturnTo,
           error: err.message,
@@ -263,6 +266,19 @@ class CommunityRoutes {
     return loadVoiceOptions(this.gatewayClient);
   }
 
+  // "public" | "private" from a form; anything else is public.
+  static visibility(value) {
+    return value === 'private' ? 'private' : 'public';
+  }
+
+  // The set page's "Make private" / "Make public" (owner only - Content
+  // Sharing refuses anyone else).
+  async setVisibility(req, res) {
+    const id = req.params.id;
+    await this.gatewayClient.patch(`/api/sets/${encodeURIComponent(id)}`, { visibility: CommunityRoutes.visibility(req.body?.visibility) }, req.auth.token);
+    res.redirect(`/community/${encodeURIComponent(id)}?visibility=1`);
+  }
+
   // Only vocab sets are narrated, so `voice` is only sent for them - and
   // only when one was actually chosen, so Content Sharing applies its
   // default otherwise (e.g. when the picker couldn't be shown).
@@ -277,7 +293,10 @@ class CommunityRoutes {
     res.render('set-detail', {
       set,
       paging: CommunityRoutes.itemPaging(set, req.query.page, req.query.limit),
-      isOwner: null, // not worked out here: Delete just attempts it and shows whatever the service decides (see #remove below).
+      // For the owner-only visibility switch. Delete and Modify are still
+      // just attempted, and Content Sharing decides (see #remove below).
+      isOwner: !!set.authorId && set.authorId === req.auth.user.sub,
+      visibilityChanged: req.query.visibility === '1',
       downloaded: req.query.downloaded === '1',
       published: req.query.published === '1',
       error: null,

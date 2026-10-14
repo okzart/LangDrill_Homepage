@@ -20,6 +20,11 @@ mixin itemBuilder(formAction, prefill, submitLabel)
     input#name(type="text" name="name" required value=p.name)
     label(for="desc")= t('Description')
     input#desc(type="text" name="desc" value=p.desc)
+    //- Private: only the owner can list or open the set (Content Sharing enforces it).
+    label(for="visibility")= t('Who can see it')
+    select#visibility(name="visibility")
+      option(value="public" selected=(p.visibility !== 'private'))= t('Everyone (public)')
+      option(value="private" selected=(p.visibility === 'private'))= t('Only me (private)')
     //- Not a choice: a set is published under its owner's own name, set by
     //- Content Sharing from the account. Shown, never sent.
     label(for="author")= t('Author')
