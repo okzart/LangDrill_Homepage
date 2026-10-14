@@ -1,0 +1,325 @@
+//- Make a vocab set from a listening set (see routes/extractRoutes.js): the
+//- AI picks the words and expressions worth learning from the set's
+//- sentences; the user reviews every pick - keeping, dropping, correcting
+//- the Korean - and chooses where they go. Nothing is saved until they
+//- confirm.
+doctype html
+html(lang=lang || "en")
+  head
+    meta(charset="UTF-8")
+    meta(name="viewport" content="width=device-width, initial-scale=1")
+    title= 'LanguageDrill — ' + t('Make a vocab set')
+    include _style
+    style.
+      .hint { font-size: 0.85rem; color: var(--muted); }
+      .row-tools { display: flex; flex-wrap: wrap; gap: 0.75rem; align-items: flex-end; }
+      .row-tools > div { min-width: 12rem; }
+      .row-tools button { margin: 0; }
+      .status { font-size: 0.9rem; min-height: 1.2rem; }
+      .group-head { display: flex; align-items: baseline; gap: 0.75rem; }
+      .group-head h2 { margin: 0; }
+      .group-head button { margin: 0; font-size: 0.82rem; }
+      ul.picks { list-style: none; margin: 0.5rem 0 1.2rem; padding: 0; display: grid; gap: 0.5rem; }
+      ul.picks li { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 0.2rem 0.7rem; padding: 0.7rem 0.8rem; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); }
+      ul.picks li.off { opacity: 0.45; }
+      ul.picks input[type=checkbox] { width: auto; min-height: 0; margin: 0.2rem 0 0; grid-row: span 4; }
+      ul.picks .term { font-weight: 700; }
+      ul.picks .pos { margin-left: 0.4rem; font-size: 0.75rem; color: var(--muted); }
+      ul.picks .ex { font-size: 0.92rem; }
+      ul.picks .ex.new { padding: 0.15rem 0.4rem; border-radius: 6px; background: #f0f7ec; }
+      ul.picks .sent-tools { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; margin-top: 0.15rem; font-size: 0.8rem; }
+      ul.picks .sent-tools button { margin: 0; padding: 2px 10px; font-size: 0.8rem; min-height: 0; }
+      ul.picks .sent-tools .note { color: var(--muted); }
+      .bulk { display: flex; flex-wrap: wrap; gap: 0.6rem; align-items: center; margin: 0.4rem 0 0.8rem; }
+      .bulk button { margin: 0; }
+      ul.picks label { margin: 0; font-size: 0.72rem; }
+      ul.picks input[type=text] { margin: 0.1rem 0 0; min-height: 0; padding: 4px 8px; font-size: 0.88rem; }
+      .two { display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; }
+      @media (max-width: 560px) { .two { grid-template-columns: 1fr; } }
+      .dest { padding: 1rem; border: 1px solid var(--line); border-radius: 12px; background: var(--surface-2, #f6f7f9); }
+      .dest .choice { display: flex; align-items: center; gap: 0.45rem; margin: 0.3rem 0; font-weight: 600; }
+      .dest .choice input { width: auto; min-height: 0; margin: 0; }
+      .dest .fields { margin: 0.2rem 0 0.6rem 1.6rem; }
+      .actions { display: flex; flex-wrap: wrap; gap: 0.6rem; align-items: center; margin-top: 0.8rem; }
+      .actions button { margin: 0; }
+  body
+    include _nav
+    p
+      a(href=`/community/${encodeURIComponent(set.id)}`)= t('← Back to "{name}"', { name: set.name })
+    h1= t('Make a vocab set')
+    p.hint= t('The AI picks the words and expressions worth learning from the sentences of "{name}" ({n} items). You check every pick before anything is saved.', { name: set.name, n: set.count })
+
+    #x-error.error(hidden)
+
+    section#step-pick
+      .row-tools
+        if parts.length > 1
+          div
+            label(for="x-part")= t('Sentences')
+            select#x-part
+              each p, i in parts
+                option(value=i)= t('Items {from}-{to}', { from: p.from, to: p.to })
+        div
+          label(for="x-level")= t('Your level')
+          select#x-level
+            each l in levels
+              option(value=l selected=(l === 'intermediate'))= t(l)
+        button#x-run.primary(type="button")= t('Find words and expressions')
+      if parts.length > 1
+        p.hint= t('A long set is studied a part at a time. Save one part, then come back for the next.')
+      p#x-status.status(aria-live="polite")
+
+    section#step-review(hidden)
+      //- New example sentences: the AI writes a fresh sentence for a word or
+      //- expression (POST /community/:id/extract/sentences) when its own
+      //- sentence makes a poor drill. Per pick, or for every ticked one.
+      .bulk
+        button#x-new-all(type="button")= t('✨ New sentences for the ticked ones')
+        span#x-new-status.hint(aria-live="polite")
+      .group-head
+        h2#h-vocab= t('Vocabulary')
+        button.link(type="button" data-all="vocab" data-on="1")= t('Select all')
+        button.link(type="button" data-all="vocab" data-on="0")= t('Select none')
+      ul.picks#picks-vocab
+      .group-head
+        h2#h-expr= t('Expressions')
+        button.link(type="button" data-all="expressions" data-on="1")= t('Select all')
+        button.link(type="button" data-all="expressions" data-on="0")= t('Select none')
+      ul.picks#picks-expressions
+      p.hint= t('Each pick becomes a drill item: its sentence with the word blanked out, shown with the Korean sentence and the word\'s meaning as a hint. Fix any Korean that is wrong before saving. "New sentence" asks the AI for a different example sentence; you can always go back to the original.')
+
+      .dest
+        label.choice
+          input(type="radio" name="dest" value="new" checked)
+          = t('Make a new vocab set')
+        .fields#dest-new
+          label(for="x-name")= t('Set name')
+          input#x-name(type="text" maxlength="100" value=t('Words from "{name}"', { name: set.name }))
+          label(for="x-desc")= t('Description (optional)')
+          input#x-desc(type="text" maxlength="300")
+        label.choice
+          input(type="radio" name="dest" value="existing" disabled=!mySets.length)
+          = t('Add to one of my vocab sets')
+        .fields#dest-existing
+          if mySets.length
+            select#x-target
+              each s in mySets
+                option(value=s.id)= t('{name} ({n} items)', { name: s.name, n: s.count })
+          else
+            p.hint= t('You have not published a vocab set yet.')
+        .actions
+          button#x-save.primary(type="button")
+          span#x-save-status.status(aria-live="polite")
+
+    script.
+      (function () {
+        var $ = function (id) { return document.getElementById(id); };
+        var SET_ID = !{JSON.stringify(set.id)};
+        var WORD = /[A-Za-z']+/g;
+        var picks = { vocab: [], expressions: [] };
+        function showError(message) { $('x-error').textContent = message; $('x-error').hidden = false; $('x-error').scrollIntoView({ block: 'nearest' }); }
+        function call(url, body) {
+          return fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }).then(function (res) {
+            if (res.status === 401) { location.href = '/login'; throw new Error(t('Not logged in')); }
+            return res.json().catch(function () { return {}; }).then(function (data) {
+              if (!res.ok) throw new Error(data.error || t('Something went wrong.'));
+              return data;
+            });
+          });
+        }
+        function el(tag, cls, text) { var e = document.createElement(tag); if (cls) e.className = cls; if (text !== undefined && text !== null) e.textContent = text; return e; }
+        // The sentence with the word(s) to learn highlighted.
+        function marked(sentence, blanks) {
+          var box = el('div', 'ex'), hit = {}, at = 0, last = 0, m;
+          (blanks || []).forEach(function (b) { hit[b.at] = true; });
+          WORD.lastIndex = 0;
+          while ((m = WORD.exec(sentence)) !== null) {
+            box.appendChild(document.createTextNode(sentence.slice(last, m.index)));
+            box.appendChild(hit[at] ? el('mark', null, m[0]) : document.createTextNode(m[0]));
+            last = m.index + m[0].length;
+            at++;
+          }
+          box.appendChild(document.createTextNode(sentence.slice(last)));
+          return box;
+        }
+        function chosen() {
+          return picks.vocab.concat(picks.expressions).filter(function (p) { return p.on; });
+        }
+        function refreshSave() {
+          var n = chosen().length, existing = document.querySelector('input[name=dest]:checked').value === 'existing';
+          $('x-save').textContent = existing ? t('Add {n} items to the set', { n: n }) : t('Make the set with {n} items', { n: n });
+          $('x-save').disabled = n === 0;
+          $('dest-new').hidden = existing;
+          $('dest-existing').hidden = !existing;
+        }
+
+        function render(kind, list) {
+          var ul = $('picks-' + kind);
+          ul.innerHTML = '';
+          picks[kind] = list.map(function (item) {
+            var pick = {
+              item: item, kind: kind, on: true, meaning: item.meaning || '', ko: item.exampleKo || '',
+              example: item.example, blanks: item.blanks, // the sentence the drill will use
+              original: { example: item.example, blanks: item.blanks, ko: item.exampleKo || '' },
+            };
+            var li = el('li'), box = document.createElement('input');
+            box.type = 'checkbox';
+            box.checked = true;
+            box.setAttribute('aria-label', kind === 'vocab' ? item.word : item.expression);
+            box.addEventListener('change', function () { pick.on = box.checked; li.classList.toggle('off', !box.checked); refreshSave(); });
+            pick.box = box;
+            pick.li = li;
+            var head = el('div');
+            head.appendChild(el('span', 'term', kind === 'vocab' ? item.word : item.expression));
+            if (item.pos) head.appendChild(el('span', 'pos', t(item.pos)));
+            var edits = el('div', 'two');
+            [[t('Meaning (hint)'), 'meaning'], [t('Korean sentence (prompt)'), 'ko']].forEach(function (pair) {
+              var wrap = el('div'), label = el('label', null, pair[0]), input = document.createElement('input');
+              input.type = 'text';
+              input.maxLength = 300;
+              input.value = pick[pair[1]];
+              input.addEventListener('input', function () { pick[pair[1]] = input.value; });
+              if (pair[1] === 'ko') pick.koInput = input;
+              wrap.appendChild(label);
+              wrap.appendChild(input);
+              edits.appendChild(wrap);
+            });
+            var sentenceBox = el('div');
+            var tools = el('div', 'sent-tools');
+            var newButton = el('button', null, t('✨ New sentence'));
+            newButton.type = 'button';
+            var back = el('button', 'link', t('Use the original'));
+            back.type = 'button';
+            back.hidden = true;
+            var note = el('span', 'note');
+            tools.appendChild(newButton);
+            tools.appendChild(back);
+            tools.appendChild(note);
+            // Shows the pick's current sentence (and its Korean in the box).
+            pick.show = function () {
+              sentenceBox.innerHTML = '';
+              var ex = marked(pick.example, pick.blanks);
+              if (pick.example !== pick.original.example) ex.className = 'ex new';
+              sentenceBox.appendChild(ex);
+              back.hidden = pick.example === pick.original.example;
+              pick.koInput.value = pick.ko;
+            };
+            pick.note = note;
+            pick.newButton = newButton;
+            newButton.addEventListener('click', function () { newSentences([pick]); });
+            back.addEventListener('click', function () {
+              pick.example = pick.original.example;
+              pick.blanks = pick.original.blanks;
+              pick.ko = pick.original.ko;
+              note.textContent = '';
+              pick.show();
+            });
+            li.appendChild(box);
+            li.appendChild(head);
+            li.appendChild(sentenceBox);
+            li.appendChild(edits);
+            li.appendChild(tools);
+            ul.appendChild(li);
+            pick.show();
+            return pick;
+          });
+          $(kind === 'vocab' ? 'h-vocab' : 'h-expr').textContent = (kind === 'vocab' ? t('Vocabulary') : t('Expressions')) + ' (' + list.length + ')';
+        }
+        // Asks the AI for a new sentence for each of `list` (eight at a time,
+        // what one request takes) and puts each in place; a pick the AI gave
+        // nothing usable for keeps its sentence and says so.
+        var BATCH = 8, busy = false;
+        function newSentences(list, progress) {
+          if (busy || !list.length) return Promise.resolve();
+          busy = true;
+          $('x-error').hidden = true;
+          list.forEach(function (p) { p.newButton.disabled = true; p.note.textContent = t('Writing…'); });
+          var done = 0;
+          function next(offset) {
+            if (offset >= list.length) return Promise.resolve();
+            var batch = list.slice(offset, offset + BATCH);
+            return call('/community/' + encodeURIComponent(SET_ID) + '/extract/sentences', {
+              level: $('x-level').value,
+              items: batch.map(function (p) {
+                return { term: p.kind === 'vocab' ? p.item.word : p.item.expression, meaning: p.meaning, avoid: p.example };
+              }),
+            }).then(function (result) {
+              batch.forEach(function (p, i) {
+                var s = (result.sentences || [])[i];
+                if (s) {
+                  p.example = s.answer;
+                  p.blanks = s.blanks;
+                  p.ko = s.ko;
+                  p.note.textContent = '';
+                  p.show();
+                } else {
+                  p.note.textContent = t('The AI gave no usable sentence - try again.');
+                }
+              });
+              done += batch.length;
+              if (progress) progress(done);
+              return next(offset + BATCH);
+            });
+          }
+          return next(0)
+            .catch(function (err) { showError(err.message); list.forEach(function (p) { if (p.note.textContent === t('Writing…')) p.note.textContent = ''; }); })
+            .then(function () { busy = false; list.forEach(function (p) { p.newButton.disabled = false; }); });
+        }
+        $('x-new-all').addEventListener('click', function () {
+          var list = chosen(), button = $('x-new-all');
+          if (!list.length) return;
+          button.disabled = true;
+          $('x-new-status').textContent = t('Writing {n} / {total}…', { n: 0, total: list.length });
+          newSentences(list, function (n) { $('x-new-status').textContent = t('Writing {n} / {total}…', { n: n, total: list.length }); })
+            .then(function () { button.disabled = false; $('x-new-status').textContent = t('Done. Check the new sentences and their Korean before saving.'); });
+        });
+
+        document.querySelectorAll('[data-all]').forEach(function (button) {
+          button.addEventListener('click', function () {
+            picks[button.dataset.all].forEach(function (p) { p.on = button.dataset.on === '1'; p.box.checked = p.on; p.li.classList.toggle('off', !p.on); });
+            refreshSave();
+          });
+        });
+        document.querySelectorAll('input[name=dest]').forEach(function (r) { r.addEventListener('change', refreshSave); });
+
+        $('x-run').addEventListener('click', function () {
+          $('x-error').hidden = true;
+          var button = $('x-run'), started = Date.now();
+          button.disabled = true;
+          var tick = setInterval(function () { $('x-status').textContent = t('The AI is reading the sentences… {n} s', { n: Math.round((Date.now() - started) / 1000) }); }, 1000);
+          $('x-status').textContent = t('The AI is reading the sentences… {n} s', { n: 0 });
+          call('/community/' + encodeURIComponent(SET_ID) + '/extract', { part: $('x-part') ? Number($('x-part').value) : 0, level: $('x-level').value })
+            .then(function (result) {
+              render('vocab', result.vocab);
+              render('expressions', result.expressions);
+              var total = result.vocab.length + result.expressions.length;
+              $('x-status').textContent = total ? t('Found {n}. Untick what you don\'t want and check the Korean, then save below.', { n: total }) : t('Nothing worth a drill was found in these sentences.');
+              $('step-review').hidden = !total;
+              button.textContent = t('Find again');
+              refreshSave();
+            })
+            .catch(function (err) { showError(err.message); $('x-status').textContent = ''; })
+            .then(function () { clearInterval(tick); button.disabled = false; });
+        });
+
+        $('x-save').addEventListener('click', function () {
+          var items = chosen().map(function (p) {
+            var meaning = p.meaning.trim(), ko = p.ko.trim();
+            return { answer: p.example, blanks: p.blanks, ko: ko || meaning, keyKo: meaning };
+          });
+          var existing = document.querySelector('input[name=dest]:checked').value === 'existing';
+          var target = existing ? $('x-target') : null;
+          var where = existing ? target.options[target.selectedIndex].textContent : $('x-name').value.trim();
+          if (!existing && !where) return showError(t('Give the set a name'));
+          // The last look before anything is written.
+          if (!confirm(existing ? t('Add {n} items to {name}?', { n: items.length, name: where }) : t('Make the vocab set "{name}" with {n} items?', { name: where, n: items.length }))) return;
+          $('x-error').hidden = true;
+          $('x-save').disabled = true;
+          $('x-save-status').textContent = t('Saving… narrating each sentence can take a minute.');
+          call('/community/' + encodeURIComponent(SET_ID) + '/extract/save', existing
+            ? { mode: 'existing', targetId: target.value, items: items }
+            : { mode: 'new', name: where, desc: $('x-desc').value, items: items })
+            .then(function (result) { location.href = '/community/' + encodeURIComponent(result.id) + '?published=1'; })
+            .catch(function (err) { showError(err.message); $('x-save-status').textContent = ''; refreshSave(); });
+        });
+      })();

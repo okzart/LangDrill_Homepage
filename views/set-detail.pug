@@ -67,6 +67,10 @@ html(lang=lang || "en")
       form.inline(method="POST" action=`/community/${set.id}/download`)
         button(type="submit")= t('Download (+1)')
       a.btn(href=`/community?tab=list&editId=${set.id}`)= t('Modify')
+      //- The words and expressions of a listening set, as a vocab drill set
+      //- (routes/extractRoutes.js) - reviewed before anything is saved.
+      if set.type === 'listening'
+        a.btn(href=`/community/${set.id}/extract`)= t('Make a vocab set')
       form.inline(method="POST" action=`/community/${set.id}/delete` onsubmit=`return confirm(${JSON.stringify(t('Unpublish this set? This cannot be undone.'))})`)
         button.danger(type="submit")= t('Unpublish')
 

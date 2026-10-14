@@ -87,11 +87,21 @@ class GatewayClient {
   // a long Dia2 generation (/api/listening/generate) can take longer, so this
   // uses undici's fetch with its own timeouts (routes/listeningRoutes.js).
   async postLong(path, body, token, timeoutMs = 15 * 60 * 1000) {
+    return this.requestLong('POST', path, body, token, timeoutMs);
+  }
+
+  // The same for a slow PATCH (e.g. adding items to a vocab set, which
+  // Content Sharing narrates before answering).
+  async patchLong(path, body, token, timeoutMs = 15 * 60 * 1000) {
+    return this.requestLong('PATCH', path, body, token, timeoutMs);
+  }
+
+  async requestLong(method, path, body, token, timeoutMs) {
     const headers = { 'Content-Type': 'application/json' };
     if (token) headers.Authorization = `Bearer ${token}`;
     const dispatcher = new Agent({ headersTimeout: timeoutMs, bodyTimeout: timeoutMs });
     try {
-      const res = await undiciFetch(`${this.baseUrl}${path}`, { method: 'POST', headers, body: JSON.stringify(body), dispatcher });
+      const res = await undiciFetch(`${this.baseUrl}${path}`, { method, headers, body: JSON.stringify(body), dispatcher });
       let parsed = null;
       try {
         parsed = await res.json();

@@ -27,6 +27,7 @@ const UsersRoutes = require('./routes/usersRoutes');
 const MessagesRoutes = require('./routes/messagesRoutes');
 const ScheduleRoutes = require('./routes/scheduleRoutes');
 const AssignmentsRoutes = require('./routes/assignmentsRoutes');
+const ExtractRoutes = require('./routes/extractRoutes');
 const { attachSignalingProxy } = require('./services/signalingProxy');
 
 // Fail fast: without COOKIE_SECRET the session cookie can't be signed, so
@@ -61,6 +62,7 @@ const usersRoutes = new UsersRoutes(gatewayClient);
 const messagesRoutes = new MessagesRoutes(gatewayClient);
 const scheduleRoutes = new ScheduleRoutes(gatewayClient);
 const assignmentsRoutes = new AssignmentsRoutes(gatewayClient);
+const extractRoutes = new ExtractRoutes(gatewayClient);
 
 // Matches Content Sharing's own JSON body limit (its server.js).
 const BODY_LIMIT = '5mb';
@@ -110,6 +112,7 @@ app.get('/lang/:code', i18n.switchRoute);
 app.use(authRoutes.router);
 app.use(dashboardRoutes.router);
 app.use(progressRoutes.router);
+app.use(extractRoutes.router);
 app.use(communityRoutes.router);
 app.use(adminRoutes.router);
 app.use(chatRoutes.router);

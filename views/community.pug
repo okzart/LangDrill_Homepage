@@ -16,6 +16,9 @@ html(lang=lang || "en")
       #itemList li.editing { background: #eef4ff; border-radius: 4px; padding: 0.1rem 0.4rem; margin-left: -0.4rem; }
       #itemList button { margin: 0 0 0 0.5rem; padding: 0.1rem 0.5rem; font-size: 0.8rem; }
       #cancelEditBtn { margin-left: 0.75rem; }
+      .new-sentence { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; margin-top: 0.5rem; }
+      .new-sentence button { margin: 0; }
+      .new-sentence .copy-status { margin-left: 0; color: var(--muted); }
       .card .meta.by { display: flex; align-items: center; gap: 0.5rem; }
       #itemListHead { margin-top: 1.25rem; align-items: center; flex-wrap: wrap; }
       #itemListHead #fillKoStatus { margin-left: auto; text-align: right; }
@@ -340,6 +343,14 @@ html(lang=lang || "en")
           document.getElementById('f-options').value = '';
           selectedBlankIndices = {};
           blankPicker.innerHTML = '';
+          forgetNewSentence();
+        }
+
+        // A "New sentence" undo belongs to the item it was made for.
+        function forgetNewSentence() {
+          beforeNewSentence = null;
+          if (undoSentenceBtn) undoSentenceBtn.hidden = true;
+          if (newSentenceStatus) newSentenceStatus.textContent = '';
         }
 
         function setVal(f, v) {
@@ -379,6 +390,7 @@ html(lang=lang || "en")
         }
 
         function startEditing(index) {
+          forgetNewSentence();
           var item = getItems()[index];
           if (!item) return;
           clearError();
@@ -479,6 +491,63 @@ html(lang=lang || "en")
           clearError();
           stopEditing();
           renderItemList(getItems());
+        });
+
+        // "New sentence": the AI writes a different sentence using the words
+        // picked as blanks (their Korean meaning, for a vocab item, steers it)
+        // and its Korean; the blanks are placed on those words in the new
+        // sentence. The previous sentence and Korean can be put back.
+        var newSentenceBtn = document.getElementById('newSentenceBtn');
+        var undoSentenceBtn = document.getElementById('undoSentenceBtn');
+        var newSentenceStatus = document.getElementById('newSentenceStatus');
+        var beforeNewSentence = null; // { answer, ko, blanks } to undo to
+        newSentenceBtn.addEventListener('click', function () {
+          var picked = tokenize(answerInput.value || '').filter(function (tok) { return tok.kind === 'word' && selectedBlankIndices[tok.wordIdx]; });
+          if (!picked.length) {
+            newSentenceStatus.textContent = t('Click the word or words to blank first - the new sentence will use them.');
+            return;
+          }
+          var term = picked.map(function (tok) { return tok.text; }).join(' ');
+          var koInput = document.getElementById('f-ko');
+          var keyKoInput = document.getElementById('f-keyko');
+          newSentenceBtn.disabled = true;
+          newSentenceStatus.textContent = t('Writing…');
+          fetch('/community/sentences', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ items: [{ term: term, meaning: keyKoInput && typeSelect.value === 'vocab' ? keyKoInput.value : '', avoid: answerInput.value }] }),
+          })
+            .then(function (res) {
+              if (res.status === 401) { window.location = '/login'; throw new Error(t('Not logged in')); }
+              return res.json().catch(function () { return {}; }).then(function (body) {
+                if (!res.ok) throw new Error(body.error || t('Something went wrong.'));
+                return body;
+              });
+            })
+            .then(function (body) {
+              var s = (body.sentences || [])[0];
+              if (!s) { newSentenceStatus.textContent = t('The AI gave no usable sentence - try again.'); return; }
+              beforeNewSentence = { answer: answerInput.value, ko: koInput.value, blanks: Object.assign({}, selectedBlankIndices) };
+              answerInput.value = s.answer; // set directly: the 'input' handler would clear the blanks
+              koInput.value = s.ko;
+              selectedBlankIndices = {};
+              s.blanks.forEach(function (b) { selectedBlankIndices[b.at] = true; });
+              renderBlankPicker();
+              undoSentenceBtn.hidden = false;
+              newSentenceStatus.textContent = t('New sentence in place - check it and its Korean, then save the item.');
+            })
+            .catch(function (err) { newSentenceStatus.textContent = err.message; })
+            .then(function () { newSentenceBtn.disabled = false; });
+        });
+        undoSentenceBtn.addEventListener('click', function () {
+          if (!beforeNewSentence) return;
+          answerInput.value = beforeNewSentence.answer;
+          document.getElementById('f-ko').value = beforeNewSentence.ko;
+          selectedBlankIndices = beforeNewSentence.blanks;
+          beforeNewSentence = null;
+          renderBlankPicker();
+          undoSentenceBtn.hidden = true;
+          newSentenceStatus.textContent = '';
         });
 
         // Fill all empty Korean prompts with AI: every item whose type has a

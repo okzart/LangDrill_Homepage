@@ -65,6 +65,13 @@ mixin itemBuilder(formAction, prefill, submitLabel)
       .field#w-blanks(hidden)
         label= t('Click the words to hide as blanks (optional)')
         #blankPicker.word-picker
+        //- A fresh sentence that uses the blanked word(s), written by the AI
+        //- (POST /community/sentences), with its Korean - replacing the
+        //- sentence and Korean above, which can be put back.
+        .new-sentence
+          button#newSentenceBtn(type="button")= t('✨ New sentence with the blanked words')
+          button#undoSentenceBtn.link(type="button" hidden)= t('Undo')
+          span#newSentenceStatus.copy-status(aria-live="polite")
 
       .field#w-keyko(hidden)
         label(for="f-keyko")= t('Key Korean keyword (optional)')
