@@ -546,6 +546,8 @@ KO = {
     "Admin: Users": "관리: 사용자",
     "Admin: User Progress": "관리: 사용자 학습 현황",
     "More": "더 보기",
+    "Putting the {parts} parts together… {n} s": "{parts}개 부분을 합치는 중… {n}초",
+    "Summarizing part {i} of {parts}… {n} s": "{parts}개 중 {i}번째 부분 요약 중… {n}초",
     "Meeting summary": "회의 요약",
     "Summarize as a meeting": "회의로 요약하기",
     "Pick listening drill sets: their sentences are put together as one meeting transcript, and the AI summarizes that meeting - overview, key points, decisions and action items.": "듣기 드릴 세트를 고르면 그 문장들을 하나의 회의록으로 모으고, AI가 그 회의를 요약합니다 - 개요, 핵심 내용, 결정 사항, 할 일.",

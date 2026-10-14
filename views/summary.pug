@@ -89,6 +89,7 @@ html(lang=lang || "en")
         var MAX = !{JSON.stringify(maxSets)};
         var order = []; // ticked set ids, in the order they were ticked
         var gathered = null; // the ids the transcript on screen was made from
+        var transcript = null; // { sentences, parts: [{ from, to }] } from /summary/gather
         var boxes = Array.prototype.slice.call(document.querySelectorAll('#set-list input'));
         function showError(m) { $('s-error').textContent = m; $('s-error').hidden = false; $('s-error').scrollIntoView({ block: 'nearest' }); }
         function call(url, body) {
@@ -134,6 +135,7 @@ html(lang=lang || "en")
           call('/summary/gather', { sets: ids })
             .then(function (data) {
               gathered = ids;
+              transcript = data;
               var box = $('transcript'), n = 0;
               box.innerHTML = '';
               data.sources.forEach(function (source, index) {
@@ -163,9 +165,34 @@ html(lang=lang || "en")
           $('s-error').hidden = true;
           var button = $('s-run'), started = Date.now();
           button.disabled = true;
-          var tick = setInterval(function () { $('s-status').textContent = t('The AI is summarizing… {n} s', { n: Math.round((Date.now() - started) / 1000) }); }, 1000);
-          $('s-status').textContent = t('The AI is summarizing… {n} s', { n: 0 });
-          call('/summary/summarize', { sets: gathered, language: $('s-lang').value })
+          var language = $('s-lang').value, parts = transcript.parts, done = 0, merging = false;
+          function progress() {
+            var n = Math.round((Date.now() - started) / 1000);
+            $('s-status').textContent = parts.length === 1 ? t('The AI is summarizing… {n} s', { n: n })
+              : merging ? t('Putting the {parts} parts together… {n} s', { parts: parts.length, n: n })
+              : t('Summarizing part {i} of {parts}… {n} s', { i: Math.min(done + 1, parts.length), parts: parts.length, n: n });
+          }
+          var tick = setInterval(progress, 1000);
+          progress();
+          // A long meeting: notes on each part (two at a time - the AI has two
+          // slots; a failed part is tried once more), then the notes merged.
+          function partNotes() {
+            var notes = new Array(parts.length), next = 0;
+            function text(part) { return transcript.sentences.slice(part.from, part.to).map(function (s) { return s.text; }).join('\n').slice(0, 6500); }
+            function worker() {
+              if (next >= parts.length) return Promise.resolve();
+              var i = next++, body = { text: text(parts[i]) };
+              return call('/summary/notes', body)
+                .catch(function () { return call('/summary/notes', body); })
+                .then(function (data) { notes[i] = data.notes || ''; done++; progress(); return worker(); });
+            }
+            return Promise.all([worker(), worker()]).then(function () {
+              merging = true;
+              progress();
+              return call('/summary/merge', { notes: notes, language: language });
+            });
+          }
+          (parts.length === 1 ? call('/summary/summarize', { sets: gathered, language: language }) : partNotes())
             .then(function (data) {
               var out = $('summary-out'), lines = [];
               out.innerHTML = '';
@@ -192,7 +219,7 @@ html(lang=lang || "en")
                 lines.push('');
               });
               plain = lines.join('\n').trim();
-              $('s-status').textContent = t('Done in {n} s.', { n: data.seconds }) + (data.parts > 1 ? ' ' + t('(summarized in {n} parts)', { n: data.parts }) : '');
+              $('s-status').textContent = t('Done in {n} s.', { n: Math.round((Date.now() - started) / 1000) }) + (data.parts > 1 ? ' ' + t('(summarized in {n} parts)', { n: data.parts }) : '');
               $('step-summary').hidden = false;
               $('step-summary').scrollIntoView({ block: 'start', behavior: 'smooth' });
             })

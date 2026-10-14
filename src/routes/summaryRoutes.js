@@ -7,12 +7,16 @@
 // The AI is llm-service through the gateway (/api/llm/chat/completions).
 // It takes at most 8,000 characters per message (llm-service MAX_CHARS) and
 // replies with at most 1,024 tokens, so a long transcript is summarized in
-// parts first (notes per part, two at a time - llm-service has two slots),
-// notes that are still too long are condensed the same way, then the notes
-// are combined into the summary. Nothing is stored.
+// parts first (notes per part), notes that are still too long are condensed
+// the same way, then the notes are combined into the summary. The page drives
+// a long meeting part by part (/summary/notes, then /summary/merge) so it can
+// show progress and no request runs for many minutes; /summary/summarize does
+// it all in one request. Nothing is stored.
 //
 //   GET  /summary?sets=a,b      the page (those sets ticked)
-//   POST /summary/gather        { sets } → the transcript (JSON)
+//   POST /summary/gather        { sets } → the transcript and its parts (JSON)
+//   POST /summary/notes         { text } (one part) → { notes }
+//   POST /summary/merge         { notes: [..], language } → the summary
 //   POST /summary/summarize     { sets, language: "en" | "ko" } → the summary (JSON)
 const express = require('express');
 const { requireLogin } = require('../middleware/requireLogin');
@@ -21,7 +25,7 @@ const Session = require('../middleware/session');
 const { GatewayError } = require('../errors');
 
 const MAX_SETS = 20;
-const MAX_TRANSCRIPT_CHARS = 60000; // about 8 parts at most
+const MAX_TRANSCRIPT_CHARS = 450000; // about 70 parts: 20 long sets
 const PART_CHARS = 6500; // llm-service takes 8,000 characters per request, prompt included
 const PARALLEL = 2; // llm-service's slots
 const SECTIONS = ['Overview', 'Key points', 'Decisions', 'Action items', 'Open questions'];
@@ -52,6 +56,8 @@ class SummaryRoutes {
 
     this.router.get('/summary', requireLogin, AsyncHandler.wrap(this.show.bind(this)));
     this.router.post('/summary/gather', AsyncHandler.wrap(this.gather.bind(this)));
+    this.router.post('/summary/notes', AsyncHandler.wrap(this.notes.bind(this)));
+    this.router.post('/summary/merge', AsyncHandler.wrap(this.merge.bind(this)));
     this.router.post('/summary/summarize', AsyncHandler.wrap(this.summarize.bind(this)));
   }
 
@@ -100,7 +106,8 @@ class SummaryRoutes {
     if (!req.auth) return res.status(401).json({ error: req.t('Not logged in') });
     try {
       res.set('Cache-Control', 'no-store');
-      res.json(await this.collect(req, req.body?.sets));
+      const gathered = await this.collect(req, req.body?.sets);
+      res.json({ ...gathered, parts: SummaryRoutes.partRanges(gathered.sentences) });
     } catch (err) {
       this.fail(req, res, err, 'Content sharing is unavailable right now');
     }
@@ -116,19 +123,27 @@ class SummaryRoutes {
     return String(reply?.choices?.[0]?.message?.content || '').replace(/<think>[\s\S]*?<\/think>/g, '').trim();
   }
 
-  // The transcript in parts of at most PART_CHARS, never splitting a sentence.
-  static parts(sentences) {
-    const parts = [];
-    let current = '';
-    for (const { text } of sentences) {
-      if (current && current.length + text.length + 1 > PART_CHARS) {
-        parts.push(current);
-        current = '';
+  // The transcript in parts of at most PART_CHARS, never splitting a sentence:
+  // [{ from, to }] sentence indexes (to exclusive).
+  static partRanges(sentences) {
+    const ranges = [];
+    let from = 0;
+    let length = 0;
+    sentences.forEach(({ text }, i) => {
+      if (i > from && length + text.length + 1 > PART_CHARS) {
+        ranges.push({ from, to: i });
+        from = i;
+        length = 0;
       }
-      current += (current ? '\n' : '') + text;
-    }
-    if (current) parts.push(current);
-    return parts;
+      length += text.length + 1;
+    });
+    if (sentences.length > from) ranges.push({ from, to: sentences.length });
+    return ranges;
+  }
+
+  // The parts' texts, one sentence per line.
+  static parts(sentences) {
+    return SummaryRoutes.partRanges(sentences).map(({ from, to }) => sentences.slice(from, to).map((s) => s.text).join('\n').slice(0, PART_CHARS));
   }
 
   // Texts joined by blank lines into chunks of at most PART_CHARS.
@@ -186,6 +201,54 @@ class SummaryRoutes {
     };
   }
 
+  // The summary from the transcript (one part) or from the notes on its parts.
+  async write(req, source, parts, language) {
+    const prompt = summaryPrompt(language).replace('{SOURCE}', parts === 1 ? 'the full transcript' : `notes taken on the meeting's ${parts} parts, in order`);
+    // The model follows the language best when it is asked last, after the text.
+    const text = await this.ask(req, prompt, language === 'ko' ? `${source}\n\n${KOREAN_REMINDER}` : source);
+    return SummaryRoutes.parseSummary(text);
+  }
+
+  // Notes on every part, in order → the summary (notes condensed until they fit one message).
+  async combine(req, partNotes, language) {
+    let notes = partNotes.map((text, i) => `Part ${i + 1} of ${partNotes.length}:\n${text}`);
+    for (let round = 0; notes.join('\n\n').length > PART_CHARS && round < 4; round++) {
+      notes = await this.askAll(req, CONDENSE_PROMPT, SummaryRoutes.chunks(notes));
+    }
+    return this.write(req, notes.join('\n\n').slice(0, PART_CHARS), partNotes.length, language);
+  }
+
+  // One part of a long transcript → notes on it.
+  async notes(req, res) {
+    if (!req.auth) return res.status(401).json({ error: req.t('Not logged in') });
+    const text = typeof req.body?.text === 'string' ? req.body.text.trim() : '';
+    if (!text || text.length > PART_CHARS) return res.status(400).json({ error: req.t('Something went wrong.') });
+    try {
+      res.set('Cache-Control', 'no-store');
+      res.json({ notes: await this.ask(req, NOTES_PROMPT, text) });
+    } catch (err) {
+      this.fail(req, res, err, 'The AI is unavailable right now (is llm-service running? scripts/gpu-services.sh status)');
+    }
+  }
+
+  // The notes on every part, in order → the summary.
+  async merge(req, res) {
+    if (!req.auth) return res.status(401).json({ error: req.t('Not logged in') });
+    const language = req.body?.language === 'ko' ? 'ko' : 'en';
+    const notes = req.body?.notes;
+    const valid = Array.isArray(notes) && notes.length > 0 && notes.length <= Math.ceil(MAX_TRANSCRIPT_CHARS / PART_CHARS) * 2
+      && notes.every((n) => typeof n === 'string' && n.length <= PART_CHARS);
+    if (!valid) return res.status(400).json({ error: req.t('Something went wrong.') });
+    const started = Date.now();
+    try {
+      const summary = await this.combine(req, notes.map((n) => n.trim() || '- (nothing)'), language);
+      res.set('Cache-Control', 'no-store');
+      res.json({ ...summary, language, parts: notes.length, seconds: Math.round((Date.now() - started) / 1000) });
+    } catch (err) {
+      this.fail(req, res, err, 'The AI is unavailable right now (is llm-service running? scripts/gpu-services.sh status)');
+    }
+  }
+
   async summarize(req, res) {
     if (!req.auth) return res.status(401).json({ error: req.t('Not logged in') });
     const language = req.body?.language === 'ko' ? 'ko' : 'en';
@@ -193,24 +256,12 @@ class SummaryRoutes {
     try {
       const { sources, sentences } = await this.collect(req, req.body?.sets);
       const parts = SummaryRoutes.parts(sentences);
-      let source;
-      if (parts.length === 1) {
-        source = `Transcript:\n${parts[0]}`;
-      } else {
-        // A long meeting: notes per part first, then the summary from the notes
-        // (condensed until they fit one message).
-        let notes = (await this.askAll(req, NOTES_PROMPT, parts)).map((text, i) => `Part ${i + 1} of ${parts.length}:\n${text}`);
-        for (let round = 0; notes.join('\n\n').length > PART_CHARS && round < 3; round++) {
-          notes = await this.askAll(req, CONDENSE_PROMPT, SummaryRoutes.chunks(notes));
-        }
-        source = notes.join('\n\n').slice(0, PART_CHARS);
-      }
-      const prompt = summaryPrompt(language).replace('{SOURCE}', parts.length === 1 ? 'the full transcript' : `notes taken on the meeting's ${parts.length} parts, in order`);
-      // The model follows the language best when it is asked last, after the text.
-      const text = await this.ask(req, prompt, language === 'ko' ? `${source}\n\n${KOREAN_REMINDER}` : source);
+      const summary = parts.length === 1
+        ? await this.write(req, `Transcript:\n${parts[0]}`, 1, language)
+        : await this.combine(req, await this.askAll(req, NOTES_PROMPT, parts), language);
       res.set('Cache-Control', 'no-store');
       res.json({
-        ...SummaryRoutes.parseSummary(text),
+        ...summary,
         language,
         sources,
         sentenceCount: sentences.length,
