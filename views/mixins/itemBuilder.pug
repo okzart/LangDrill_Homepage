@@ -25,6 +25,13 @@ mixin itemBuilder(formAction, prefill, submitLabel)
     select#visibility(name="visibility")
       option(value="public" selected=(p.visibility !== 'private'))= t('Everyone (public)')
       option(value="private" selected=(p.visibility === 'private'))= t('Only me (private)')
+    //- Copying: others may copy the set into their own sets (Copy to my
+    //- sets, Make a vocab set) unless this is unticked. `copyChoice` tells
+    //- the server the box was on the form, since an unticked box sends nothing.
+    input(type="hidden" name="copyChoice" value="1")
+    label.check-row
+      input(type="checkbox" name="allowCopy" value="1" checked=(p.allowCopy !== false))
+      = ' ' + t('Allow others to copy this set into their own sets')
     //- Not a choice: a set is published under its owner's own name, set by
     //- Content Sharing from the account. Shown, never sent.
     label(for="author")= t('Author')

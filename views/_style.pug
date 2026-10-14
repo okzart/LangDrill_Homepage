@@ -259,6 +259,11 @@ style.
   /* A private set's marker (community list, set page). */
   .badge-private { display: inline-block; padding: 0.05rem 0.45rem; border-radius: 999px; background: #fff4d6; color: #7a5300; font-size: 0.75rem; font-weight: 600; vertical-align: middle; }
   .badge-private::before { content: "🔒 "; }
+  /* A set its owner doesn't let others copy. */
+  .badge-nocopy { display: inline-block; padding: 0.05rem 0.45rem; border-radius: 999px; background: #f1ecf9; color: #5a3d86; font-size: 0.75rem; font-weight: 600; vertical-align: middle; }
+  .badge-nocopy::before { content: "⛔ "; }
+  label.check-row { display: flex; align-items: center; gap: 0.45rem; margin: 0.6rem 0; font-weight: 500; }
+  label.check-row input { width: auto; min-height: 0; margin: 0; }
   .success { background: var(--green-soft); border: 1px solid rgba(47, 125, 91, 0.3); color: #1d5a40; }
   .success::before { content: "✓"; background: var(--green); }
   .hint { color: var(--muted); }

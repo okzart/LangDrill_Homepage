@@ -66,7 +66,8 @@ const scheduleRoutes = new ScheduleRoutes(gatewayClient);
 const assignmentsRoutes = new AssignmentsRoutes(gatewayClient);
 const extractRoutes = new ExtractRoutes(gatewayClient);
 const summaryRoutes = new SummaryRoutes(gatewayClient);
-const mySetsRoutes = new MySetsRoutes(gatewayClient);
+const mySetsRoutes = new MySetsRoutes(gatewayClient, 'mine');
+const sharedSetsRoutes = new MySetsRoutes(gatewayClient, 'shared');
 
 // Matches Content Sharing's own JSON body limit (its server.js).
 const BODY_LIMIT = '5mb';
@@ -135,6 +136,7 @@ app.use(scheduleRoutes.router);
 app.use(assignmentsRoutes.router);
 app.use(summaryRoutes.router);
 app.use(mySetsRoutes.router);
+app.use(sharedSetsRoutes.router);
 
 // Simple liveness check, useful for uptime monitors / load balancers
 app.get('/health', (req, res) => res.json({ status: 'ok' }));

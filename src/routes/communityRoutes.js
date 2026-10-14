@@ -42,6 +42,7 @@ class CommunityRoutes {
     this.router.get('/community/:id', requireLogin, AsyncHandler.wrap(this.showOne.bind(this)));
     this.router.post('/community/:id/download', requireLogin, AsyncHandler.wrap(this.download.bind(this)));
     this.router.post('/community/:id/visibility', requireLogin, AsyncHandler.wrap(this.setVisibility.bind(this)));
+    this.router.post('/community/:id/copying', requireLogin, AsyncHandler.wrap(this.setCopying.bind(this)));
     this.router.post('/community/:id/access', requireLogin, AsyncHandler.wrap(this.grantAccess.bind(this)));
     this.router.post('/community/:id/access/:userId/revoke', requireLogin, AsyncHandler.wrap(this.revokeAccess.bind(this)));
     this.router.post('/community/:id/delete', requireLogin, AsyncHandler.wrap(this.remove.bind(this)));
@@ -177,13 +178,14 @@ class CommunityRoutes {
   async publish(req, res, next) {
     const { type, name, desc, author, items, voice } = req.body || {};
     const visibility = CommunityRoutes.visibility(req.body?.visibility);
+    const copy = CommunityRoutes.copyField(req.body);
     let parsedItems;
     try {
       parsedItems = JSON.parse(items || '[]');
     } catch {
       return this.renderCommunity(res, {
         sets: [], type: '', q: '', tab: 'create', editId: '',
-        editSet: { type, name, desc, author, voice, visibility, itemsRaw: items },
+        editSet: { type, name, desc, author, voice, visibility, ...copy, itemsRaw: items },
         editError: null, published: false, deleted: false, updated: false,
         error: 'Items must be valid JSON (an array of objects).',
       });
@@ -192,7 +194,7 @@ class CommunityRoutes {
     try {
       const card = await this.gatewayClient.post(
         '/api/sets',
-        { type, name, desc, author, visibility, items: parsedItems, ...CommunityRoutes.voiceField(type, voice) },
+        { type, name, desc, author, visibility, ...copy, items: parsedItems, ...CommunityRoutes.voiceField(type, voice) },
         req.auth.token
       );
       res.redirect(`/community/${card.id}?published=1`);
@@ -200,7 +202,7 @@ class CommunityRoutes {
       if (err instanceof GatewayError && err.status === 400) {
         return this.renderCommunity(res, {
           sets: [], type: '', q: '', tab: 'create', editId: '',
-          editSet: { type, name, desc, author, voice, visibility, items: parsedItems },
+          editSet: { type, name, desc, author, voice, visibility, ...copy, items: parsedItems },
           editError: null, published: false, deleted: false, updated: false,
           error: err.message,
         });
@@ -220,6 +222,7 @@ class CommunityRoutes {
     const id = req.params.id;
     const { type, name, desc, author, items, voice, returnTo } = req.body || {};
     const visibility = CommunityRoutes.visibility(req.body?.visibility);
+    const copy = CommunityRoutes.copyField(req.body);
     const backTo = returnTo ? `/community?${returnTo}` : '/community?tab=list';
     const listReturnTo = returnTo || 'tab=list';
     let parsedItems;
@@ -228,7 +231,7 @@ class CommunityRoutes {
     } catch {
       return this.renderCommunity(res, {
         sets: [], type: '', q: '', tab: 'list', editId: id,
-        editSet: { id, type, name, desc, author, voice, visibility, itemsRaw: items, returnTo },
+        editSet: { id, type, name, desc, author, voice, visibility, ...copy, itemsRaw: items, returnTo },
         editError: null, published: false, deleted: false, updated: false,
         page: 1, limit: DEFAULT_LIMIT, total: 0, totalPages: 1, pagerBase: '', returnTo: listReturnTo,
         error: 'Items must be valid JSON (an array of objects).',
@@ -238,7 +241,7 @@ class CommunityRoutes {
     try {
       await this.gatewayClient.patch(
         `/api/sets/${encodeURIComponent(id)}`,
-        { type, name, desc, author, visibility, items: parsedItems, ...CommunityRoutes.voiceField(type, voice) },
+        { type, name, desc, author, visibility, ...copy, items: parsedItems, ...CommunityRoutes.voiceField(type, voice) },
         req.auth.token
       );
       res.redirect(`${backTo}&updated=1`);
@@ -246,7 +249,7 @@ class CommunityRoutes {
       if (err instanceof GatewayError && [400, 403, 404].includes(err.status)) {
         return this.renderCommunity(res, {
           sets: [], type: '', q: '', tab: 'list', editId: id,
-          editSet: { id, type, name, desc, author, voice, visibility, items: parsedItems, returnTo },
+          editSet: { id, type, name, desc, author, voice, visibility, ...copy, items: parsedItems, returnTo },
           editError: null, published: false, deleted: false, updated: false,
           page: 1, limit: DEFAULT_LIMIT, total: 0, totalPages: 1, pagerBase: '', returnTo: listReturnTo,
           error: err.message,
@@ -266,6 +269,20 @@ class CommunityRoutes {
   // services/voiceOptions.js).
   loadVoiceOptions() {
     return loadVoiceOptions(this.gatewayClient);
+  }
+
+  // The form's "Allow others to copy" box as { allowCopy }, or nothing when
+  // the form didn't have it (so the set keeps what it had).
+  static copyField(body) {
+    return body?.copyChoice === '1' ? { allowCopy: body.allowCopy === '1' } : {};
+  }
+
+  // The set page's copying switch (owner only - Content Sharing refuses
+  // anyone else).
+  async setCopying(req, res) {
+    const id = req.params.id;
+    await this.gatewayClient.patch(`/api/sets/${encodeURIComponent(id)}`, { allowCopy: req.body?.allowCopy === '1' }, req.auth.token);
+    res.redirect(`/community/${encodeURIComponent(id)}?copying=1`);
   }
 
   // "public" | "private" from a form; anything else is public.
@@ -346,6 +363,7 @@ class CommunityRoutes {
       // just attempted, and Content Sharing decides (see #remove below).
       isOwner,
       visibilityChanged: req.query.visibility === '1',
+      copyingChanged: req.query.copying === '1',
       downloaded: req.query.downloaded === '1',
       published: req.query.published === '1',
       error: null,

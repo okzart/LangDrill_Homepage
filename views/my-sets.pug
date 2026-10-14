@@ -1,15 +1,20 @@
-//- My sets (see routes/mySetsRoutes.js): every drill set the user published,
-//- private ones too, to sort into folders, filter, sort and manage - open,
-//- edit, make private or public, delete, move to a folder - one at a time or
-//- ticked together. Folders are the owner's own (nobody else sees them).
-//- Choosing a folder, filtering and sorting happen in the page; the actions
-//- are plain form posts.
+//- My sets and Shared with me (see routes/mySetsRoutes.js; `mode` is
+//- "mine" or "shared", `base` the page's path).
+//-   mine:   every drill set the user published, private ones too - open,
+//-           edit, make private or public, share, delete.
+//-   shared: the private sets friends shared with the user - open,
+//-           download, copy into their own sets, remove from their list.
+//- Both: sort into the user's own folders (a separate tree per page; nobody
+//- else sees them), filter, sort, page - one at a time or ticked together.
+//- Choosing a folder, filtering, sorting and paging happen in the page; the
+//- actions are plain form posts.
+- var shared = mode === 'shared'
 doctype html
 html(lang=lang || "en")
   head
     meta(charset="UTF-8")
     meta(name="viewport" content="width=device-width, initial-scale=1")
-    title= 'LanguageDrill — ' + t('My sets')
+    title= 'LanguageDrill — ' + (shared ? t('Shared with me') : t('My sets'))
     include _style
     style.
       .hint { font-size: 0.85rem; color: var(--muted); }
@@ -63,6 +68,7 @@ html(lang=lang || "en")
       .row .desc { font-size: 0.88rem; margin-top: 0.2rem; color: #444; overflow-wrap: anywhere; }
       .row .chip { display: inline-block; padding: 0.02rem 0.45rem; border-radius: 999px; background: #eef2f7; color: #3b4a5c; font-size: 0.75rem; vertical-align: middle; }
       .row .chip::before { content: "📁 "; }
+      .row .from { display: inline-flex; align-items: center; gap: 0.35rem; vertical-align: middle; }
       .row .acts { display: flex; flex-wrap: wrap; gap: 0.4rem; justify-content: flex-end; }
       .row .acts a.btn, .row .acts button { margin: 0; padding: 0.3rem 0.65rem; font-size: 0.85rem; }
       /* Dragging sets onto a folder (the script at the bottom). */
@@ -82,8 +88,13 @@ html(lang=lang || "en")
       @media (max-width: 640px) { .row { flex-wrap: wrap; } .row .acts { width: 100%; justify-content: flex-start; padding-left: 1.7rem; } }
   body
     include _nav
-    h1= t('My sets')
-    p.hint= t('Every drill set you published, private ones too. Sort them into folders - only you see your folders. Double-click a folder to rename it, + adds a subfolder, − deletes a folder (never its sets).')
+    include mixins/feed
+    if shared
+      h1= t('Shared with me')
+      p.hint= t('The private sets your friends shared with you. Sort them into your own folders - only you see them. Double-click a folder to rename it, + adds a subfolder, − deletes a folder (never its sets).')
+    else
+      h1= t('My sets')
+      p.hint= t('Every drill set you published, private ones too. Sort them into folders - only you see your folders. Double-click a folder to rename it, + adds a subfolder, − deletes a folder (never its sets).')
 
     if error
       .error= t(error)
@@ -98,6 +109,14 @@ html(lang=lang || "en")
         .success= result.n === 0 ? t('Folder deleted.') : result.n === 1 ? t('Folder deleted. The set in it moved up a level.') : t('Folder deleted. Its {n} sets moved up a level.', { n: result.n })
       else if result.action === 'move'
         .success= result.n === 1 ? t('Moved the set.') : t('Moved {n} sets.', { n: result.n })
+      else if result.action === 'copy'
+        .success= result.n === 1 ? t('Copied the set into My sets, as a private set.') : t('Copied {n} sets into My sets, as private sets.', { n: result.n })
+      else if result.action === 'lock-copy'
+        .success= result.n === 1 ? t('Copying locked for the set.') : t('Copying locked for {n} sets.', { n: result.n })
+      else if result.action === 'allow-copy'
+        .success= result.n === 1 ? t('Others can copy the set again.') : t('Others can copy {n} sets again.', { n: result.n })
+      else if result.action === 'leave'
+        .success= result.n === 1 ? t('Removed the set from your list.') : t('Removed {n} sets from your list.', { n: result.n })
       else if result.n === 1
         .success= result.action === 'delete' ? t('Deleted the set.') : result.action === 'private' ? t('Made the set private.') : t('Made the set public.')
       else
@@ -110,12 +129,17 @@ html(lang=lang || "en")
       div
         b= totals.items
         span= t('Items')
-      div
-        b= totals.downloads
-        span= t('Downloads')
-      div
-        b= totals.private
-        span= t('Private')
+      if shared
+        div
+          b= totals.people
+          span= t('Friends sharing')
+      else
+        div
+          b= totals.downloads
+          span= t('Downloads')
+        div
+          b= totals.private
+          span= t('Private')
 
     //- The folder tree: folders by parent ('' = top level), each with how
     //- many sets are directly in it, and a folder's path for the row chips.
@@ -132,7 +156,7 @@ html(lang=lang || "en")
         li(data-node=f.id)
           .frow(style=`--depth:${depth}`)
             button.twisty(type="button" class=(kids.length ? '' : 'leaf') data-toggle=f.id aria-label=t('Show or hide subfolders') tabindex=(kids.length ? 0 : -1)) ▾
-            a.folder(href=`/my-sets?folder=${encodeURIComponent(f.id)}` data-folder=f.id data-name=f.name data-parent=(f.parentId || '') data-count=inFolder(f.id) data-kids=kids.length class=(folder === f.id ? 'active' : '') title=t('Double-click to rename'))
+            a.folder(href=`${base}?folder=${encodeURIComponent(f.id)}` data-folder=f.id data-name=f.name data-parent=(f.parentId || '') data-count=inFolder(f.id) data-kids=kids.length class=(folder === f.id ? 'active' : '') title=t('Double-click to rename'))
               span.label= '📁 ' + f.name
               span.n= inFolder(f.id)
             if depth < 4
@@ -152,12 +176,12 @@ html(lang=lang || "en")
         ul#folder-list
           li
             .frow
-              a.folder(href="/my-sets" data-folder="" class=(folder === '' ? 'active' : ''))
+              a.folder(href=base data-folder="" class=(folder === '' ? 'active' : ''))
                 span.label= t('All sets')
                 span.n= rows.length
           li
             .frow
-              a.folder(href="/my-sets?folder=none" data-folder="none" class=(folder === 'none' ? 'active' : ''))
+              a.folder(href=`${base}?folder=none` data-folder="none" class=(folder === 'none' ? 'active' : ''))
                 span.label= t('Not in a folder')
                 span.n= inFolder('')
           li.sep
@@ -167,7 +191,14 @@ html(lang=lang || "en")
           p.hint= t('No folders yet - press + to make one.')
 
       div
-        if rows.length === 0
+        if rows.length === 0 && shared
+          p= t('No one has shared a private set with you yet.')
+          p.hint= t('When a friend shares one of their private sets with you, it shows up here.')
+          p
+            a.btn(href="/friends")= t('Friends')
+            = ' '
+            a.btn(href="/community")= t('Community sets')
+        else if rows.length === 0
           p= t('You have not published any sets yet.')
           p
             a.btn(href="/community?tab=create")= t('Create a set')
@@ -181,11 +212,17 @@ html(lang=lang || "en")
               option(value="vocab")= t('vocab')
               option(value="listening")= t('listening')
               option(value="writing")= t('writing')
-            select#f-vis(aria-label=t('Who can see it'))
-              option(value="")= t('Public and private')
-              option(value="public")= t('Everyone (public)')
-              option(value="private")= t('Only me (private)')
-              option(value="shared")= t('Shared with friends')
+            if shared
+              select#f-from(aria-label=t('Shared by'))
+                option(value="")= t('From everyone')
+                each person in people
+                  option(value=person.id)= person.name
+            else
+              select#f-vis(aria-label=t('Who can see it'))
+                option(value="")= t('Public and private')
+                option(value="public")= t('Everyone (public)')
+                option(value="private")= t('Only me (private)')
+                option(value="shared")= t('Shared with friends')
             select#f-sort(aria-label=t('Sort'))
               option(value="new")= t('Newest first')
               option(value="old")= t('Oldest first')
@@ -196,7 +233,7 @@ html(lang=lang || "en")
               each n in [10, 25, 50, 100]
                 option(value=n selected=(n === 25))= t('{n} per page', { n: n })
 
-          form#bulk-form(method="POST" action="/my-sets/bulk")
+          form#bulk-form(method="POST" action=`${base}/bulk`)
             input#cur-folder(type="hidden" name="folder" value=folder)
             input#cur-page(type="hidden" name="page" value="1")
             .bulk
@@ -210,24 +247,41 @@ html(lang=lang || "en")
                   option(value="")= t('No folder')
                   +folderOptions('', 0)
                 button(type="submit" name="action" value="move" disabled)= t('Move to')
-              button(type="submit" name="action" value="private" disabled)= t('Make private')
-              button(type="submit" name="action" value="public" disabled)= t('Make public')
-              button.danger(type="submit" name="action" value="delete" disabled)= t('Delete')
+              if shared
+                button(type="submit" name="action" value="copy" disabled)= t('Copy to my sets')
+                button.danger(type="submit" name="action" value="leave" disabled)= t('Remove from my list')
+              else
+                button(type="submit" name="action" value="private" disabled)= t('Make private')
+                button(type="submit" name="action" value="public" disabled)= t('Make public')
+                button(type="submit" name="action" value="lock-copy" disabled title=t('Only you will be able to copy them'))= t('Lock copying')
+                button(type="submit" name="action" value="allow-copy" disabled)= t('Allow copying')
+                button.danger(type="submit" name="action" value="delete" disabled)= t('Delete')
             ul.rows#rows
               each r in rows
                 - var f = byId[r.folderId]
-                li.row(data-name=r.name.toLowerCase() data-text=`${r.name} ${r.desc}`.toLowerCase() data-type=r.type data-vis=r.visibility data-shared=r.sharedWith data-at=r.sharedAt data-downloads=r.downloads data-items=r.count data-folder=r.folderId)
+                li.row(data-name=r.name.toLowerCase() data-text=`${r.name} ${r.desc}`.toLowerCase() data-type=r.type data-vis=r.visibility data-shared=r.sharedWith data-at=r.sharedAt data-downloads=r.downloads data-items=r.count data-folder=r.folderId data-author=r.authorId)
                   span.grip(aria-hidden="true" title=t('Drag to a folder')) ⠿
                   input(type="checkbox" name="ids" value=r.id aria-label=r.name)
                   .main
                     a.name(href=`/community/${encodeURIComponent(r.id)}`)= r.name
-                    if r.visibility === 'private'
+                    if shared
+                      = ' '
+                      span.badge-private= t('Shared with you')
+                    else if r.visibility === 'private'
                       = ' '
                       span.badge-private= r.sharedWith ? t('Private · shared with {n}', { n: r.sharedWith }) : t('Private')
+                    if !r.allowCopy
+                      = ' '
+                      span.badge-nocopy= t('No copies')
                     if f
                       = ' '
                       span.chip= pathOf(f.id)
                     .meta
+                      if shared
+                        span.from
+                          +avatar(r.author, 20, r.authorAvatar, r.authorId)
+                          = t('from {author}', { author: r.author })
+                        = ' · '
                       = t(r.type) + ' · ' + t('{n} items', { n: r.count }) + ' · ' + t('{n} downloads', { n: r.downloads })
                       if r.sharedAt
                         = ' · '
@@ -235,11 +289,20 @@ html(lang=lang || "en")
                     if r.desc
                       .desc= r.desc
                   .acts
-                    a.btn(href=`/community?tab=list&editId=${encodeURIComponent(r.id)}`)= t('Edit')
-                    if r.visibility === 'private'
-                      a.btn(href=`/community/${encodeURIComponent(r.id)}#access`)= t('Share')
-                    button(type="submit" name="one" value=`${r.visibility === 'private' ? 'public' : 'private'}:${r.id}` formaction="/my-sets/one")= r.visibility === 'private' ? t('Make public') : t('Make private')
-                    button.danger(type="submit" name="one" value=`delete:${r.id}` formaction="/my-sets/one" data-confirm=t('Delete "{name}"? This cannot be undone.', { name: r.name }))= t('Delete')
+                    if shared
+                      button(type="submit" formaction=`/community/${encodeURIComponent(r.id)}/download`)= t('Download')
+                      if r.allowCopy
+                        button(type="submit" name="one" value=`copy:${r.id}` formaction=`${base}/one` title=t('A private copy in your own sets, that you can change'))= t('Copy to my sets')
+                      else
+                        button(type="button" disabled title=t("The owner doesn't allow copies of this set"))= t('Copy to my sets')
+                      button.danger(type="submit" name="one" value=`leave:${r.id}` formaction=`${base}/one` data-confirm=t('Remove "{name}" from your list? You get it back only if {author} shares it with you again.', { name: r.name, author: r.author }))= t('Remove')
+                    else
+                      a.btn(href=`/community?tab=list&editId=${encodeURIComponent(r.id)}`)= t('Edit')
+                      if r.visibility === 'private'
+                        a.btn(href=`/community/${encodeURIComponent(r.id)}#access`)= t('Share')
+                      button(type="submit" name="one" value=`${r.visibility === 'private' ? 'public' : 'private'}:${r.id}` formaction=`${base}/one`)= r.visibility === 'private' ? t('Make public') : t('Make private')
+                      button(type="submit" name="one" value=`${r.allowCopy ? 'lock-copy' : 'allow-copy'}:${r.id}` formaction=`${base}/one`)= r.allowCopy ? t('Lock copying') : t('Allow copying')
+                      button.danger(type="submit" name="one" value=`delete:${r.id}` formaction=`${base}/one` data-confirm=t('Delete "{name}"? This cannot be undone.', { name: r.name }))= t('Delete')
             p#none.hint(hidden)= t('No sets match.')
             nav#pager.pager(aria-label=t('Pages'))
 
@@ -250,6 +313,9 @@ html(lang=lang || "en")
         var buttons = Array.prototype.slice.call(document.querySelectorAll('.bulk button'));
         var links = Array.prototype.slice.call(document.querySelectorAll('#folder-list a.folder'));
         var current = !{JSON.stringify(folder)};
+        var BASE = !{JSON.stringify(base)};
+        var MODE = !{JSON.stringify(mode)};
+        var CLOSED_KEY = MODE === 'shared' ? 'sharedsets.closed' : 'mysets.closed'; // collapsed folders, per page
         // Paging: the sets that pass the folder and filters ("matching") are
         // shown `size` at a time. Ticks are kept across pages, so a selection
         // can span pages; a set that stops matching is unticked.
@@ -326,7 +392,7 @@ html(lang=lang || "en")
           var params = new URLSearchParams();
           if (current) params.set('folder', current);
           if (page > 1) params.set('page', String(page));
-          try { history.replaceState(null, '', '/my-sets' + (params.toString() ? '?' + params : '')); } catch (err) { /* ignore */ }
+          try { history.replaceState(null, '', BASE + (params.toString() ? '?' + params : '')); } catch (err) { /* ignore */ }
         }
         // keepPage: false (a new folder, filter or sort) goes back to page 1.
         function apply(keepPage) {
@@ -334,10 +400,11 @@ html(lang=lang || "en")
           links.forEach(function (a) { a.classList.toggle('active', a.dataset.folder === current); });
           if ($('cur-folder')) $('cur-folder').value = current;
           if (!$('f-q')) return remember();
-          var q = $('f-q').value.trim().toLowerCase(), type = $('f-type').value, vis = $('f-vis').value, sort = $('f-sort').value;
+          var q = $('f-q').value.trim().toLowerCase(), type = $('f-type').value, sort = $('f-sort').value;
+          var vis = $('f-vis') ? $('f-vis').value : '', from = $('f-from') ? $('f-from').value : '';
           rows.forEach(function (r) {
             var inFolder = current === '' || (current === 'none' ? r.dataset.folder === '' : r.dataset.folder === current);
-            var ok = inFolder && (!q || r.dataset.text.indexOf(q) !== -1) && (!type || r.dataset.type === type)
+            var ok = inFolder && (!q || r.dataset.text.indexOf(q) !== -1) && (!type || r.dataset.type === type) && (!from || r.dataset.author === from)
               && (!vis || (vis === 'shared' ? r.dataset.vis === 'private' && Number(r.dataset.shared) > 0 : r.dataset.vis === vis));
             r.dataset.match = ok ? '1' : '';
             if (!ok) box(r).checked = false; // a set filtered out is never acted on
@@ -381,7 +448,7 @@ html(lang=lang || "en")
         // The tree: ▾ opens and closes a folder's subfolders (remembered in
         // this browser); the folder being looked at always shows.
         var closed = [];
-        try { closed = JSON.parse(localStorage.getItem('mysets.closed') || '[]'); } catch (err) { closed = []; }
+        try { closed = JSON.parse(localStorage.getItem(CLOSED_KEY) || '[]'); } catch (err) { closed = []; }
         function setOpen(id, open) {
           var sub = document.querySelector('ul[data-sub="' + id + '"]');
           var twisty = document.querySelector('button.twisty[data-toggle="' + id + '"]');
@@ -391,7 +458,7 @@ html(lang=lang || "en")
           twisty.setAttribute('aria-expanded', open ? 'true' : 'false');
           closed = closed.filter(function (x) { return x !== id; });
           if (!open) closed.push(id);
-          try { localStorage.setItem('mysets.closed', JSON.stringify(closed)); } catch (err) { /* ignore */ }
+          try { localStorage.setItem(CLOSED_KEY, JSON.stringify(closed)); } catch (err) { /* ignore */ }
         }
         Array.prototype.forEach.call(document.querySelectorAll('button.twisty:not(.leaf)'), function (b) {
           setOpen(b.dataset.toggle, closed.indexOf(b.dataset.toggle) === -1);
@@ -434,7 +501,7 @@ html(lang=lang || "en")
             var label = a.querySelector('.label');
             label.hidden = true;
             var input = nameBox(a.dataset.name, function (name) {
-              post('/my-sets/folders/' + encodeURIComponent(a.dataset.folder) + '/rename', [['name', name], ['folder', current]]);
+              post(BASE + '/folders/' + encodeURIComponent(a.dataset.folder) + '/rename', [['name', name], ['folder', current]]);
             }, function () { input.remove(); label.hidden = false; });
             a.insertBefore(input, label);
             input.focus();
@@ -456,7 +523,7 @@ html(lang=lang || "en")
             var depth = parentId ? Number(b.closest('.frow').style.getPropertyValue('--depth') || 0) + 1 : 0;
             row.style.setProperty('--depth', depth);
             var input = nameBox('', function (name) {
-              post('/my-sets/folders', [['name', name], ['parentId', parentId], ['folder', current]]);
+              post(BASE + '/folders', [['name', name], ['parentId', parentId], ['folder', current]]);
             }, function () { li.remove(); });
             input.placeholder = parentId ? t('Subfolder name') : t('New folder name');
             row.appendChild(input);
@@ -479,11 +546,11 @@ html(lang=lang || "en")
               : t('It is empty.'));
             if (!confirm(message)) return;
             // Land on the parent if the deleted folder was the one being looked at.
-            post('/my-sets/folders/' + encodeURIComponent(a.dataset.folder) + '/delete', [['folder', current === a.dataset.folder ? (a.dataset.parent || '') : current]]);
+            post(BASE + '/folders/' + encodeURIComponent(a.dataset.folder) + '/delete', [['folder', current === a.dataset.folder ? (a.dataset.parent || '') : current]]);
           });
         });
         if ($('f-q')) {
-          ['f-q', 'f-type', 'f-vis', 'f-sort'].forEach(function (id) { $(id).addEventListener(id === 'f-q' ? 'input' : 'change', apply); });
+          ['f-q', 'f-type', 'f-vis', 'f-from', 'f-sort'].forEach(function (id) { if ($(id)) $(id).addEventListener(id === 'f-q' ? 'input' : 'change', apply); });
           $('all').addEventListener('change', function () { var on = this.checked; shown().forEach(function (r) { box(r).checked = on; }); update(); });
           $('f-size').addEventListener('change', function () {
             size = Number(this.value);
@@ -502,8 +569,10 @@ html(lang=lang || "en")
             if (!b) return;
             if (b.dataset.confirm && !confirm(b.dataset.confirm)) return e.preventDefault();
             if (b.value === 'delete' && b.name === 'action') {
-              var n = ticked().length;
-              if (!confirm(t('Delete {n} sets? This cannot be undone.', { n: n }))) e.preventDefault();
+              if (!confirm(t('Delete {n} sets? This cannot be undone.', { n: ticked().length }))) e.preventDefault();
+            }
+            if (b.value === 'leave' && b.name === 'action') {
+              if (!confirm(t('Remove {n} sets from your list? You get one back only if its owner shares it with you again.', { n: ticked().length }))) e.preventDefault();
             }
           });
         }
@@ -568,7 +637,7 @@ html(lang=lang || "en")
           var to = d.over.dataset.folder === 'none' ? '' : d.over.dataset.folder;
           var ids = d.group.filter(function (r) { return r.dataset.folder !== to; }).map(function (r) { return box(r).value; });
           if (!ids.length) return; // already there
-          post('/my-sets/bulk', [['action', 'move'], ['folderId', to], ['folder', current]].concat(ids.map(function (id) { return ['ids', id]; })));
+          post(BASE + '/bulk', [['action', 'move'], ['folderId', to], ['folder', current]].concat(ids.map(function (id) { return ['ids', id]; })));
         }
         rows.forEach(function (row) {
           row.addEventListener('pointerdown', function (e) {

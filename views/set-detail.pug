@@ -77,7 +77,7 @@ html(lang=lang || "en")
       a.btn(href=`/community?tab=list&editId=${set.id}`)= t('Modify')
       //- The words and expressions of a listening set, as a vocab drill set
       //- (routes/extractRoutes.js) - reviewed before anything is saved.
-      if set.type === 'listening'
+      if set.type === 'listening' && (isOwner || set.allowCopy !== false)
         a.btn(href=`/community/${set.id}/extract`)= t('Make a vocab set')
         //- This set (and any others picked there) summarized as one meeting.
         a.btn(href=`/summary?sets=${set.id}`)= t('Summarize as a meeting')
@@ -88,6 +88,8 @@ html(lang=lang || "en")
       .error= t(error)
     if published
       .success= t('Published.')
+    if copyingChanged
+      .success= set.allowCopy === false ? t('Copying is locked: only you can copy this set.') : t('Others can copy this set again.')
     if visibilityChanged
       .success= set.visibility === 'private' ? t('The set is private now: only you can see it.') : t('The set is public now: everyone can see it.')
     if downloaded
@@ -129,6 +131,17 @@ html(lang=lang || "en")
               form.inline(method="POST" action=`/community/${set.id}/visibility` style="margin-left:0.6rem")
                 input(type="hidden" name="visibility" value=(set.visibility === 'private' ? 'public' : 'private'))
                 button(type="submit")= set.visibility === 'private' ? t('Make public') : t('Make private')
+        tr
+          th= t('Copying')
+          td
+            if set.allowCopy === false
+              span.badge-nocopy= t('Locked - only the owner can copy it')
+            else
+              = t('Others may copy it into their own sets')
+            if isOwner
+              form.inline(method="POST" action=`/community/${set.id}/copying` style="margin-left:0.6rem")
+                input(type="hidden" name="allowCopy" value=(set.allowCopy === false ? '1' : '0'))
+                button(type="submit")= set.allowCopy === false ? t('Allow copying') : t('Lock copying')
         tr
           th= t('Downloads')
           td= set.downloads

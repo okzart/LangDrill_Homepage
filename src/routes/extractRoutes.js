@@ -88,9 +88,15 @@ class ExtractRoutes {
     return (all || []).filter((set) => set.authorId === req.auth.user.sub).map((set) => ({ id: set.id, name: set.name, count: set.count }));
   }
 
+  // Making a vocab set from someone else's set copies its sentences, so a
+  // set whose owner locked copying (`allowCopy: false`) can't be used.
+  static locked(set, req) {
+    return set?.allowCopy === false && set.authorId !== req.auth.user.sub;
+  }
+
   async show(req, res) {
     const set = await this.gatewayClient.get(`/api/sets/${encodeURIComponent(req.params.id)}`, req.auth.token);
-    if (set.type !== 'listening') return res.redirect(`/community/${encodeURIComponent(set.id)}`);
+    if (set.type !== 'listening' || ExtractRoutes.locked(set, req)) return res.redirect(`/community/${encodeURIComponent(set.id)}`);
     res.render('extract', {
       set: { id: set.id, name: set.name, count: (set.items || []).length },
       parts: ExtractRoutes.parts(set).map(({ from, to }) => ({ from, to })),
@@ -117,6 +123,7 @@ class ExtractRoutes {
     try {
       const set = await this.gatewayClient.get(`/api/sets/${encodeURIComponent(req.params.id)}`, req.auth.token);
       if (set.type !== 'listening') return res.status(400).json({ error: req.t('Only a listening set can be turned into a vocab set here') });
+      if (ExtractRoutes.locked(set, req)) return res.status(403).json({ error: req.t("The owner doesn't allow copies of this set") });
       const parts = ExtractRoutes.parts(set);
       const part = parts[Math.max(0, Math.min(parts.length - 1, Number(req.body?.part) || 0))];
       if (!part) return res.status(400).json({ error: req.t('This set has no sentences to study') });
@@ -208,6 +215,8 @@ class ExtractRoutes {
     }
     const token = req.auth.token;
     try {
+      const source = await this.gatewayClient.get(`/api/sets/${encodeURIComponent(req.params.id)}`, token);
+      if (ExtractRoutes.locked(source, req)) return res.status(403).json({ error: req.t("The owner doesn't allow copies of this set") });
       if (req.body?.mode === 'existing') {
         const target = await this.gatewayClient.get(`/api/sets/${encodeURIComponent(String(req.body.targetId || ''))}`, token);
         if (target.type !== 'vocab') return res.status(400).json({ error: req.t('Choose one of your vocab sets') });
@@ -226,7 +235,6 @@ class ExtractRoutes {
       const name = typeof req.body?.name === 'string' ? req.body.name.trim() : '';
       if (!name) return res.status(400).json({ error: req.t('Give the set a name') });
       // Made from a private set: private too, so its sentences stay the owner's.
-      const source = await this.gatewayClient.get(`/api/sets/${encodeURIComponent(req.params.id)}`, token);
       const visibility = source?.visibility === 'private' ? 'private' : 'public';
       const card = await this.gatewayClient.postLong(
         '/api/sets',
