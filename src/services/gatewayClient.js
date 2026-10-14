@@ -61,6 +61,10 @@ class GatewayClient {
     return this.request('PATCH', path, { token, body });
   }
 
+  put(path, body, token) {
+    return this.request('PUT', path, { token, body });
+  }
+
   delete(path, token) {
     return this.request('DELETE', path, { token });
   }

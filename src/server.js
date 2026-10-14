@@ -29,6 +29,7 @@ const ScheduleRoutes = require('./routes/scheduleRoutes');
 const AssignmentsRoutes = require('./routes/assignmentsRoutes');
 const ExtractRoutes = require('./routes/extractRoutes');
 const SummaryRoutes = require('./routes/summaryRoutes');
+const MySetsRoutes = require('./routes/mySetsRoutes');
 const { attachSignalingProxy } = require('./services/signalingProxy');
 
 // Fail fast: without COOKIE_SECRET the session cookie can't be signed, so
@@ -65,6 +66,7 @@ const scheduleRoutes = new ScheduleRoutes(gatewayClient);
 const assignmentsRoutes = new AssignmentsRoutes(gatewayClient);
 const extractRoutes = new ExtractRoutes(gatewayClient);
 const summaryRoutes = new SummaryRoutes(gatewayClient);
+const mySetsRoutes = new MySetsRoutes(gatewayClient);
 
 // Matches Content Sharing's own JSON body limit (its server.js).
 const BODY_LIMIT = '5mb';
@@ -132,6 +134,7 @@ app.use(messagesRoutes.router);
 app.use(scheduleRoutes.router);
 app.use(assignmentsRoutes.router);
 app.use(summaryRoutes.router);
+app.use(mySetsRoutes.router);
 
 // Simple liveness check, useful for uptime monitors / load balancers
 app.get('/health', (req, res) => res.json({ status: 'ok' }));

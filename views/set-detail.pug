@@ -22,6 +22,14 @@ html(lang=lang || "en")
     style.
       .hint { font-size: 0.8rem; color: #666; }
       .author { display: inline-flex; align-items: center; gap: 0.5rem; }
+      ul.shared-with { list-style: none; margin: 0.5rem 0; padding: 0; }
+      ul.shared-with li { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; padding: 0.4rem 0; border-bottom: 1px solid #eee; }
+      ul.shared-with form { margin: 0; }
+      .share-form { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; margin-top: 0.6rem; }
+      .share-form label { margin: 0; }
+      .share-form select { width: auto; min-width: 12rem; }
+      .muted { color: var(--muted); font-size: 0.88rem; }
+      p.none { color: var(--muted); }
       .actions-bar { position: sticky; top: 0; z-index: 10; display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; background: #fff; padding: 0.5rem 0; margin-bottom: 1rem; border-bottom: 1px solid #ddd; }
       .actions-bar .spacer { flex: 1; }
       .actions-bar button, .actions-bar .btn { margin-top: 0; }
@@ -106,8 +114,15 @@ html(lang=lang || "en")
         tr
           th= t('Who can see it')
           td
-            if set.visibility === 'private'
+            if set.sharedWithMe
+              span.badge-private= t('Private')
+              = ' '
+              span.muted= t('{author} shared it with you', { author: set.author })
+            else if set.visibility === 'private'
               span.badge-private= t('Only me (private)')
+              if set.sharedWith && set.sharedWith.length
+                = ' '
+                span.muted= t('and {n} friends you shared it with', { n: set.sharedWith.length })
             else
               = t('Everyone (public)')
             if isOwner
@@ -121,6 +136,43 @@ html(lang=lang || "en")
           th= t('Items')
           td= set.count
       p= set.desc
+
+    //- Owner of a private set: the friends who may see it anyway. Content
+    //- Sharing only lets friends be added, and a share ends by itself when
+    //- the two stop being friends.
+    if access
+      section#access
+        h2= t('Shared with')
+        if accessNotice === 'shared'
+          .success= t('Access given.')
+        if accessNotice === 'revoked'
+          .success= t('Access taken back.')
+        if accessError || access.error
+          .error= t(accessError || access.error)
+        p.hint= t('Only you can see this set. You can let some of your friends see it too - they can open and download it, but not change it.')
+        if access.sharedWith.length
+          ul.shared-with
+            each person in access.sharedWith
+              li
+                span.author
+                  +avatar(person.displayName, 28, person.avatarUrl, person.id)
+                  a(href=`/users/${encodeURIComponent(person.id)}`)= person.displayName
+                form.inline(method="POST" action=`/community/${set.id}/access/${encodeURIComponent(person.id)}/revoke`)
+                  button(type="submit")= t('Revoke')
+        else if !access.error
+          p.none= t('Not shared with anyone yet.')
+        if access.candidates.length
+          form.share-form(method="POST" action=`/community/${set.id}/access`)
+            label(for="share-user")= t('Give access to a friend')
+            select#share-user(name="userId" required)
+              each friend in access.candidates
+                option(value=friend.id)= friend.displayName
+            button.primary(type="submit")= t('Give access')
+        else if !access.error
+          p.hint
+            = access.sharedWith.length ? t('All your friends have access.') : t('You can share a private set only with friends.') + ' '
+            if !access.sharedWith.length
+              a(href="/friends")= t('Add friends')
 
     //- One page of the set's items (see communityRoutes.js#itemPaging), each
     //- shown by its fields - never as raw JSON.

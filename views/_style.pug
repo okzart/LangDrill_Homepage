@@ -62,6 +62,8 @@ style.
      being broken mid-word. */
   html[lang=ko] body { word-break: keep-all; overflow-wrap: break-word; }
   *, *::before, *::after { box-sizing: border-box; }
+  /* `hidden` always hides, even on elements a page styles with display: flex/grid. */
+  [hidden] { display: none !important; }
   html {
     overflow-x: clip;
     background-color: var(--canvas);

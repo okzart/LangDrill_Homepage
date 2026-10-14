@@ -1,0 +1,595 @@
+//- My sets (see routes/mySetsRoutes.js): every drill set the user published,
+//- private ones too, to sort into folders, filter, sort and manage - open,
+//- edit, make private or public, delete, move to a folder - one at a time or
+//- ticked together. Folders are the owner's own (nobody else sees them).
+//- Choosing a folder, filtering and sorting happen in the page; the actions
+//- are plain form posts.
+doctype html
+html(lang=lang || "en")
+  head
+    meta(charset="UTF-8")
+    meta(name="viewport" content="width=device-width, initial-scale=1")
+    title= 'LanguageDrill — ' + t('My sets')
+    include _style
+    style.
+      .hint { font-size: 0.85rem; color: var(--muted); }
+      .totals { display: flex; flex-wrap: wrap; gap: 0.6rem; margin: 0.5rem 0 1rem; }
+      .totals div { flex: 1 1 7rem; padding: 0.6rem 0.8rem; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); }
+      .totals b { display: block; font-size: 1.3rem; }
+      .totals span { font-size: 0.8rem; color: var(--muted); }
+      .layout { display: grid; grid-template-columns: 15rem minmax(0, 1fr); gap: 1.2rem; align-items: start; }
+      aside.folders { position: sticky; top: 0.5rem; padding: 0.6rem; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); }
+      aside.folders .head { display: flex; align-items: center; justify-content: space-between; margin: 0.1rem 0.3rem 0.5rem; }
+      aside.folders h2 { margin: 0; font-size: 0.95rem; }
+      aside.folders ul { list-style: none; margin: 0; padding: 0; }
+      aside.folders .frow { display: flex; align-items: center; gap: 0.1rem; padding-left: calc(var(--depth, 0) * 0.9rem); border-radius: 8px; }
+      aside.folders .frow:hover { background: var(--surface-2, #f3f5f8); }
+      aside.folders a.folder { flex: 1; min-width: 0; display: flex; align-items: center; gap: 0.5rem; padding: 0.42rem 0.4rem; border-radius: 8px; color: inherit; text-decoration: none; font-size: 0.92rem; }
+      aside.folders a.folder.active { background: #e8f0fe; color: var(--blue-700); font-weight: 600; }
+      aside.folders a.folder .n { margin-left: auto; font-size: 0.78rem; color: var(--muted); }
+      aside.folders a.folder .label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      aside.folders li.sep { height: 1px; margin: 0.35rem 0.3rem; background: var(--line); }
+      /* The tree's arrow, and each folder's + (subfolder) and − (delete) buttons. */
+      aside.folders button.twisty, aside.folders button.tool { flex: none; width: 1.5rem; height: 1.5rem; min-height: 0; margin: 0; padding: 0; border: 0; border-radius: 6px; background: transparent; color: var(--muted); font-size: 0.95rem; line-height: 1; box-shadow: none; }
+      aside.folders button.twisty.leaf { visibility: hidden; }
+      aside.folders button.twisty.closed { transform: rotate(-90deg); }
+      aside.folders button.tool:hover { background: #dde5ef; color: var(--ink, #1d1f20); }
+      aside.folders button.tool.del:hover { background: #fde2e2; color: #a12626; }
+      aside.folders .frow .tool { opacity: 0; }
+      aside.folders .frow:hover .tool, aside.folders .frow:focus-within .tool { opacity: 1; }
+      @media (hover: none) { aside.folders .frow .tool { opacity: 1; } }
+      aside.folders .head button.tool { opacity: 1; font-size: 1.1rem; }
+      aside.folders input.fname { flex: 1; min-width: 0; margin: 0.15rem 0; padding: 0.25rem 0.45rem; font-size: 0.9rem; }
+      .filters { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; }
+      .filters input[type="search"] { flex: 1 1 14rem; margin: 0; }
+      .filters select { width: auto; margin: 0; }
+      .bulk { position: sticky; top: 0; z-index: 2; display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; margin: 0.8rem 0 0.4rem; padding: 0.5rem 0.6rem; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); }
+      .bulk label { display: flex; align-items: center; gap: 0.4rem; margin: 0; font-weight: 600; }
+      .bulk input, .row input[type="checkbox"] { width: auto; min-height: 0; margin: 0; }
+      .bulk button, .bulk select { margin: 0; width: auto; }
+      .bulk .count { margin-right: auto; font-size: 0.9rem; color: var(--muted); }
+      .bulk .move { display: flex; gap: 0.3rem; align-items: center; }
+      ul.rows { list-style: none; margin: 0; padding: 0; }
+      .bulk button.linkish { padding: 0.2rem 0.4rem; border: 0; background: none; box-shadow: none; color: var(--blue-700); text-decoration: underline; font-size: 0.88rem; }
+      nav.pager { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 0.3rem; margin: 0.9rem 0 0.4rem; }
+      nav.pager button { margin: 0; min-width: 2.2rem; padding: 0.3rem 0.55rem; font-size: 0.88rem; }
+      nav.pager button.current { background: var(--blue-700); border-color: var(--blue-700); color: #fff; }
+      nav.pager .gap { padding: 0 0.2rem; color: var(--muted); }
+      nav.pager .range { width: 100%; text-align: center; font-size: 0.82rem; color: var(--muted); }
+      .row { display: flex; gap: 0.7rem; align-items: flex-start; padding: 0.7rem 0.4rem; border-bottom: 1px solid #eee; }
+      .row .main { flex: 1; min-width: 0; }
+      .row .name { font-weight: 600; overflow-wrap: anywhere; }
+      .row .meta { font-size: 0.82rem; color: var(--muted); margin-top: 0.15rem; }
+      .row .desc { font-size: 0.88rem; margin-top: 0.2rem; color: #444; overflow-wrap: anywhere; }
+      .row .chip { display: inline-block; padding: 0.02rem 0.45rem; border-radius: 999px; background: #eef2f7; color: #3b4a5c; font-size: 0.75rem; vertical-align: middle; }
+      .row .chip::before { content: "📁 "; }
+      .row .acts { display: flex; flex-wrap: wrap; gap: 0.4rem; justify-content: flex-end; }
+      .row .acts a.btn, .row .acts button { margin: 0; padding: 0.3rem 0.65rem; font-size: 0.85rem; }
+      /* Dragging sets onto a folder (the script at the bottom). */
+      .row .grip { flex: none; align-self: center; padding: 0.2rem 0.15rem; color: #9aa5b1; cursor: grab; font-size: 1.1rem; line-height: 1; user-select: none; touch-action: none; }
+      .row { cursor: grab; }
+      .row a, .row button, .row input { cursor: pointer; }
+      .row.dragged { opacity: 0.45; }
+      body.dragging, body.dragging * { cursor: grabbing !important; user-select: none; }
+      aside.folders a.folder.drop-ok { outline: 2px dashed var(--blue-700); outline-offset: -2px; }
+      aside.folders a.folder.drop-over { background: var(--blue-700); color: #fff; }
+      aside.folders a.folder.drop-over .n { color: #fff; }
+      .drag-ghost { position: fixed; z-index: 50; pointer-events: none; padding: 0.35rem 0.7rem; border-radius: 8px; background: #1d2a3a; color: #fff; font-size: 0.85rem; box-shadow: 0 6px 18px rgba(0,0,0,0.25); white-space: nowrap; transform: translate(12px, 12px); }
+      @media (max-width: 820px) {
+        .layout { grid-template-columns: minmax(0, 1fr); }
+        aside.folders { position: static; max-height: 45vh; overflow-y: auto; }
+      }
+      @media (max-width: 640px) { .row { flex-wrap: wrap; } .row .acts { width: 100%; justify-content: flex-start; padding-left: 1.7rem; } }
+  body
+    include _nav
+    h1= t('My sets')
+    p.hint= t('Every drill set you published, private ones too. Sort them into folders - only you see your folders. Double-click a folder to rename it, + adds a subfolder, − deletes a folder (never its sets).')
+
+    if error
+      .error= t(error)
+    if result
+      if result.failed
+        .error= t('{n} done, {failed} could not be changed.', { n: result.n, failed: result.failed })
+      else if result.action === 'folder-created'
+        .success= t('Folder created. Tick sets and use "Move to" to put them in it.')
+      else if result.action === 'folder-renamed'
+        .success= t('Folder renamed.')
+      else if result.action === 'folder-deleted'
+        .success= result.n === 0 ? t('Folder deleted.') : result.n === 1 ? t('Folder deleted. The set in it moved up a level.') : t('Folder deleted. Its {n} sets moved up a level.', { n: result.n })
+      else if result.action === 'move'
+        .success= result.n === 1 ? t('Moved the set.') : t('Moved {n} sets.', { n: result.n })
+      else if result.n === 1
+        .success= result.action === 'delete' ? t('Deleted the set.') : result.action === 'private' ? t('Made the set private.') : t('Made the set public.')
+      else
+        .success= result.action === 'delete' ? t('Deleted {n} sets.', { n: result.n }) : result.action === 'private' ? t('Made {n} sets private.', { n: result.n }) : t('Made {n} sets public.', { n: result.n })
+
+    .totals
+      div
+        b= totals.sets
+        span= t('Sets')
+      div
+        b= totals.items
+        span= t('Items')
+      div
+        b= totals.downloads
+        span= t('Downloads')
+      div
+        b= totals.private
+        span= t('Private')
+
+    //- The folder tree: folders by parent ('' = top level), each with how
+    //- many sets are directly in it, and a folder's path for the row chips.
+    - var byParent = {}
+    - folders.forEach(function (f) { var k = f.parentId || ''; (byParent[k] = byParent[k] || []).push(f); })
+    - var byId = {}
+    - folders.forEach(function (f) { byId[f.id] = f; })
+    - var inFolder = function (id) { return rows.filter(function (r) { return r.folderId === id; }).length; }
+    - var pathOf = function (id) { var names = []; for (var f = byId[id]; f; f = byId[f.parentId]) names.unshift(f.name); return names.join(' / '); }
+    - var depthOf = function (id) { var d = 0; for (var f = byId[id]; f; f = byId[f.parentId]) d++; return d; }
+    mixin folderTree(parentId, depth)
+      each f in (byParent[parentId] || [])
+        - var kids = byParent[f.id] || []
+        li(data-node=f.id)
+          .frow(style=`--depth:${depth}`)
+            button.twisty(type="button" class=(kids.length ? '' : 'leaf') data-toggle=f.id aria-label=t('Show or hide subfolders') tabindex=(kids.length ? 0 : -1)) ▾
+            a.folder(href=`/my-sets?folder=${encodeURIComponent(f.id)}` data-folder=f.id data-name=f.name data-parent=(f.parentId || '') data-count=inFolder(f.id) data-kids=kids.length class=(folder === f.id ? 'active' : '') title=t('Double-click to rename'))
+              span.label= '📁 ' + f.name
+              span.n= inFolder(f.id)
+            if depth < 4
+              button.tool.add(type="button" data-add=f.id title=t('Add a subfolder') aria-label=t('Add a subfolder')) +
+            button.tool.del(type="button" data-del=f.id title=t('Delete this folder (its sets are kept)') aria-label=t('Delete this folder (its sets are kept)')) −
+          ul(data-sub=f.id)
+            +folderTree(f.id, depth + 1)
+    mixin folderOptions(parentId, depth)
+      each f in (byParent[parentId] || [])
+        option(value=f.id)= '\u00a0\u00a0\u00a0'.repeat(depth) + f.name
+        +folderOptions(f.id, depth + 1)
+    .layout
+      aside.folders
+        .head
+          h2= t('Folders')
+          button.tool.add(type="button" data-add="" title=t('New folder') aria-label=t('New folder')) +
+        ul#folder-list
+          li
+            .frow
+              a.folder(href="/my-sets" data-folder="" class=(folder === '' ? 'active' : ''))
+                span.label= t('All sets')
+                span.n= rows.length
+          li
+            .frow
+              a.folder(href="/my-sets?folder=none" data-folder="none" class=(folder === 'none' ? 'active' : ''))
+                span.label= t('Not in a folder')
+                span.n= inFolder('')
+          li.sep
+          +folderTree('', 0)
+        p.hint#drag-hint= t('Drag sets onto a folder to put them in it (on a phone, drag them by ⠿).')
+        if !folders.length
+          p.hint= t('No folders yet - press + to make one.')
+
+      div
+        if rows.length === 0
+          p= t('You have not published any sets yet.')
+          p
+            a.btn(href="/community?tab=create")= t('Create a set')
+            = ' '
+            a.btn(href="/studio")= t('Make one in Studio')
+        else
+          .filters
+            input#f-q(type="search" placeholder=t('Search by name or description') aria-label=t('Search by name or description'))
+            select#f-type(aria-label=t('Type'))
+              option(value="")= t('All types')
+              option(value="vocab")= t('vocab')
+              option(value="listening")= t('listening')
+              option(value="writing")= t('writing')
+            select#f-vis(aria-label=t('Who can see it'))
+              option(value="")= t('Public and private')
+              option(value="public")= t('Everyone (public)')
+              option(value="private")= t('Only me (private)')
+              option(value="shared")= t('Shared with friends')
+            select#f-sort(aria-label=t('Sort'))
+              option(value="new")= t('Newest first')
+              option(value="old")= t('Oldest first')
+              option(value="name")= t('Name')
+              option(value="downloads")= t('Most downloaded')
+              option(value="items")= t('Most items')
+            select#f-size(aria-label=t('Sets per page'))
+              each n in [10, 25, 50, 100]
+                option(value=n selected=(n === 25))= t('{n} per page', { n: n })
+
+          form#bulk-form(method="POST" action="/my-sets/bulk")
+            input#cur-folder(type="hidden" name="folder" value=folder)
+            input#cur-page(type="hidden" name="page" value="1")
+            .bulk
+              label
+                input#all(type="checkbox")
+                = t('All shown')
+              span#count.count
+              button#select-matching.linkish(type="button" hidden)
+              span.move
+                select#move-to(name="folderId" aria-label=t('Move to'))
+                  option(value="")= t('No folder')
+                  +folderOptions('', 0)
+                button(type="submit" name="action" value="move" disabled)= t('Move to')
+              button(type="submit" name="action" value="private" disabled)= t('Make private')
+              button(type="submit" name="action" value="public" disabled)= t('Make public')
+              button.danger(type="submit" name="action" value="delete" disabled)= t('Delete')
+            ul.rows#rows
+              each r in rows
+                - var f = byId[r.folderId]
+                li.row(data-name=r.name.toLowerCase() data-text=`${r.name} ${r.desc}`.toLowerCase() data-type=r.type data-vis=r.visibility data-shared=r.sharedWith data-at=r.sharedAt data-downloads=r.downloads data-items=r.count data-folder=r.folderId)
+                  span.grip(aria-hidden="true" title=t('Drag to a folder')) ⠿
+                  input(type="checkbox" name="ids" value=r.id aria-label=r.name)
+                  .main
+                    a.name(href=`/community/${encodeURIComponent(r.id)}`)= r.name
+                    if r.visibility === 'private'
+                      = ' '
+                      span.badge-private= r.sharedWith ? t('Private · shared with {n}', { n: r.sharedWith }) : t('Private')
+                    if f
+                      = ' '
+                      span.chip= pathOf(f.id)
+                    .meta
+                      = t(r.type) + ' · ' + t('{n} items', { n: r.count }) + ' · ' + t('{n} downloads', { n: r.downloads })
+                      if r.sharedAt
+                        = ' · '
+                        time(datetime=new Date(r.sharedAt).toISOString())= new Date(r.sharedAt).toISOString().slice(0, 10)
+                    if r.desc
+                      .desc= r.desc
+                  .acts
+                    a.btn(href=`/community?tab=list&editId=${encodeURIComponent(r.id)}`)= t('Edit')
+                    if r.visibility === 'private'
+                      a.btn(href=`/community/${encodeURIComponent(r.id)}#access`)= t('Share')
+                    button(type="submit" name="one" value=`${r.visibility === 'private' ? 'public' : 'private'}:${r.id}` formaction="/my-sets/one")= r.visibility === 'private' ? t('Make public') : t('Make private')
+                    button.danger(type="submit" name="one" value=`delete:${r.id}` formaction="/my-sets/one" data-confirm=t('Delete "{name}"? This cannot be undone.', { name: r.name }))= t('Delete')
+            p#none.hint(hidden)= t('No sets match.')
+            nav#pager.pager(aria-label=t('Pages'))
+
+    script.
+      (function () {
+        var $ = function (id) { return document.getElementById(id); };
+        var rows = Array.prototype.slice.call(document.querySelectorAll('#rows .row'));
+        var buttons = Array.prototype.slice.call(document.querySelectorAll('.bulk button'));
+        var links = Array.prototype.slice.call(document.querySelectorAll('#folder-list a.folder'));
+        var current = !{JSON.stringify(folder)};
+        // Paging: the sets that pass the folder and filters ("matching") are
+        // shown `size` at a time. Ticks are kept across pages, so a selection
+        // can span pages; a set that stops matching is unticked.
+        var page = Math.max(1, parseInt(new URLSearchParams(location.search).get('page'), 10) || 1);
+        var size = 25;
+        try { size = [10, 25, 50, 100].indexOf(Number(localStorage.getItem('mysets.size'))) !== -1 ? Number(localStorage.getItem('mysets.size')) : 25; } catch (err) { /* ignore */ }
+        if ($('f-size')) $('f-size').value = String(size);
+        function shown() { return rows.filter(function (r) { return !r.hidden; }); }
+        function box(r) { return r.querySelector('input[type="checkbox"]'); }
+        function matched() { return rows.filter(function (r) { return r.dataset.match === '1'; }); }
+        function ticked() { return matched().filter(function (r) { return box(r).checked; }); }
+        function update() {
+          if (!$('count')) return;
+          var picked = ticked().length, onPage = shown(), all = matched().length;
+          var pagePicked = onPage.filter(function (r) { return box(r).checked; }).length;
+          $('count').textContent = picked
+            ? (picked > pagePicked ? t('{n} selected (some on other pages)', { n: picked }) : t('{n} selected', { n: picked }))
+            : t('{n} sets', { n: all });
+          buttons.forEach(function (b) { if (b.name === 'action') b.disabled = !picked; });
+          $('all').checked = onPage.length > 0 && pagePicked === onPage.length;
+          // Gmail-style: the whole page ticked → offer every matching set.
+          var more = $('select-matching');
+          if ($('all').checked && all > onPage.length && picked < all) {
+            more.textContent = t('Select all {n} matching sets', { n: all });
+            more.dataset.mode = 'all';
+            more.hidden = false;
+          } else if (picked > onPage.length) {
+            more.textContent = t('Clear selection');
+            more.dataset.mode = 'clear';
+            more.hidden = false;
+          } else {
+            more.hidden = true;
+          }
+        }
+        // The pager: first, previous, a few numbers around this page, next, last.
+        function renderPager(total) {
+          var pager = $('pager'), pages = Math.max(1, Math.ceil(total / size));
+          pager.innerHTML = '';
+          if (total === 0) return;
+          function button(label, to, opts) {
+            var b = document.createElement('button');
+            b.type = 'button';
+            b.textContent = label;
+            if (opts && opts.title) b.setAttribute('aria-label', opts.title);
+            if (to === page && opts && opts.number) { b.className = 'current'; b.setAttribute('aria-current', 'page'); }
+            b.disabled = to < 1 || to > pages || (to === page && !(opts && opts.number));
+            b.addEventListener('click', function () { goTo(to); });
+            pager.appendChild(b);
+          }
+          if (pages > 1) {
+            button('«', 1, { title: t('First page') });
+            button('‹', page - 1, { title: t('Previous page') });
+            var from = Math.max(1, page - 2), to = Math.min(pages, page + 2);
+            if (from > 1) { button('1', 1, { number: true }); if (from > 2) pager.appendChild(Object.assign(document.createElement('span'), { className: 'gap', textContent: '…' })); }
+            for (var n = from; n <= to; n++) button(String(n), n, { number: true });
+            if (to < pages) { if (to < pages - 1) pager.appendChild(Object.assign(document.createElement('span'), { className: 'gap', textContent: '…' })); button(String(pages), pages, { number: true }); }
+            button('›', page + 1, { title: t('Next page') });
+            button('»', pages, { title: t('Last page') });
+          }
+          var range = document.createElement('div');
+          range.className = 'range';
+          range.textContent = t('{from}–{to} of {total}', { from: (page - 1) * size + 1, to: Math.min(total, page * size), total: total });
+          pager.appendChild(range);
+        }
+        function goTo(n) {
+          page = n;
+          apply(true);
+          $('rows').scrollIntoView({ block: 'nearest' });
+        }
+        // The address keeps the folder and the page, for reloads and for
+        // coming back after an action.
+        function remember() {
+          if ($('cur-page')) $('cur-page').value = String(page);
+          var params = new URLSearchParams();
+          if (current) params.set('folder', current);
+          if (page > 1) params.set('page', String(page));
+          try { history.replaceState(null, '', '/my-sets' + (params.toString() ? '?' + params : '')); } catch (err) { /* ignore */ }
+        }
+        // keepPage: false (a new folder, filter or sort) goes back to page 1.
+        function apply(keepPage) {
+          if (keepPage !== true) page = 1;
+          links.forEach(function (a) { a.classList.toggle('active', a.dataset.folder === current); });
+          if ($('cur-folder')) $('cur-folder').value = current;
+          if (!$('f-q')) return remember();
+          var q = $('f-q').value.trim().toLowerCase(), type = $('f-type').value, vis = $('f-vis').value, sort = $('f-sort').value;
+          rows.forEach(function (r) {
+            var inFolder = current === '' || (current === 'none' ? r.dataset.folder === '' : r.dataset.folder === current);
+            var ok = inFolder && (!q || r.dataset.text.indexOf(q) !== -1) && (!type || r.dataset.type === type)
+              && (!vis || (vis === 'shared' ? r.dataset.vis === 'private' && Number(r.dataset.shared) > 0 : r.dataset.vis === vis));
+            r.dataset.match = ok ? '1' : '';
+            if (!ok) box(r).checked = false; // a set filtered out is never acted on
+          });
+          var key = { new: function (r) { return -Number(r.dataset.at); }, old: function (r) { return Number(r.dataset.at); }, downloads: function (r) { return -Number(r.dataset.downloads); }, items: function (r) { return -Number(r.dataset.items); } }[sort];
+          var sorted = rows.slice().sort(function (a, b) { return key ? key(a) - key(b) : a.dataset.name.localeCompare(b.dataset.name); });
+          sorted.forEach(function (r) { $('rows').appendChild(r); });
+          var hits = sorted.filter(function (r) { return r.dataset.match === '1'; });
+          page = Math.min(page, Math.max(1, Math.ceil(hits.length / size)));
+          var first = (page - 1) * size;
+          rows.forEach(function (r) { r.hidden = true; });
+          hits.slice(first, first + size).forEach(function (r) { r.hidden = false; });
+          renderPager(hits.length);
+          remember();
+          $('none').textContent = rows.length && current !== '' && !rows.some(function (r) { return current === 'none' ? r.dataset.folder === '' : r.dataset.folder === current; })
+            ? t('This folder is empty. Tick sets in "All sets" and use "Move to" to put them here.') : t('No sets match.');
+          $('none').hidden = hits.length > 0;
+          update();
+        }
+        // A POST the server answers by coming back to this page.
+        function post(action, fields) {
+          var form = document.createElement('form');
+          form.method = 'POST';
+          form.action = action;
+          fields = fields.concat([['page', String(page)]]);
+          fields.forEach(function (f) { var input = document.createElement('input'); input.type = 'hidden'; input.name = f[0]; input.value = f[1]; form.appendChild(input); });
+          document.body.appendChild(form);
+          form.submit();
+        }
+
+        // Choosing a folder stays on the page; the address keeps it for reloads.
+        links.forEach(function (a) {
+          a.addEventListener('click', function (e) {
+            e.preventDefault();
+            if (a.querySelector('input')) return; // being renamed
+            current = a.dataset.folder;
+            apply();
+          });
+        });
+
+        // The tree: ▾ opens and closes a folder's subfolders (remembered in
+        // this browser); the folder being looked at always shows.
+        var closed = [];
+        try { closed = JSON.parse(localStorage.getItem('mysets.closed') || '[]'); } catch (err) { closed = []; }
+        function setOpen(id, open) {
+          var sub = document.querySelector('ul[data-sub="' + id + '"]');
+          var twisty = document.querySelector('button.twisty[data-toggle="' + id + '"]');
+          if (!sub || !twisty) return;
+          sub.hidden = !open;
+          twisty.classList.toggle('closed', !open);
+          twisty.setAttribute('aria-expanded', open ? 'true' : 'false');
+          closed = closed.filter(function (x) { return x !== id; });
+          if (!open) closed.push(id);
+          try { localStorage.setItem('mysets.closed', JSON.stringify(closed)); } catch (err) { /* ignore */ }
+        }
+        Array.prototype.forEach.call(document.querySelectorAll('button.twisty:not(.leaf)'), function (b) {
+          setOpen(b.dataset.toggle, closed.indexOf(b.dataset.toggle) === -1);
+          b.addEventListener('click', function () { setOpen(b.dataset.toggle, b.classList.contains('closed')); });
+        });
+        for (var at = links.filter(function (a) { return a.dataset.folder === current; })[0]; at && at.dataset.parent; ) {
+          setOpen(at.dataset.parent, true);
+          at = links.filter(function (a) { return a.dataset.folder === at.dataset.parent; })[0];
+        }
+
+        // A name box in place of a folder's name (renaming) or as a new row
+        // (a new folder). Enter or leaving the box saves; Escape cancels.
+        function nameBox(value, onSave, onCancel) {
+          var input = document.createElement('input');
+          input.type = 'text';
+          input.className = 'fname';
+          input.maxLength = 60;
+          input.value = value;
+          input.setAttribute('aria-label', t('Folder name'));
+          var done = false;
+          function finish(save) {
+            if (done) return;
+            done = true;
+            var name = input.value.trim();
+            if (save && name && name !== value) onSave(name); else onCancel();
+          }
+          input.addEventListener('keydown', function (e) {
+            if (e.key === 'Enter') { e.preventDefault(); finish(true); }
+            else if (e.key === 'Escape') { e.preventDefault(); finish(false); }
+          });
+          input.addEventListener('blur', function () { finish(true); });
+          input.addEventListener('click', function (e) { e.stopPropagation(); e.preventDefault(); });
+          return input;
+        }
+        links.forEach(function (a) {
+          if (!a.dataset.name) return; // "All sets", "Not in a folder"
+          a.addEventListener('dblclick', function (e) {
+            e.preventDefault();
+            if (a.querySelector('input')) return;
+            var label = a.querySelector('.label');
+            label.hidden = true;
+            var input = nameBox(a.dataset.name, function (name) {
+              post('/my-sets/folders/' + encodeURIComponent(a.dataset.folder) + '/rename', [['name', name], ['folder', current]]);
+            }, function () { input.remove(); label.hidden = false; });
+            a.insertBefore(input, label);
+            input.focus();
+            input.select();
+          });
+        });
+        Array.prototype.forEach.call(document.querySelectorAll('button.tool.add'), function (b) {
+          b.addEventListener('click', function () {
+            var parentId = b.dataset.add;
+            var list = parentId ? document.querySelector('ul[data-sub="' + parentId + '"]') : $('folder-list');
+            if (parentId) {
+              var twisty = document.querySelector('button.twisty[data-toggle="' + parentId + '"]');
+              twisty.classList.remove('leaf');
+              setOpen(parentId, true);
+            }
+            var li = document.createElement('li');
+            var row = document.createElement('div');
+            row.className = 'frow';
+            var depth = parentId ? Number(b.closest('.frow').style.getPropertyValue('--depth') || 0) + 1 : 0;
+            row.style.setProperty('--depth', depth);
+            var input = nameBox('', function (name) {
+              post('/my-sets/folders', [['name', name], ['parentId', parentId], ['folder', current]]);
+            }, function () { li.remove(); });
+            input.placeholder = parentId ? t('Subfolder name') : t('New folder name');
+            row.appendChild(input);
+            li.appendChild(row);
+            list.appendChild(li);
+            input.focus();
+          });
+        });
+        // Deleting a folder keeps its sets and subfolders: they move up a level.
+        Array.prototype.forEach.call(document.querySelectorAll('button.tool.del'), function (b) {
+          b.addEventListener('click', function () {
+            var a = links.filter(function (x) { return x.dataset.folder === b.dataset.del; })[0];
+            var parent = a.dataset.parent ? links.filter(function (x) { return x.dataset.folder === a.dataset.parent; })[0] : null;
+            var where = parent ? t('the folder "{name}"', { name: parent.dataset.name }) : t('no folder');
+            var what = [];
+            if (Number(a.dataset.count)) what.push(t('{n} sets', { n: a.dataset.count }));
+            if (Number(a.dataset.kids)) what.push(t('{n} subfolders', { n: a.dataset.kids }));
+            var message = t('Delete the folder "{name}"?', { name: a.dataset.name }) + '\n' + (what.length
+              ? t('Its {what} move to {where}. No sets are deleted.', { what: what.join(' + '), where: where })
+              : t('It is empty.'));
+            if (!confirm(message)) return;
+            // Land on the parent if the deleted folder was the one being looked at.
+            post('/my-sets/folders/' + encodeURIComponent(a.dataset.folder) + '/delete', [['folder', current === a.dataset.folder ? (a.dataset.parent || '') : current]]);
+          });
+        });
+        if ($('f-q')) {
+          ['f-q', 'f-type', 'f-vis', 'f-sort'].forEach(function (id) { $(id).addEventListener(id === 'f-q' ? 'input' : 'change', apply); });
+          $('all').addEventListener('change', function () { var on = this.checked; shown().forEach(function (r) { box(r).checked = on; }); update(); });
+          $('f-size').addEventListener('change', function () {
+            size = Number(this.value);
+            try { localStorage.setItem('mysets.size', String(size)); } catch (err) { /* ignore */ }
+            apply();
+          });
+          $('select-matching').addEventListener('click', function () {
+            var on = this.dataset.mode === 'all';
+            (on ? matched() : rows).forEach(function (r) { box(r).checked = on; });
+            update();
+          });
+          rows.forEach(function (r) { box(r).addEventListener('change', update); });
+          // Deleting asks first - one set or all the ticked ones.
+          $('bulk-form').addEventListener('submit', function (e) {
+            var b = e.submitter;
+            if (!b) return;
+            if (b.dataset.confirm && !confirm(b.dataset.confirm)) return e.preventDefault();
+            if (b.value === 'delete' && b.name === 'action') {
+              var n = ticked().length;
+              if (!confirm(t('Delete {n} sets? This cannot be undone.', { n: n }))) e.preventDefault();
+            }
+          });
+        }
+        apply(true);
+
+        // Drag and drop onto a folder: the dragged row - or, when it is
+        // ticked, every ticked row shown - moves to the folder it is dropped
+        // on ("Not in a folder" takes sets out). Pointer events, so it works
+        // with a mouse and a finger alike: with a mouse a row can be grabbed
+        // anywhere but its links, buttons and box; with a finger only by its
+        // ⠿ grip, so the list still scrolls. Dropping sends the same move as
+        // the "Move to" button.
+        var drag = null;
+        function targets() { return links.filter(function (a) { return a.dataset.folder !== ''; }); }
+        function folderAt(x, y) {
+          var el = document.elementFromPoint(x, y);
+          var a = el && el.closest ? el.closest('#folder-list a.folder') : null;
+          return a && a.dataset.folder !== '' ? a : null;
+        }
+        function startDrag(row, e) {
+          var group = box(row).checked ? ticked() : [row];
+          var ghost = document.createElement('div');
+          ghost.className = 'drag-ghost';
+          ghost.textContent = group.length === 1 ? t('Moving "{name}"', { name: row.querySelector('.name').textContent }) : t('Moving {n} sets', { n: group.length });
+          document.body.appendChild(ghost);
+          document.body.classList.add('dragging');
+          try { window.getSelection().removeAllRanges(); } catch (err) { /* ignore */ }
+          group.forEach(function (r) { r.classList.add('dragged'); });
+          targets().forEach(function (a) { a.classList.add('drop-ok'); });
+          drag.group = group;
+          drag.ghost = ghost;
+        }
+        function moveDrag(e) {
+          drag.ghost.style.left = e.clientX + 'px';
+          drag.ghost.style.top = e.clientY + 'px';
+          var over = folderAt(e.clientX, e.clientY);
+          targets().forEach(function (a) { a.classList.toggle('drop-over', a === over); });
+          // Hovering over a closed folder for a moment opens it, so its
+          // subfolders can be dropped on.
+          if (over !== drag.over) {
+            clearTimeout(drag.openTimer);
+            var twisty = over && document.querySelector('button.twisty.closed[data-toggle="' + over.dataset.folder + '"]');
+            if (twisty) drag.openTimer = setTimeout(function () { setOpen(over.dataset.folder, true); }, 700);
+          }
+          drag.over = over;
+          // Near the window's top or bottom edge the page scrolls, so a folder
+          // out of sight (the folder strip on a phone) can be reached.
+          var edge = 48;
+          if (e.clientY < edge) window.scrollBy(0, -12);
+          else if (e.clientY > window.innerHeight - edge) window.scrollBy(0, 12);
+        }
+        function endDrag(drop) {
+          var d = drag;
+          drag = null;
+          if (!d || !d.group) return;
+          clearTimeout(d.openTimer);
+          d.ghost.remove();
+          document.body.classList.remove('dragging');
+          d.group.forEach(function (r) { r.classList.remove('dragged'); });
+          targets().forEach(function (a) { a.classList.remove('drop-ok', 'drop-over'); });
+          if (!drop || !d.over) return;
+          var to = d.over.dataset.folder === 'none' ? '' : d.over.dataset.folder;
+          var ids = d.group.filter(function (r) { return r.dataset.folder !== to; }).map(function (r) { return box(r).value; });
+          if (!ids.length) return; // already there
+          post('/my-sets/bulk', [['action', 'move'], ['folderId', to], ['folder', current]].concat(ids.map(function (id) { return ['ids', id]; })));
+        }
+        rows.forEach(function (row) {
+          row.addEventListener('pointerdown', function (e) {
+            if (e.button !== 0 || !targets().length) return;
+            var onGrip = !!e.target.closest('.grip');
+            if (!onGrip && (e.pointerType !== 'mouse' || e.target.closest('a, button, input, select, label'))) return;
+            drag = { row: row, x: e.clientX, y: e.clientY, id: e.pointerId };
+            if (onGrip) e.preventDefault();
+          });
+        });
+        document.addEventListener('pointermove', function (e) {
+          if (!drag || e.pointerId !== drag.id) return;
+          if (!drag.group) {
+            if (Math.abs(e.clientX - drag.x) + Math.abs(e.clientY - drag.y) < 6) return;
+            startDrag(drag.row, e);
+          }
+          e.preventDefault();
+          moveDrag(e);
+        });
+        document.addEventListener('pointerup', function (e) { if (drag && e.pointerId === drag.id) endDrag(true); });
+        document.addEventListener('pointercancel', function () { endDrag(false); });
+        document.addEventListener('keydown', function (e) { if (e.key === 'Escape') endDrag(false); });
+        if ($('drag-hint')) $('drag-hint').hidden = !rows.length || links.length <= 2; // no folders of their own yet
+      })();

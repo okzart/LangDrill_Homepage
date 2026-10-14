@@ -42,6 +42,8 @@ class CommunityRoutes {
     this.router.get('/community/:id', requireLogin, AsyncHandler.wrap(this.showOne.bind(this)));
     this.router.post('/community/:id/download', requireLogin, AsyncHandler.wrap(this.download.bind(this)));
     this.router.post('/community/:id/visibility', requireLogin, AsyncHandler.wrap(this.setVisibility.bind(this)));
+    this.router.post('/community/:id/access', requireLogin, AsyncHandler.wrap(this.grantAccess.bind(this)));
+    this.router.post('/community/:id/access/:userId/revoke', requireLogin, AsyncHandler.wrap(this.revokeAccess.bind(this)));
     this.router.post('/community/:id/delete', requireLogin, AsyncHandler.wrap(this.remove.bind(this)));
     this.router.get('/community/audio/:filename', requireLogin, AsyncHandler.wrap(this.audio.bind(this)));
   }
@@ -279,6 +281,49 @@ class CommunityRoutes {
     res.redirect(`/community/${encodeURIComponent(id)}?visibility=1`);
   }
 
+  // The set page's "Shared with" panel (owner of a private set): give one
+  // of their friends access, or take it back. Content Sharing checks that
+  // the person is the owner's friend and that the caller owns the set.
+  async grantAccess(req, res) {
+    const id = req.params.id;
+    const userId = String(req.body?.userId || '');
+    try {
+      await this.gatewayClient.put(`/api/sets/${encodeURIComponent(id)}/access/${encodeURIComponent(userId)}`, undefined, req.auth.token);
+      res.redirect(`/community/${encodeURIComponent(id)}?shared=1#access`);
+    } catch (err) {
+      if (err instanceof GatewayError && [400, 503].includes(err.status)) {
+        return res.redirect(`/community/${encodeURIComponent(id)}?accessError=${encodeURIComponent(err.message)}#access`);
+      }
+      throw err;
+    }
+  }
+
+  async revokeAccess(req, res) {
+    const id = req.params.id;
+    await this.gatewayClient.delete(`/api/sets/${encodeURIComponent(id)}/access/${encodeURIComponent(req.params.userId)}`, req.auth.token);
+    res.redirect(`/community/${encodeURIComponent(id)}?revoked=1#access`);
+  }
+
+  // For the owner of a private set: who has access, and which friends could
+  // be given it - { sharedWith, candidates, error }.
+  async loadAccess(id, token) {
+    try {
+      const [access, friends] = await Promise.all([
+        this.gatewayClient.get(`/api/sets/${encodeURIComponent(id)}/access`, token),
+        this.gatewayClient.get('/api/friends', token),
+      ]);
+      const has = new Set(access.sharedWith.map((p) => p.id));
+      return {
+        sharedWith: access.sharedWith,
+        candidates: (friends.friends || []).filter((f) => !has.has(f.id)).map((f) => ({ id: f.id, displayName: f.displayName || f.email })),
+        error: null,
+      };
+    } catch (err) {
+      if (!(err instanceof GatewayError) || err.status === 401) throw err;
+      return { sharedWith: [], candidates: [], error: err.message };
+    }
+  }
+
   // Only vocab sets are narrated, so `voice` is only sent for them - and
   // only when one was actually chosen, so Content Sharing applies its
   // default otherwise (e.g. when the picker couldn't be shown).
@@ -290,12 +335,16 @@ class CommunityRoutes {
     const [set] = await Avatar.withAuthorAvatars(this.gatewayClient, req.auth.token, [
       await this.gatewayClient.get(`/api/sets/${encodeURIComponent(req.params.id)}`, req.auth.token),
     ]);
+    const isOwner = !!set.authorId && set.authorId === req.auth.user.sub;
     res.render('set-detail', {
       set,
+      access: isOwner && set.visibility === 'private' ? await this.loadAccess(set.id, req.auth.token) : null,
+      accessNotice: req.query.shared === '1' ? 'shared' : req.query.revoked === '1' ? 'revoked' : null,
+      accessError: typeof req.query.accessError === 'string' ? req.query.accessError : null,
       paging: CommunityRoutes.itemPaging(set, req.query.page, req.query.limit),
       // For the owner-only visibility switch. Delete and Modify are still
       // just attempted, and Content Sharing decides (see #remove below).
-      isOwner: !!set.authorId && set.authorId === req.auth.user.sub,
+      isOwner,
       visibilityChanged: req.query.visibility === '1',
       downloaded: req.query.downloaded === '1',
       published: req.query.published === '1',

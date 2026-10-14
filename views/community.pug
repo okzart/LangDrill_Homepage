@@ -39,6 +39,8 @@ html(lang=lang || "en")
     include _nav
     include mixins/feed
     h1= t('Community sets')
+    p
+      a(href="/my-sets")= t('Manage my sets →')
 
     if error
       .error= t(error)
@@ -86,7 +88,7 @@ html(lang=lang || "en")
                 a(href=`/community/${set.id}`)= set.name
                 if set.visibility === 'private'
                   = ' '
-                  span.badge-private= t('Private')
+                  span.badge-private= set.sharedWithMe ? t('Shared with you') : set.sharedWith && set.sharedWith.length ? t('Private · shared with {n}', { n: set.sharedWith.length }) : t('Private')
               //- The author's profile image (or initial) next to the line that names them.
               .meta.by
                 +avatar(set.author, 28, set.authorAvatar, set.authorId)
