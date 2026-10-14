@@ -51,10 +51,15 @@ html(lang=lang || "en")
     else if modelError
       .error= t('LLM service unavailable: {error}', { error: t(modelError) })
 
-    section
-      details
-        summary= t('System prompt')
-        textarea#system-prompt= t('You are a friendly, concise language tutor. When the user writes in a language they are learning, gently correct mistakes and explain briefly.')
+    //- The tutor's instructions: admins only (src/routes/chatRoutes.js decides
+    //- them for everyone else, and ignores any sent).
+    if systemPrompt
+      section
+        details
+          summary= t('System prompt (admins only)')
+          textarea#system-prompt= systemPrompt
+    if place
+      p.meta= t('Role-play: you are at a {place}. The tutor plays the staff.', { place: place.toLowerCase() })
 
     section.speech
       if voiceGroups
@@ -97,10 +102,9 @@ html(lang=lang || "en")
       const messagesEl = $('messages');
       const promptEl = $('prompt');
 
-      // /chat?scenario=... (e.g. from the Map page's "Practise with the AI
-      // tutor") starts the chat with that role-play as the system prompt.
-      const scenario = new URLSearchParams(location.search).get('scenario');
-      if (scenario) $('system-prompt').value = scenario.slice(0, 800);
+      // /chat?place=... (the Map page's "Practise with the AI tutor"): the
+      // server turns it into the tutor's role-play. Sent with every turn.
+      const PLACE = !{JSON.stringify(place || null).replace(/</g, '\\u003c')};
 
       // Conversation sent to the model on every turn: [{ role, content }].
       let history = [];
@@ -381,7 +385,9 @@ html(lang=lang || "en")
         addMessage('user', text);
         const replyEl = addMessage('assistant', '…');
 
-        const system = $('system-prompt').value.trim();
+        // Only an admin has the box; the server ignores it for anyone else.
+        const systemBox = $('system-prompt');
+        const system = systemBox ? systemBox.value.trim() : '';
         const messages = system ? [{ role: 'system', content: system }, ...conversation] : conversation;
         const splitter = speech.enabled
           ? createSentenceSplitter((sentence) => { speech.enqueue(sentence); updateStopButton(); })
@@ -394,7 +400,7 @@ html(lang=lang || "en")
           const res = await fetch('/chat/completions', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ messages }),
+            body: JSON.stringify({ messages, place: PLACE }),
             signal: abortController.signal,
           });
           if (res.status === 401) {

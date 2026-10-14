@@ -38,9 +38,22 @@ const MAX_RECORDING_BYTES = 25 * 1024 * 1024;
 const STT_LANGUAGES = ['en', 'ko'];
 const AUDIO_EXTENSIONS = { 'audio/webm': 'webm', 'audio/ogg': 'ogg', 'audio/mp4': 'm4a', 'audio/mpeg': 'mp3', 'audio/wav': 'wav', 'audio/x-wav': 'wav' };
 
+// The tutor's instructions (the "system prompt"). Only admins may see or
+// change them on the page; for everyone else the server decides them, and
+// any system message a non-admin's request carries is dropped - so the
+// tutor can't be talked out of its role by editing a hidden field.
+const DEFAULT_SYSTEM_PROMPT = 'You are a friendly, concise language tutor. When the user writes in a language they are learning, gently correct mistakes and explain briefly.';
+const MAX_SYSTEM_PROMPT = 4000;
+// A place the Map page sends a learner to role-play (`?place=Café`): only
+// the name of one of the Map's place kinds (Content Sharing's
+// /places/categories) is taken - anything else would be a way to slip
+// instructions into the tutor's prompt. The list is fetched now and then.
+const PLACES_CACHE_MS = 10 * 60 * 1000;
+
 class ChatRoutes {
   constructor(gatewayClient) {
     this.gatewayClient = gatewayClient;
+    this.places = null; // { names: Set(lowercased), at }
     this.router = express.Router();
 
     this.router.get('/chat', requireLogin, AsyncHandler.wrap(this.showChat.bind(this)));
@@ -78,9 +91,13 @@ class ChatRoutes {
       modelError = models.reason instanceof GatewayError ? models.reason.message : 'LLM service unreachable';
     }
 
+    const place = await this.placeFrom(req, req.query.place);
     res.render('chat', {
       model,
       modelError,
+      place,
+      // Shown (and editable) for admins only - see #complete.
+      systemPrompt: req.auth?.user?.role === 'admin' ? ChatRoutes.systemPromptFor(req, place) : null,
       voiceGroups: voices.status === 'fulfilled' ? ChatRoutes.voiceGroups(voices.value?.voices) : null,
       defaultVoice: DEFAULT_VOICE,
     });
@@ -98,7 +115,40 @@ class ChatRoutes {
     if (!Array.isArray(messages) || messages.length === 0) {
       return res.status(400).json({ error: req.t('messages must be a non-empty array') });
     }
-    await this.pipeFromGateway(req, res, '/api/llm/chat/completions', { messages, stream: true }, 'text/event-stream');
+    // The conversation itself: user and assistant turns only.
+    const turns = messages
+      .filter((m) => m && (m.role === 'user' || m.role === 'assistant') && typeof m.content === 'string')
+      .map((m) => ({ role: m.role, content: m.content }));
+    if (turns.length === 0) return res.status(400).json({ error: req.t('messages must be a non-empty array') });
+    // An admin's own system prompt is used as sent; everyone else gets the
+    // one built here, for the role-play place if there is one.
+    const sent = messages[0]?.role === 'system' && typeof messages[0].content === 'string' ? messages[0].content.trim() : '';
+    const system = req.auth.user.role === 'admin' && sent
+      ? sent.slice(0, MAX_SYSTEM_PROMPT)
+      : ChatRoutes.systemPromptFor(req, await this.placeFrom(req, req.body?.place));
+    await this.pipeFromGateway(req, res, '/api/llm/chat/completions', { messages: [{ role: 'system', content: system }, ...turns], stream: true }, 'text/event-stream');
+  }
+
+  // `value` if it names one of the Map's place kinds, else null.
+  async placeFrom(req, value) {
+    if (typeof value !== 'string' || !value.trim() || value.length > 60) return null;
+    if (!this.places || Date.now() - this.places.at > PLACES_CACHE_MS) {
+      try {
+        const data = await this.gatewayClient.get('/api/places/categories', req.auth.token);
+        const names = (data?.categories || []).map((c) => String(c.en || c.title || '').toLowerCase()).filter(Boolean);
+        this.places = { names: new Set(names), at: Date.now() };
+      } catch {
+        return null; // without the list, no role-play: the usual tutor
+      }
+    }
+    return this.places.names.has(value.trim().toLowerCase()) ? value.trim() : null;
+  }
+
+  // The tutor's instructions: the usual tutor, or - for a place from the
+  // Map page - a member of staff there for the learner to practise with.
+  static systemPromptFor(req, place) {
+    if (!place) return req.t(DEFAULT_SYSTEM_PROMPT);
+    return `You are playing a staff member at a ${place.toLowerCase()}. The user is a Korean learner of English practising what to say there. Stay in character, speak natural English in short turns, and wait for the user. If the user makes a mistake, give a brief correction in brackets after your reply.`;
   }
 
   // Streams speech for one piece of text as audio/mpeg. tts-service

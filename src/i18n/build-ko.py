@@ -546,6 +546,8 @@ KO = {
     "Admin: Users": "관리: 사용자",
     "Admin: User Progress": "관리: 사용자 학습 현황",
     "More": "더 보기",
+    "System prompt (admins only)": "시스템 프롬프트 (관리자 전용)",
+    "Role-play: you are at a {place}. The tutor plays the staff.": "역할극: 나는 {place}에 있습니다. 튜터가 직원 역할을 합니다.",
     "✨ New sentences for the ticked ones": "✨ 선택한 항목에 새 문장 만들기",
     "Each pick becomes a drill item: its sentence with the word blanked out, shown with the Korean sentence and the word's meaning as a hint. Fix any Korean that is wrong before saving. \"New sentence\" asks the AI for a different example sentence; you can always go back to the original.": "고른 항목은 각각 드릴 문항이 됩니다: 단어를 빈칸으로 만든 문장에 한국어 문장과 단어 뜻이 힌트로 붙습니다. 저장하기 전에 틀린 한국어를 고쳐 주세요. \"새 문장\"을 누르면 AI가 다른 예문을 써 주며, 언제든 원래 문장으로 되돌릴 수 있습니다.",
     "✨ New sentence": "✨ 새 문장",

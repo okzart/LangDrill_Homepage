@@ -619,7 +619,8 @@
     $('pack-actions').hidden = false;
     $('regenerate').hidden = !cfg.isAdmin;
     // The tutor plays the other side: staff at this kind of place.
-    $('practise').href = '/chat?' + new URLSearchParams({ scenario: 'You are playing a staff member at a ' + pack.title.toLowerCase() + '. The user is a Korean learner of English practising what to say there. Stay in character, speak natural English in short turns, and wait for the user. If the user makes a mistake, give a brief correction in brackets after your reply.' });
+    // (The chat page's server turns the place into the role-play instructions.)
+    $('practise').href = '/chat?' + new URLSearchParams({ place: pack.title });
   }
 
   $('level').addEventListener('change', function () { if (current) showPack(current.category, current.placeName); });
