@@ -55,6 +55,7 @@ html(lang=lang || "en")
       nav.tabs
         a(href="/community?tab=list" class=(tab === 'list' ? 'active' : ''))= t('List')
         a(href="/community?tab=create" class=(tab === 'create' ? 'active' : ''))= t('Create')
+        a(href="/community/posts")= t('Posts')
 
       if tab === 'list'
         form.row(method="GET" action="/community")

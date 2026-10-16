@@ -9,6 +9,7 @@ html(lang=lang || "en")
     meta(name="viewport" content="width=device-width, initial-scale=1")
     title= 'LanguageDrill — ' + person.displayName
     include _style
+    include _post-style
     style.
       .hint { font-size: 0.82rem; color: var(--muted); }
       .person { display: flex; flex-wrap: wrap; gap: 1.5rem; align-items: center; padding: 1.6rem; }
@@ -27,6 +28,7 @@ html(lang=lang || "en")
   body
     include _nav
     include mixins/feed
+    include mixins/posts
 
     if error
       .error= t(error)
@@ -68,6 +70,16 @@ html(lang=lang || "en")
           else
             form(method="POST" action=`/users/${person.id}/friend`)
               button.primary(type="submit")= t('Add friend')
+
+    section
+      h2= t('Posts')
+      if posts.length
+        each post in posts
+          +postCard(post)
+        p
+          a(href=`/community/posts?author=${encodeURIComponent(person.id)}`)= morePosts ? t('See all posts →') : t('Open on the posts page →')
+      else
+        p.hint= t('No posts yet.')
 
     section
       h2= t('Published sets ({n})', { n: sets.length })

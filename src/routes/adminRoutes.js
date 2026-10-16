@@ -48,6 +48,23 @@ class AdminRoutes {
 
     this.router.get('/admin/storage', ...guard, AsyncHandler.wrap(this.showStorage.bind(this)));
     this.router.post('/admin/storage/audio-dir', ...guard, AsyncHandler.wrap(this.moveAudioDir.bind(this)));
+
+    // The API gateway's live traffic: the page, and the numbers it polls.
+    this.router.get('/admin/traffic', ...guard, (req, res) => res.render('admin/traffic'));
+    this.router.get('/admin/traffic/data', ...guard, AsyncHandler.wrap(this.trafficData.bind(this)));
+  }
+
+  // The gateway's own statistics (its GET /admin/traffic, see the gateway's
+  // src/traffic.js) for `window` 5m | 1h | 24h, as JSON for the page's script.
+  async trafficData(req, res) {
+    const window = ['5m', '1h', '24h'].includes(req.query.window) ? req.query.window : '5m';
+    try {
+      res.set('Cache-Control', 'no-store');
+      res.json(await this.gatewayClient.get(`/admin/traffic?window=${window}`, req.auth.token));
+    } catch (err) {
+      if (!(err instanceof GatewayError)) throw err;
+      res.status(err.status >= 500 ? 502 : err.status).json({ error: req.t(err.status >= 500 ? 'The gateway is unavailable right now' : err.message) });
+    }
   }
 
   // Where the content lives and how much room it takes (Content Sharing's

@@ -30,6 +30,7 @@ const AssignmentsRoutes = require('./routes/assignmentsRoutes');
 const ExtractRoutes = require('./routes/extractRoutes');
 const SummaryRoutes = require('./routes/summaryRoutes');
 const MySetsRoutes = require('./routes/mySetsRoutes');
+const PostsRoutes = require('./routes/postsRoutes');
 const { attachSignalingProxy } = require('./services/signalingProxy');
 
 // Fail fast: without COOKIE_SECRET the session cookie can't be signed, so
@@ -67,6 +68,7 @@ const assignmentsRoutes = new AssignmentsRoutes(gatewayClient);
 const extractRoutes = new ExtractRoutes(gatewayClient);
 const summaryRoutes = new SummaryRoutes(gatewayClient);
 const mySetsRoutes = new MySetsRoutes(gatewayClient, 'mine');
+const postsRoutes = new PostsRoutes(gatewayClient);
 const sharedSetsRoutes = new MySetsRoutes(gatewayClient, 'shared');
 
 // Matches Content Sharing's own JSON body limit (its server.js).
@@ -118,6 +120,8 @@ app.use(authRoutes.router);
 app.use(dashboardRoutes.router);
 app.use(progressRoutes.router);
 app.use(extractRoutes.router);
+// Before communityRoutes: "posts" and "media" aren't set ids.
+app.use(postsRoutes.router);
 app.use(communityRoutes.router);
 app.use(adminRoutes.router);
 app.use(chatRoutes.router);

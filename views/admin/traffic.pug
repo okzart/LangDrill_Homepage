@@ -1,0 +1,520 @@
+//- Traffic (see routes/adminRoutes.js#trafficData): the API gateway's live
+//- traffic, polled from the gateway's GET /admin/traffic (src/traffic.js) -
+//- every 2 s for the last 5 minutes, 10 s for the last hour, 60 s for the
+//- last day. The numbers start over when the gateway restarts.
+//-
+//- Charts are drawn here as SVG, with no chart library. Requests are stacked
+//- columns (OK / client errors / server errors - categorical slots 1-3 in
+//- fixed order, validated for colour-blind separation); response time is its
+//- own line chart (a different scale, so never a second axis on the first).
+//- Every chart has a hover/focus tooltip, a legend, and a table view.
+doctype html
+html(lang=lang || "en")
+  head
+    meta(charset="UTF-8")
+    meta(name="viewport" content="width=device-width, initial-scale=1")
+    title= 'LanguageDrill — ' + t('Admin: Traffic')
+    include ../_style
+    style.
+      .viz-root {
+        --surface-1: #fcfcfb;
+        --text-primary: #0b0b0b;
+        --text-secondary: #52514e;
+        --text-muted: #85837d;
+        --grid: #e6e5e0;
+        --series-1: #2a78d6;
+        --series-2: #eb6834;
+        --series-3: #1baf7a;
+      }
+      .controls { display: flex; flex-wrap: wrap; align-items: center; gap: 0.6rem; margin: 0.4rem 0 1rem; }
+      .seg { display: inline-flex; padding: 0.2rem; gap: 0.2rem; border: 1px solid var(--line); border-radius: 12px; background: var(--surface-2); }
+      .seg button { margin: 0; padding: 0.3rem 0.85rem; border: 0; border-radius: 9px; background: transparent; box-shadow: none; font-weight: 600; color: var(--muted); }
+      .seg button[aria-pressed="true"] { background: var(--surface); color: var(--ink); box-shadow: var(--shadow-sm), inset 0 0 0 1px var(--line); }
+      .controls .updated { font-size: 0.85rem; color: var(--muted); }
+      .controls .live::before { content: ""; display: inline-block; width: 8px; height: 8px; margin-right: 0.35rem; border-radius: 50%; background: #0ca30c; vertical-align: middle; }
+      .controls .live.paused::before { background: #85837d; }
+      .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(9.5rem, 1fr)); gap: 0.7rem; margin-bottom: 1rem; }
+      .tile { padding: 0.75rem 0.9rem; border: 1px solid var(--line); border-radius: 14px; background: var(--surface-1); }
+      .tile .v { font-size: 1.6rem; font-weight: 700; color: var(--text-primary); font-variant-numeric: tabular-nums; line-height: 1.15; }
+      .tile .v small { font-size: 0.8rem; font-weight: 600; color: var(--text-secondary); margin-left: 0.2rem; }
+      .tile .k { font-size: 0.8rem; color: var(--text-secondary); }
+      .tile .s { font-size: 0.75rem; color: var(--text-muted); margin-top: 0.1rem; }
+      .tile.bad .v::after { content: " ⚠"; font-size: 1rem; color: #d03b3b; }
+      .card { padding: 0.9rem 1rem 0.7rem; border: 1px solid var(--line); border-radius: 16px; background: var(--surface-1); margin-bottom: 1rem; }
+      .card h2 { margin: 0 0 0.15rem; font-size: 1rem; color: var(--text-primary); }
+      .card .sub { font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 0.4rem; }
+      .card .head { display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: 0.5rem; }
+      .card .head button { margin: 0; padding: 0.25rem 0.65rem; font-size: 0.8rem; }
+      .legend { display: flex; flex-wrap: wrap; gap: 0.9rem; font-size: 0.82rem; color: var(--text-secondary); margin: 0.2rem 0 0.3rem; }
+      .legend span { display: inline-flex; align-items: center; gap: 0.35rem; }
+      .legend i { display: inline-block; width: 12px; height: 12px; border-radius: 3px; }
+      .legend i.line { height: 2px; border-radius: 1px; }
+      .chart { position: relative; }
+      .chart svg { display: block; width: 100%; height: 220px; overflow: visible; }
+      .chart svg text { font-size: 11px; fill: var(--text-muted); font-variant-numeric: tabular-nums; }
+      .chart .hit { fill: transparent; cursor: crosshair; }
+      .chart .hit:focus { outline: none; }
+      .chart .hit:focus-visible, .chart .hit.on { fill: rgba(42, 120, 214, 0.07); }
+      .tip { position: absolute; z-index: 5; pointer-events: none; min-width: 9rem; padding: 0.45rem 0.6rem; border: 1px solid var(--line); border-radius: 10px; background: #fff; box-shadow: 0 6px 18px rgba(0,0,0,0.12); font-size: 0.8rem; color: var(--text-secondary); }
+      .tip .when { font-weight: 600; color: var(--text-primary); margin-bottom: 0.2rem; }
+      .tip .row { display: flex; align-items: center; gap: 0.4rem; }
+      .tip .row b { color: var(--text-primary); font-variant-numeric: tabular-nums; min-width: 2.6rem; text-align: right; }
+      .tip .row i { display: inline-block; width: 10px; height: 2px; border-radius: 1px; }
+      .empty-note { font-size: 0.85rem; color: var(--text-muted); padding: 0.4rem 0; }
+      table.data { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+      table.data th, table.data td { padding: 0.35rem 0.5rem; border-bottom: 1px solid #eee; text-align: right; font-variant-numeric: tabular-nums; }
+      table.data th:first-child, table.data td:first-child { text-align: left; }
+      table.data th { color: var(--text-secondary); font-weight: 600; }
+      table.data td.route { font-family: ui-monospace, monospace; font-size: 0.82rem; }
+      .share { display: inline-block; width: 4.5rem; height: 6px; margin-left: 0.4rem; background: #edf2fa; border-radius: 3px; vertical-align: middle; overflow: hidden; }
+      .share > span { display: block; height: 100%; background: var(--series-1); border-radius: 0 3px 3px 0; }
+      .table-wrap { max-height: 18rem; overflow: auto; }
+      .loading { opacity: 0.6; transition: opacity 0.2s; }
+  body.viz-root
+    include ../_nav
+    h1= t('Traffic')
+    p.hint= t('Requests through the API gateway, live. Counted per configured route - never full addresses or who sent them. The numbers start over when the gateway restarts.')
+
+    #t-error.error(hidden)
+
+    .controls
+      .seg(role="group" aria-label=t('Time range'))
+        button(type="button" data-window="5m" aria-pressed="true")= t('Last 5 minutes')
+        button(type="button" data-window="1h" aria-pressed="false")= t('Last hour')
+        button(type="button" data-window="24h" aria-pressed="false")= t('Last 24 hours')
+      button#t-pause(type="button")= t('Pause')
+      span#t-updated.updated.live
+
+    #t-body
+      .tiles
+        .tile#k-rate
+          .k= t('Requests per second')
+          .v —
+          .s= t('average over the last minute')
+        .tile#k-latency
+          .k= t('Response time')
+          .v —
+          .s= t('average over the last minute')
+        .tile#k-errors
+          .k= t('Server errors')
+          .v —
+          .s= t('5xx in the last minute')
+        .tile#k-inflight
+          .k= t('In progress')
+          .v —
+          .s= t('requests being answered now')
+        .tile#k-ws
+          .k= t('WebSockets open')
+          .v —
+          .s
+        .tile#k-total
+          .k= t('Requests since start')
+          .v —
+          .s
+        .tile#k-rate-kb
+          .k= t('Data per second')
+          .v —
+          .s= t('in + out, over the last minute')
+        .tile#k-total-kb
+          .k= t('Data since start')
+          .v —
+          .s
+
+      section.card
+        .head
+          div
+            h2= t('Requests')
+            .sub#c-req-sub
+          button.toggle-table(type="button" data-for="req")= t('Show as table')
+        .legend
+          span
+            i(style="background: var(--series-1)")
+            = t('OK (2xx, 3xx)')
+          span
+            i(style="background: var(--series-2)")
+            = t('Client errors (4xx)')
+          span
+            i(style="background: var(--series-3)")
+            = t('Server errors (5xx)')
+        .chart#c-req
+        .table-wrap#c-req-table(hidden)
+
+      section.card
+        .head
+          div
+            h2= t('Data transferred')
+            .sub#c-kb-sub
+          button.toggle-table(type="button" data-for="kb")= t('Show as table')
+        .legend
+          span
+            i(style="background: var(--series-1)")
+            = t('Received (KB in)')
+          span
+            i(style="background: var(--series-2)")
+            = t('Sent (KB out)')
+        .chart#c-kb
+        .table-wrap#c-kb-table(hidden)
+
+      section.card
+        .head
+          div
+            h2= t('Average response time')
+            .sub= t('milliseconds, per point - empty where there were no requests')
+          button.toggle-table(type="button" data-for="lat")= t('Show as table')
+        .chart#c-lat
+        .table-wrap#c-lat-table(hidden)
+
+      section.card
+        h2= t('By route')
+        .sub= t('Since the gateway started. p95: 95% of the latest 500 requests were faster than this. KB in: what clients sent; KB out: what the gateway sent back (headers included; WebSockets counted when they close).')
+        .table-wrap
+          table.data#routes
+            thead
+              tr
+                th= t('Route')
+                th= t('Requests')
+                th 2xx
+                th 3xx
+                th 4xx
+                th 5xx
+                th= t('Avg ms')
+                th= t('p95 ms')
+                th= t('Max ms')
+                th= t('KB in')
+                th= t('KB out')
+            tbody
+        p#routes-empty.empty-note(hidden)= t('No requests yet.')
+
+    script.
+      (function () {
+        var $ = function (id) { return document.getElementById(id); };
+        var SVGNS = 'http://www.w3.org/2000/svg';
+        var LOCALE = !{JSON.stringify(lang === 'ko' ? 'ko-KR' : 'en-US')};
+        var PERIOD = { '5m': 2000, '1h': 10000, '24h': 60000 };
+        var windowKey = '5m', paused = false, timer = null, last = null;
+        var SERIES = [
+          { key: 'ok', label: t('OK (2xx, 3xx)'), color: 'var(--series-1)', value: function (p) { return p['2xx'] + p['3xx']; } },
+          { key: '4xx', label: t('Client errors (4xx)'), color: 'var(--series-2)', value: function (p) { return p['4xx']; } },
+          { key: '5xx', label: t('Server errors (5xx)'), color: 'var(--series-3)', value: function (p) { return p['5xx']; } },
+        ];
+        var DATA = [
+          { key: 'in', label: t('Received (KB in)'), color: 'var(--series-1)', value: function (p) { return p.bytesIn / 1024; } },
+          { key: 'out', label: t('Sent (KB out)'), color: 'var(--series-2)', value: function (p) { return p.bytesOut / 1024; } },
+        ];
+        // Kilobytes (1 KB = 1,024 bytes), one decimal under 100 KB.
+        var kb = function (bytes) { var k = bytes / 1024; return Number(k).toLocaleString(LOCALE, { maximumFractionDigits: k < 100 ? 1 : 0 }); };
+        var fmt = function (n, digits) { return n == null ? '—' : Number(n).toLocaleString(LOCALE, { maximumFractionDigits: digits == null ? 0 : digits }); };
+        function when(ms, step) {
+          var d = new Date(ms);
+          return step >= 60 * 15 ? d.toLocaleString(LOCALE, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
+            : d.toLocaleTimeString(LOCALE, step < 60 ? { hour: '2-digit', minute: '2-digit', second: '2-digit' } : { hour: '2-digit', minute: '2-digit' });
+        }
+        function el(name, attrs, parent) {
+          var node = document.createElementNS(SVGNS, name);
+          Object.keys(attrs || {}).forEach(function (k) { node.setAttribute(k, attrs[k]); });
+          if (parent) parent.appendChild(node);
+          return node;
+        }
+        // A "nice" top for the y-axis and its 4 gridlines.
+        function niceMax(v) {
+          if (v <= 0) return 4;
+          var p = Math.pow(10, Math.floor(Math.log10(v))), m = v / p;
+          var top = (m <= 1 ? 1 : m <= 2 ? 2 : m <= 2.5 ? 2.5 : m <= 5 ? 5 : 10) * p;
+          return top < 4 && Number.isInteger(v) ? 4 : top;
+        }
+
+        // One tooltip per chart: values lead, series follow; built with textContent.
+        function tooltip(box) {
+          var tip = document.createElement('div');
+          tip.className = 'tip';
+          tip.hidden = true;
+          box.appendChild(tip);
+          return {
+            show: function (x, title, rows) {
+              tip.textContent = '';
+              var head = document.createElement('div');
+              head.className = 'when';
+              head.textContent = title;
+              tip.appendChild(head);
+              rows.forEach(function (r) {
+                var row = document.createElement('div');
+                row.className = 'row';
+                var key = document.createElement('i');
+                key.style.background = r.color || 'transparent';
+                var value = document.createElement('b');
+                value.textContent = r.value;
+                var label = document.createElement('span');
+                label.textContent = r.label;
+                row.appendChild(key); row.appendChild(value); row.appendChild(label);
+                tip.appendChild(row);
+              });
+              tip.hidden = false;
+              var w = box.clientWidth, tw = tip.offsetWidth;
+              tip.style.left = Math.max(0, Math.min(w - tw, x + 12)) + 'px';
+              tip.style.top = '8px';
+            },
+            hide: function () { tip.hidden = true; },
+          };
+        }
+
+        // The frame: y gridlines with labels, a few x labels; returns the scales.
+        function frame(svg, series, max, unit) {
+          var W = svg.clientWidth || svg.parentNode.clientWidth || 600, H = 220;
+          var L = 40, R = 8, T = 10, B = 24;
+          svg.setAttribute('viewBox', '0 0 ' + W + ' ' + H);
+          var top = niceMax(max);
+          var y = function (v) { return T + (H - T - B) * (1 - v / top); };
+          for (var i = 0; i <= 4; i++) {
+            var v = (top / 4) * i;
+            el('line', { x1: L, x2: W - R, y1: y(v), y2: y(v), stroke: i === 0 ? '#c9c7c0' : 'var(--grid)', 'stroke-width': 1 }, svg);
+            var label = el('text', { x: L - 6, y: y(v) + 4, 'text-anchor': 'end' }, svg);
+            label.textContent = fmt(v, top < 10 ? 1 : 0) + (i === 4 && unit ? ' ' + unit : '');
+          }
+          var n = series.length, band = (W - L - R) / Math.max(1, n);
+          var x = function (i) { return L + band * i; };
+          var every = Math.max(1, Math.ceil(n / 6));
+          for (var j = 0; j < n; j += every) {
+            var tx = el('text', { x: x(j) + band / 2, y: H - 6, 'text-anchor': 'middle' }, svg);
+            tx.textContent = when(series[j].at, last.step);
+          }
+          return { W: W, H: H, L: L, R: R, T: T, B: B, x: x, y: y, band: band, top: top };
+        }
+
+        // Stacked columns, a 2px surface gap between segments and columns:
+        // cfg = { box, label, parts (series), total(p), unit, show(v), totalLabel }.
+        function drawStacked(data, cfg) {
+          var SERIES = cfg.parts;
+          var box = $(cfg.box);
+          box.textContent = '';
+          var svg = el('svg', { role: 'img', 'aria-label': cfg.label }, box);
+          var tip = tooltip(box);
+          var series = data.series;
+          var max = Math.max.apply(null, series.map(cfg.total).concat([0]));
+          var f = frame(svg, series, max, cfg.unit);
+          series.forEach(function (p, i) {
+            var gap = f.band > 6 ? 2 : 0;
+            var w = Math.max(1, f.band - gap), x0 = f.x(i) + gap / 2, base = f.y(0);
+            SERIES.forEach(function (s) {
+              var v = s.value(p);
+              if (!v) return;
+              var h = Math.max(1, base - f.y(v));
+              var isTop = SERIES.slice(SERIES.indexOf(s) + 1).every(function (o) { return !o.value(p); });
+              var r = isTop ? Math.min(4, w / 2, h) : 0;
+              var yTop = base - h;
+              // Rounded data-end only on the top of the stack, square at the base.
+              var d = 'M' + x0 + ',' + base + 'V' + (yTop + r) + (r ? 'Q' + x0 + ',' + yTop + ' ' + (x0 + r) + ',' + yTop : '') + 'H' + (x0 + w - r) + (r ? 'Q' + (x0 + w) + ',' + yTop + ' ' + (x0 + w) + ',' + (yTop + r) : '') + 'V' + base + 'Z';
+              el('path', { d: d, fill: s.color }, svg);
+              base = yTop - (gap ? 2 : 0);
+            });
+            var hit = el('rect', { class: 'hit', x: f.x(i), y: f.T, width: f.band, height: f.H - f.T - f.B, tabindex: 0 }, svg);
+            var show = function () {
+              hit.classList.add('on');
+              tip.show(f.x(i) + f.band / 2, when(p.at, data.step), [{ value: cfg.show(cfg.total(p)), label: cfg.totalLabel }].concat(SERIES.map(function (s) { return { value: cfg.show(s.value(p)), label: s.label, color: s.color }; })));
+            };
+            var hide = function () { hit.classList.remove('on'); tip.hide(); };
+            hit.addEventListener('pointerenter', show);
+            hit.addEventListener('focus', show);
+            hit.addEventListener('pointerleave', hide);
+            hit.addEventListener('blur', hide);
+          });
+          table(cfg.box + '-table', [t('Time'), cfg.totalLabel].concat(SERIES.map(function (s) { return s.label; })), series.map(function (p) {
+            return [when(p.at, data.step), cfg.show(cfg.total(p))].concat(SERIES.map(function (s) { return cfg.show(s.value(p)); }));
+          }));
+        }
+
+        function drawRequests(data) {
+          drawStacked(data, { box: 'c-req', label: t('Requests over time, stacked by result'), parts: SERIES, total: function (p) { return p.count; }, show: function (v) { return fmt(v); }, totalLabel: t('requests') });
+          var total = data.series.reduce(function (n, p) { return n + p.count; }, 0);
+          $('c-req-sub').textContent = t('{n} requests in this range, one column per {step}', { n: fmt(total), step: stepName(data.step) });
+        }
+
+        // Data: KB received and sent, stacked.
+        function drawData(data) {
+          drawStacked(data, { box: 'c-kb', label: t('Data transferred over time, in KB'), parts: DATA, unit: 'KB', total: function (p) { return (p.bytesIn + p.bytesOut) / 1024; }, show: function (v) { return Number(v).toLocaleString(LOCALE, { maximumFractionDigits: v < 100 ? 1 : 0 }) + ' KB'; }, totalLabel: t('in + out') });
+          var bytesIn = data.series.reduce(function (n, p) { return n + p.bytesIn; }, 0), bytesOut = data.series.reduce(function (n, p) { return n + p.bytesOut; }, 0);
+          $('c-kb-sub').textContent = t('{in} KB in, {out} KB out in this range', { in: kb(bytesIn), out: kb(bytesOut) });
+        }
+
+        // Response time: one 2px line; gaps where a point had no requests; crosshair tooltip.
+        function drawLatency(data) {
+          var box = $('c-lat');
+          box.textContent = '';
+          var svg = el('svg', { role: 'img', 'aria-label': t('Average response time over time') }, box);
+          var tip = tooltip(box);
+          var series = data.series;
+          var max = Math.max.apply(null, series.map(function (p) { return p.avgMs || 0; }).concat([0]));
+          var f = frame(svg, series, max, 'ms');
+          var cx = function (i) { return f.x(i) + f.band / 2; };
+          var d = '', pen = false;
+          series.forEach(function (p, i) {
+            if (p.avgMs == null) { pen = false; return; }
+            d += (pen ? 'L' : 'M') + cx(i) + ',' + f.y(p.avgMs);
+            pen = true;
+          });
+          if (d) el('path', { d: d, fill: 'none', stroke: 'var(--series-1)', 'stroke-width': 2, 'stroke-linejoin': 'round', 'stroke-linecap': 'round' }, svg);
+          // A lone point between gaps still shows, as an 8px dot ringed with the surface.
+          series.forEach(function (p, i) {
+            var prev = series[i - 1], next = series[i + 1];
+            if (p.avgMs != null && (!prev || prev.avgMs == null) && (!next || next.avgMs == null)) {
+              el('circle', { cx: cx(i), cy: f.y(p.avgMs), r: 4, fill: 'var(--series-1)', stroke: 'var(--surface-1)', 'stroke-width': 2 }, svg);
+            }
+          });
+          var hair = el('line', { y1: f.T, y2: f.H - f.B, stroke: '#9b9a94', 'stroke-width': 1, visibility: 'hidden' }, svg);
+          var dot = el('circle', { r: 4, fill: 'var(--series-1)', stroke: 'var(--surface-1)', 'stroke-width': 2, visibility: 'hidden' }, svg);
+          var area = el('rect', { class: 'hit', x: f.L, y: f.T, width: f.W - f.L - f.R, height: f.H - f.T - f.B, tabindex: 0 }, svg);
+          var at = function (i) {
+            var p = series[i];
+            hair.setAttribute('x1', cx(i)); hair.setAttribute('x2', cx(i)); hair.setAttribute('visibility', 'visible');
+            if (p.avgMs != null) { dot.setAttribute('cx', cx(i)); dot.setAttribute('cy', f.y(p.avgMs)); dot.setAttribute('visibility', 'visible'); } else dot.setAttribute('visibility', 'hidden');
+            tip.show(cx(i), when(p.at, data.step), [{ value: p.avgMs == null ? '—' : fmt(p.avgMs, 1) + ' ms', label: t('average'), color: 'var(--series-1)' }, { value: fmt(p.count), label: t('requests') }]);
+          };
+          var focusAt = series.length - 1;
+          area.addEventListener('pointermove', function (e) {
+            var r = svg.getBoundingClientRect(), x = (e.clientX - r.left) * (f.W / r.width);
+            focusAt = Math.max(0, Math.min(series.length - 1, Math.floor((x - f.L) / f.band)));
+            at(focusAt);
+          });
+          area.addEventListener('focus', function () { at(focusAt); });
+          area.addEventListener('keydown', function (e) {
+            if (e.key === 'ArrowLeft') focusAt = Math.max(0, focusAt - 1);
+            else if (e.key === 'ArrowRight') focusAt = Math.min(series.length - 1, focusAt + 1);
+            else return;
+            e.preventDefault();
+            at(focusAt);
+          });
+          var hide = function () { hair.setAttribute('visibility', 'hidden'); dot.setAttribute('visibility', 'hidden'); tip.hide(); };
+          area.addEventListener('pointerleave', hide);
+          area.addEventListener('blur', hide);
+          table('c-lat-table', [t('Time'), t('Average ms'), t('Requests')], series.map(function (p) { return [when(p.at, data.step), p.avgMs == null ? '—' : fmt(p.avgMs, 1), fmt(p.count)]; }));
+        }
+
+        function stepName(step) {
+          return step < 60 ? t('{n} seconds', { n: step }) : step < 3600 ? (step === 60 ? t('minute') : t('{n} minutes', { n: step / 60 })) : t('{n} hours', { n: step / 3600 });
+        }
+
+        // The table view of a chart (its numbers without hovering).
+        function table(id, head, rows) {
+          var wrap = $(id);
+          wrap.textContent = '';
+          var tbl = document.createElement('table');
+          tbl.className = 'data';
+          var tr = document.createElement('tr');
+          head.forEach(function (h) { var th = document.createElement('th'); th.textContent = h; tr.appendChild(th); });
+          var thead = document.createElement('thead');
+          thead.appendChild(tr);
+          tbl.appendChild(thead);
+          var tbody = document.createElement('tbody');
+          rows.slice().reverse().forEach(function (r) {
+            var row = document.createElement('tr');
+            r.forEach(function (c) { var td = document.createElement('td'); td.textContent = c; row.appendChild(td); });
+            tbody.appendChild(row);
+          });
+          tbl.appendChild(tbody);
+          wrap.appendChild(tbl);
+        }
+
+        function tile(id, value, unit, sub, bad) {
+          var box = $(id);
+          var v = box.querySelector('.v');
+          v.textContent = value;
+          if (unit) { var s = document.createElement('small'); s.textContent = unit; v.appendChild(s); }
+          if (sub != null) box.querySelector('.s').textContent = sub;
+          box.classList.toggle('bad', !!bad);
+        }
+
+        function uptime(ms) {
+          var m = Math.floor(ms / 60000), h = Math.floor(m / 60), d = Math.floor(h / 24);
+          return d ? t('up {d} d {h} h', { d: d, h: h % 24 }) : h ? t('up {h} h {m} min', { h: h, m: m % 60 }) : t('up {m} min', { m: m });
+        }
+
+        function render(data) {
+          last = data;
+          var lm = data.lastMinute;
+          tile('k-rate', fmt(lm.perSecond, 2), '/s', t('{n} requests in the last minute', { n: fmt(lm.count) }));
+          tile('k-latency', lm.avgMs == null ? '—' : fmt(lm.avgMs, 1), lm.avgMs == null ? '' : 'ms');
+          tile('k-errors', fmt(lm.errors), '', null, lm.errors > 0);
+          tile('k-inflight', fmt(data.inFlight));
+          tile('k-ws', fmt(data.websockets), '', t('{n} since start', { n: fmt(data.websocketsTotal) }));
+          tile('k-total', fmt(data.totals.count), '', uptime(data.now - data.startedAt));
+          tile('k-rate-kb', kb((lm.bytesIn + lm.bytesOut) / 60), 'KB/s', t('↓ {in} KB in · ↑ {out} KB out, last minute', { in: kb(lm.bytesIn), out: kb(lm.bytesOut) }));
+          tile('k-total-kb', kb(data.totals.bytesIn + data.totals.bytesOut), 'KB', t('↓ {in} KB in · ↑ {out} KB out', { in: kb(data.totals.bytesIn), out: kb(data.totals.bytesOut) }));
+          drawRequests(data);
+          drawData(data);
+          drawLatency(data);
+          var tbody = document.querySelector('#routes tbody');
+          tbody.textContent = '';
+          var top = Math.max(1, data.totals.count);
+          data.routes.forEach(function (r) {
+            var tr = document.createElement('tr');
+            var name = document.createElement('td');
+            name.className = 'route';
+            name.textContent = r.route;
+            tr.appendChild(name);
+            var count = document.createElement('td');
+            count.textContent = fmt(r.count);
+            var share = document.createElement('span');
+            share.className = 'share';
+            share.title = fmt((r.count / top) * 100, 1) + '%';
+            var fill = document.createElement('span');
+            fill.style.width = Math.max(2, (r.count / top) * 100) + '%';
+            share.appendChild(fill);
+            count.appendChild(share);
+            tr.appendChild(count);
+            [r['2xx'], r['3xx'], r['4xx'], r['5xx'], fmt(r.avgMs, 1), fmt(r.p95Ms, 1), fmt(r.maxMs, 1), kb(r.bytesIn || 0), kb(r.bytesOut || 0)].forEach(function (v) {
+              var td = document.createElement('td');
+              td.textContent = typeof v === 'number' ? fmt(v) : v;
+              tr.appendChild(td);
+            });
+            tbody.appendChild(tr);
+          });
+          $('routes-empty').hidden = data.routes.length > 0;
+          $('t-updated').textContent = (paused ? t('Paused') : t('Live')) + ' · ' + t('updated {time}', { time: new Date(data.now).toLocaleTimeString(LOCALE) });
+        }
+
+        function load() {
+          $('t-body').classList.add('loading');
+          return fetch('/admin/traffic/data?window=' + windowKey, { headers: { Accept: 'application/json' } })
+            .then(function (res) {
+              if (res.status === 401) { location.href = '/login?next=/admin/traffic'; throw new Error(t('Not logged in')); }
+              return res.json().catch(function () { return {}; }).then(function (data) {
+                if (!res.ok) throw new Error(data.error || t('Something went wrong.'));
+                return data;
+              });
+            })
+            .then(function (data) { $('t-error').hidden = true; render(data); })
+            .catch(function (err) { $('t-error').textContent = err.message; $('t-error').hidden = false; })
+            .then(function () { $('t-body').classList.remove('loading'); });
+        }
+        function schedule() {
+          clearTimeout(timer);
+          if (paused || document.hidden) return;
+          timer = setTimeout(function () { load().then(schedule); }, PERIOD[windowKey]);
+        }
+
+        Array.prototype.forEach.call(document.querySelectorAll('.seg button'), function (b) {
+          b.addEventListener('click', function () {
+            windowKey = b.dataset.window;
+            Array.prototype.forEach.call(document.querySelectorAll('.seg button'), function (o) { o.setAttribute('aria-pressed', o === b ? 'true' : 'false'); });
+            load().then(schedule);
+          });
+        });
+        $('t-pause').addEventListener('click', function () {
+          paused = !paused;
+          this.textContent = paused ? t('Resume') : t('Pause');
+          $('t-updated').classList.toggle('paused', paused);
+          if (last) render(last);
+          if (!paused) load().then(schedule); else clearTimeout(timer);
+        });
+        Array.prototype.forEach.call(document.querySelectorAll('.toggle-table'), function (b) {
+          b.addEventListener('click', function () {
+            var wrap = $('c-' + b.dataset.for + '-table');
+            wrap.hidden = !wrap.hidden;
+            b.textContent = wrap.hidden ? t('Show as table') : t('Hide table');
+          });
+        });
+        // Not polled while the tab is in the background.
+        document.addEventListener('visibilitychange', function () { if (!document.hidden) load().then(schedule); else clearTimeout(timer); });
+        var redraw = null;
+        window.addEventListener('resize', function () { clearTimeout(redraw); redraw = setTimeout(function () { if (last) render(last); }, 150); });
+        load().then(schedule);
+      })();

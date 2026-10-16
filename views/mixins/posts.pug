@@ -1,0 +1,28 @@
+//- A community post (see routes/postsRoutes.js#view): the author, the time,
+//- the text (line breaks kept) and up to four pictures. The author gets Edit
+//- and Delete (an admin gets Delete too). Needs mixins/feed for +avatar.
+mixin postCard(post)
+  article.upost(id=`post-${post.id}` data-id=post.id data-text=post.text data-images=JSON.stringify(post.images.map(function (i) { return { url: i.url, src: i.src }; })))
+    header.upost-head
+      +avatar(post.author, 40, post.authorAvatar, post.authorId)
+      .who
+        a.name(href=`/users/${encodeURIComponent(post.authorId)}`)= post.author
+        .sub
+          time(datetime=new Date(post.createdAt).toISOString() title=new Date(post.createdAt).toLocaleString(lang === 'ko' ? 'ko-KR' : 'en-US'))= ldTimeAgo(post.createdAt, lang)
+          if post.edited
+            = ' · ' + t('edited')
+      if post.mine || post.canDelete
+        .upost-tools
+          if post.mine
+            button.act.edit-post(type="button")= t('Edit')
+          if post.canDelete
+            form.inline(method="POST" action=`/community/posts/${encodeURIComponent(post.id)}/delete` onsubmit=`return confirm(${JSON.stringify(t('Delete this post? This cannot be undone.'))})`)
+              input(type="hidden" name="author" value=(typeof author === 'string' ? author : ''))
+              button.act.danger(type="submit")= t('Delete')
+    if post.text
+      .upost-text= post.text
+    if post.images.length
+      .upost-images(class=`n${post.images.length}`)
+        each img in post.images
+          a(href=img.src target="_blank" rel="noopener")
+            img(src=img.src alt="" loading="lazy")

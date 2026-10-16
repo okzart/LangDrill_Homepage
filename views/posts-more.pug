@@ -1,0 +1,6 @@
+//- The next posts, fetched by the posts page's "Load more"
+//- (GET /community/posts/more - see src/routes/postsRoutes.js#more).
+include mixins/feed
+include mixins/posts
+each post in posts
+  +postCard(post)

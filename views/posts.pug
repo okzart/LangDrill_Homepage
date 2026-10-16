@@ -1,0 +1,258 @@
+//- Community posts (see src/routes/postsRoutes.js): a box to write a post with
+//- up to four pictures, then everyone's posts, newest first ("Load more" for
+//- older ones). `author` set: only that person's posts. Pictures are shrunk
+//- in the browser (longest side 1600 px, JPEG) before they are uploaded.
+include mixins/posts
+doctype html
+html(lang=lang || "en")
+  head
+    meta(charset="UTF-8")
+    meta(name="viewport" content="width=device-width, initial-scale=1")
+    title= 'LanguageDrill — ' + t('Posts')
+    include _style
+    include _post-style
+    style.
+      .tabs { display: inline-flex; gap: 0.25rem; margin-bottom: 1.1rem; padding: 0.3rem; background: var(--surface-2); border: 1px solid var(--line); border-radius: 14px; }
+      .tabs a { padding: 0.45rem 1.1rem; text-decoration: none; color: var(--muted); font-weight: 600; font-size: 0.9rem; border-radius: 10px; }
+      .tabs a:hover { color: var(--ink); }
+      .tabs a.active { color: var(--ink); background: var(--surface); box-shadow: var(--shadow-sm), inset 0 0 0 1px var(--line); }
+      .posts-col { max-width: 640px; }
+      .composer { padding: 0.9rem 1rem; border: 1px solid var(--line); border-radius: 16px; background: var(--surface); margin-bottom: 1.2rem; }
+      .composer textarea { width: 100%; min-height: 6rem; margin: 0; resize: vertical; font: inherit; }
+      .composer .bar { display: flex; flex-wrap: wrap; align-items: center; gap: 0.6rem; margin-top: 0.6rem; }
+      .composer .bar .count { margin-left: auto; font-size: 0.8rem; color: var(--muted); }
+      .composer .bar button { margin: 0; }
+      .composer label.pick { display: inline-flex; align-items: center; gap: 0.35rem; margin: 0; cursor: pointer; font-weight: 600; color: var(--blue-700); }
+      .composer label.pick input { display: none; }
+      .thumbs { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.6rem; }
+      .thumbs:empty { display: none; }
+      .thumb { position: relative; width: 6rem; height: 6rem; border-radius: 10px; overflow: hidden; border: 1px solid var(--line); background: #f3f5f8; }
+      .thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+      .thumb.removed img { opacity: 0.25; }
+      .thumb button { position: absolute; top: 0.2rem; right: 0.2rem; width: 1.6rem; height: 1.6rem; min-height: 0; margin: 0; padding: 0; border-radius: 50%; border: 0; background: rgba(0,0,0,0.6); color: #fff; font-size: 0.95rem; line-height: 1; box-shadow: none; }
+      .status { font-size: 0.88rem; color: var(--muted); min-height: 1.2rem; }
+      .upost .editor textarea { width: 100%; min-height: 5rem; margin: 0.6rem 0 0; font: inherit; }
+      .upost .editor .bar { display: flex; gap: 0.5rem; margin-top: 0.5rem; }
+      .upost .editor .bar button { margin: 0; }
+      #more { display: block; margin: 0.5rem auto 1.5rem; }
+      .empty { color: var(--muted); }
+  body
+    include _nav
+    include mixins/feed
+    h1= t('Community')
+    nav.tabs
+      a(href="/community?tab=list")= t('Sets')
+      a(href="/community?tab=create")= t('Create a set')
+      a.active(href="/community/posts")= t('Posts')
+    p
+      a(href=`/community/posts?author=${encodeURIComponent(currentUser.sub)}`)= t('My posts')
+
+    .posts-col
+      if deleted
+        .success= t('Post deleted.')
+      #p-error.error(hidden)
+
+      if author
+        p
+          strong= authorName ? t('Posts by {name}', { name: authorName }) : t('Posts by this person')
+          = ' · '
+          a(href="/community/posts")= t('All posts')
+      else
+        //- The box to write a post.
+        form.composer#composer
+          textarea#p-text(maxlength=limits.maxText placeholder=t('Write something - in English is good practice!') aria-label=t('Write a post'))
+          .thumbs#p-thumbs
+          .bar
+            label.pick
+              input#p-files(type="file" accept="image/*" multiple)
+              = '🖼 ' + t('Add pictures')
+            span.hint= t('Up to {n} pictures', { n: limits.maxImages })
+            span#p-count.count
+            button#p-send.primary(type="submit" disabled)= t('Post')
+          #p-status.status(aria-live="polite")
+
+      #posts
+        each post in posts
+          +postCard(post)
+      if !posts.length
+        p.empty= author ? t('No posts yet.') : t('No posts yet - be the first to write one!')
+      if next
+        button#more(type="button" data-next=next)= t('Load more')
+
+    script.
+      (function () {
+        var $ = function (id) { return document.getElementById(id); };
+        var MAX_TEXT = #{limits.maxText}, MAX_IMAGES = #{limits.maxImages}, MAX_BYTES = #{limits.maxImageBytes};
+        var AUTHOR = !{JSON.stringify(author)};
+        function showError(m) { $('p-error').textContent = m; $('p-error').hidden = false; $('p-error').scrollIntoView({ block: 'nearest' }); }
+        function call(url, body) {
+          return fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }).then(answer);
+        }
+        function answer(res) {
+          if (res.status === 401) { location.href = '/login?next=/community/posts'; throw new Error(t('Not logged in')); }
+          return res.json().catch(function () { return {}; }).then(function (data) {
+            if (!res.ok) throw new Error(data.error || t('Something went wrong.'));
+            return data;
+          });
+        }
+
+        // A picture made small enough to post: the longest side at most 1600
+        // px, as JPEG. An animated GIF is kept as it is (it would lose its
+        // animation), if it fits.
+        function shrink(file) {
+          if (file.type === 'image/gif' && file.size <= MAX_BYTES) return Promise.resolve(file);
+          return new Promise(function (resolve, reject) {
+            var url = URL.createObjectURL(file), img = new Image();
+            img.onload = function () {
+              var scale = Math.min(1, 1600 / Math.max(img.naturalWidth, img.naturalHeight));
+              var canvas = document.createElement('canvas');
+              canvas.width = Math.max(1, Math.round(img.naturalWidth * scale));
+              canvas.height = Math.max(1, Math.round(img.naturalHeight * scale));
+              var ctx = canvas.getContext('2d');
+              ctx.fillStyle = '#fff'; // transparent PNGs get a white background in JPEG
+              ctx.fillRect(0, 0, canvas.width, canvas.height);
+              ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+              URL.revokeObjectURL(url);
+              canvas.toBlob(function (blob) {
+                if (!blob) return reject(new Error(t('That picture could not be read.')));
+                if (blob.size > MAX_BYTES) return reject(new Error(t('That picture is too large.')));
+                resolve(blob);
+              }, 'image/jpeg', 0.85);
+            };
+            img.onerror = function () { URL.revokeObjectURL(url); reject(new Error(t('That picture could not be read.'))); };
+            img.src = url;
+          });
+        }
+        function upload(blob) {
+          return fetch('/community/posts/images', { method: 'POST', headers: { 'Content-Type': blob.type || 'application/octet-stream' }, body: blob }).then(answer);
+        }
+
+        // The box to write a post.
+        if ($('composer')) {
+          var picked = []; // { blob, preview }
+          function refresh() {
+            var text = $('p-text').value.trim();
+            $('p-count').textContent = $('p-text').value.length > MAX_TEXT * 0.8 ? $('p-text').value.length + ' / ' + MAX_TEXT : '';
+            $('p-send').disabled = !text && !picked.length;
+            $('p-thumbs').innerHTML = '';
+            picked.forEach(function (p, i) {
+              var box = document.createElement('div');
+              box.className = 'thumb';
+              var img = document.createElement('img');
+              img.src = p.preview;
+              img.alt = '';
+              var x = document.createElement('button');
+              x.type = 'button';
+              x.textContent = '×';
+              x.setAttribute('aria-label', t('Remove this picture'));
+              x.addEventListener('click', function () { URL.revokeObjectURL(p.preview); picked.splice(i, 1); refresh(); });
+              box.appendChild(img);
+              box.appendChild(x);
+              $('p-thumbs').appendChild(box);
+            });
+          }
+          $('p-text').addEventListener('input', refresh);
+          $('p-text').addEventListener('keydown', function (e) { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey) && !$('p-send').disabled) $('composer').requestSubmit(); });
+          $('p-files').addEventListener('change', function () {
+            var files = Array.prototype.slice.call(this.files);
+            this.value = '';
+            $('p-error').hidden = true;
+            if (picked.length + files.length > MAX_IMAGES) showError(t('A post can have at most {n} pictures.', { n: MAX_IMAGES }));
+            files = files.slice(0, Math.max(0, MAX_IMAGES - picked.length));
+            $('p-status').textContent = files.length ? t('Preparing the pictures…') : '';
+            Promise.all(files.map(function (f) {
+              return shrink(f).then(function (blob) { picked.push({ blob: blob, preview: URL.createObjectURL(blob) }); }, function (err) { showError(err.message); });
+            })).then(function () { $('p-status').textContent = ''; refresh(); });
+          });
+          $('composer').addEventListener('submit', function (e) {
+            e.preventDefault();
+            $('p-error').hidden = true;
+            $('p-send').disabled = true;
+            var urls = [];
+            var chain = Promise.resolve();
+            picked.forEach(function (p, i) {
+              chain = chain.then(function () {
+                $('p-status').textContent = t('Uploading picture {i} of {n}…', { i: i + 1, n: picked.length });
+                return upload(p.blob).then(function (data) { urls.push(data.url); });
+              });
+            });
+            chain
+              .then(function () { $('p-status').textContent = t('Posting…'); return call('/community/posts', { text: $('p-text').value, images: urls }); })
+              .then(function () { location.href = '/community/posts'; })
+              .catch(function (err) { showError(err.message); $('p-status').textContent = ''; $('p-send').disabled = false; });
+          });
+        }
+
+        // Editing one's own post: its text, and taking pictures off it.
+        $('posts').addEventListener('click', function (e) {
+          var button = e.target.closest('.edit-post');
+          if (!button) return;
+          var card = button.closest('.upost');
+          if (card.querySelector('.editor')) return;
+          var images = JSON.parse(card.dataset.images || '[]'), keep = images.map(function () { return true; });
+          var editor = document.createElement('div');
+          editor.className = 'editor';
+          var area = document.createElement('textarea');
+          area.maxLength = MAX_TEXT;
+          area.value = card.dataset.text || '';
+          editor.appendChild(area);
+          var thumbs = document.createElement('div');
+          thumbs.className = 'thumbs';
+          images.forEach(function (img, i) {
+            var box = document.createElement('div');
+            box.className = 'thumb';
+            var pic = document.createElement('img');
+            pic.src = img.src;
+            pic.alt = '';
+            var x = document.createElement('button');
+            x.type = 'button';
+            x.textContent = '×';
+            x.setAttribute('aria-label', t('Remove this picture'));
+            x.addEventListener('click', function () { keep[i] = !keep[i]; box.classList.toggle('removed', !keep[i]); x.textContent = keep[i] ? '×' : '↺'; });
+            box.appendChild(pic);
+            box.appendChild(x);
+            thumbs.appendChild(box);
+          });
+          editor.appendChild(thumbs);
+          var bar = document.createElement('div');
+          bar.className = 'bar';
+          var save = document.createElement('button');
+          save.type = 'button';
+          save.className = 'primary';
+          save.textContent = t('Save');
+          var cancel = document.createElement('button');
+          cancel.type = 'button';
+          cancel.textContent = t('Cancel');
+          bar.appendChild(save);
+          bar.appendChild(cancel);
+          editor.appendChild(bar);
+          var shown = Array.prototype.slice.call(card.querySelectorAll('.upost-text, .upost-images'));
+          shown.forEach(function (el) { el.hidden = true; });
+          card.appendChild(editor);
+          area.focus();
+          cancel.addEventListener('click', function () { editor.remove(); shown.forEach(function (el) { el.hidden = false; }); });
+          save.addEventListener('click', function () {
+            save.disabled = true;
+            call('/community/posts/' + encodeURIComponent(card.dataset.id) + '/edit', { text: area.value, images: images.filter(function (img, i) { return keep[i]; }).map(function (img) { return img.url; }) })
+              .then(function () { location.reload(); })
+              .catch(function (err) { showError(err.message); save.disabled = false; });
+          });
+        });
+
+        // Older posts.
+        if ($('more')) {
+          $('more').addEventListener('click', function () {
+            var button = this;
+            button.disabled = true;
+            var qs = 'before=' + encodeURIComponent(button.dataset.next) + (AUTHOR ? '&author=' + encodeURIComponent(AUTHOR) : '');
+            fetch('/community/posts/more?' + qs).then(function (res) {
+              if (!res.ok) throw new Error(t('Something went wrong.'));
+              var next = res.headers.get('X-Next');
+              return res.text().then(function (html) {
+                $('posts').insertAdjacentHTML('beforeend', html);
+                if (next) { button.dataset.next = next; button.disabled = false; } else button.remove();
+              });
+            }).catch(function (err) { showError(err.message); button.disabled = false; });
+          });
+        }
+      })();

@@ -14,6 +14,7 @@ const { requireLogin } = require('../middleware/requireLogin');
 const AsyncHandler = require('../middleware/asyncHandler');
 const { GatewayError } = require('../errors');
 const Avatar = require('../services/avatar');
+const PostsRoutes = require('./postsRoutes');
 
 class UsersRoutes {
   constructor(gatewayClient) {
@@ -31,14 +32,18 @@ class UsersRoutes {
     // A missing user is the error page's 404, like any other missing page.
     const person = await this.gatewayClient.get(`/api/auth/users/${encodeURIComponent(id)}`, token);
     // The rest only decorates the page: without it there is still a profile.
-    const [friendship, allSets] = await Promise.all([
+    const [friendship, allSets, posts] = await Promise.all([
       this.gatewayClient.get(`/api/friends/status/${encodeURIComponent(id)}`, token).catch(() => ({ status: 'none' })),
       this.gatewayClient.get('/api/sets', token).catch(() => []),
+      this.gatewayClient.get(`/api/posts?author=${encodeURIComponent(id)}&limit=3`, token).catch(() => ({ posts: [] })),
     ]);
     res.render('user', {
       person: { ...person, avatar: Avatar.siteUrl(person.avatarUrl) },
       friendship,
       sets: (allSets || []).filter((set) => set.authorId === id),
+      // Their latest posts, each like on the posts page (no avatar fetch: it's their page).
+      posts: (posts.posts || []).map((post) => PostsRoutes.view({ ...post, authorAvatar: Avatar.siteUrl(person.avatarUrl) }, req)),
+      morePosts: Boolean(posts.next),
       done: req.query.done === 'sent' || req.query.done === 'friends' ? req.query.done : null,
       error: typeof req.query.error === 'string' ? req.query.error.slice(0, 300) : null,
     });

@@ -1,0 +1,19 @@
+//- Styles of a community post card (mixins/posts.pug#postCard), shared by
+//- the posts page and a person's profile page.
+style.
+      .upost { padding: 0.9rem 1rem; border: 1px solid var(--line); border-radius: 16px; background: var(--surface); margin-bottom: 0.9rem; }
+      .upost-head { display: flex; align-items: center; gap: 0.6rem; }
+      .upost-head .who { flex: 1; min-width: 0; }
+      .upost-head .name { font-weight: 700; color: inherit; text-decoration: none; }
+      .upost-head .sub { font-size: 0.8rem; color: var(--muted); }
+      .upost-tools { display: flex; gap: 0.3rem; }
+      .upost-tools .act { margin: 0; padding: 0.25rem 0.6rem; font-size: 0.82rem; }
+      .upost-tools form { margin: 0; }
+      .upost-text { margin-top: 0.6rem; white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.55; }
+      .upost-images { display: grid; gap: 4px; margin-top: 0.7rem; border-radius: 12px; overflow: hidden; }
+      .upost-images.n1 { grid-template-columns: 1fr; }
+      .upost-images.n2, .upost-images.n3, .upost-images.n4 { grid-template-columns: 1fr 1fr; }
+      .upost-images.n3 a:first-child { grid-row: span 2; }
+      .upost-images a { display: block; background: #eef1f5; }
+      .upost-images img { display: block; width: 100%; height: 100%; max-height: 28rem; object-fit: cover; aspect-ratio: 4 / 3; }
+      .upost-images.n1 img { aspect-ratio: auto; object-fit: contain; max-height: 32rem; }
