@@ -1,7 +1,10 @@
-//- Traffic (see routes/adminRoutes.js#trafficData): the API gateway's live
-//- traffic, polled from the gateway's GET /admin/traffic (src/traffic.js) -
-//- every 2 s for the last 5 minutes, 10 s for the last hour, 60 s for the
-//- last day. The numbers start over when the gateway restarts.
+//- Traffic (see routes/adminRoutes.js#servicesData): live traffic and health
+//- of the API gateway, this site and every microservice - each one records
+//- its own (trafficStats.cjs), the gateway gathers them (GET /admin/services)
+//- - polled every 2 s for the last 5 minutes, 10 s for the last hour, 60 s
+//- for the last day. A services table on top; the tiles, charts and route
+//- table below show the service chosen there (?service=, the gateway by
+//- default). The numbers start over when a service restarts.
 //-
 //- Charts are drawn here as SVG, with no chart library. Requests are stacked
 //- columns (OK / client errors / server errors - categorical slots 1-3 in
@@ -70,10 +73,19 @@ html(lang=lang || "en")
       .share > span { display: block; height: 100%; background: var(--series-1); border-radius: 0 3px 3px 0; }
       .table-wrap { max-height: 18rem; overflow: auto; }
       .loading { opacity: 0.6; transition: opacity 0.2s; }
+      .scope-title { margin: 0.4rem 0 0.6rem; font-size: 1.1rem; }
+      table#services td.svc button { margin: 0; padding: 0; border: 0; background: none; box-shadow: none; color: var(--blue-700); font: inherit; font-weight: 600; text-decoration: underline; cursor: pointer; min-height: 0; }
+      table#services tr.on td { background: #eef4fd; }
+      table#services td.status { text-align: left; white-space: nowrap; }
+      .st { display: inline-flex; align-items: center; gap: 0.3rem; font-weight: 600; }
+      .st.up { color: #0b7a0b; }
+      .st.warn { color: #8a5a00; }
+      .st.down { color: #b02a2a; }
+      .st small { font-weight: 400; color: var(--text-muted); }
   body.viz-root
     include ../_nav
     h1= t('Traffic')
-    p.hint= t('Requests through the API gateway, live. Counted per configured route - never full addresses or who sent them. The numbers start over when the gateway restarts.')
+    p.hint= t('Live traffic and health of the API gateway, this website and every microservice. Requests are counted per route - never full addresses or who sent them. A service\'s numbers start over when it restarts.')
 
     #t-error.error(hidden)
 
@@ -82,108 +94,145 @@ html(lang=lang || "en")
         button(type="button" data-window="5m" aria-pressed="true")= t('Last 5 minutes')
         button(type="button" data-window="1h" aria-pressed="false")= t('Last hour')
         button(type="button" data-window="24h" aria-pressed="false")= t('Last 24 hours')
+      label(for="t-scope" style="margin:0")= t('Service')
+      select#t-scope(style="width:auto;margin:0")
+        option(value="gateway")= 'gateway'
       button#t-pause(type="button")= t('Pause')
       span#t-updated.updated.live
 
     #t-body
-      .tiles
-        .tile#k-rate
-          .k= t('Requests per second')
-          .v —
-          .s= t('average over the last minute')
-        .tile#k-latency
-          .k= t('Response time')
-          .v —
-          .s= t('average over the last minute')
-        .tile#k-errors
-          .k= t('Server errors')
-          .v —
-          .s= t('5xx in the last minute')
-        .tile#k-inflight
-          .k= t('In progress')
-          .v —
-          .s= t('requests being answered now')
-        .tile#k-ws
-          .k= t('WebSockets open')
-          .v —
-          .s
-        .tile#k-total
-          .k= t('Requests since start')
-          .v —
-          .s
-        .tile#k-rate-kb
-          .k= t('Data per second')
-          .v —
-          .s= t('in + out, over the last minute')
-        .tile#k-total-kb
-          .k= t('Data since start')
-          .v —
-          .s
-
       section.card
-        .head
-          div
-            h2= t('Requests')
-            .sub#c-req-sub
-          button.toggle-table(type="button" data-for="req")= t('Show as table')
-        .legend
-          span
-            i(style="background: var(--series-1)")
-            = t('OK (2xx, 3xx)')
-          span
-            i(style="background: var(--series-2)")
-            = t('Client errors (4xx)')
-          span
-            i(style="background: var(--series-3)")
-            = t('Server errors (5xx)')
-        .chart#c-req
-        .table-wrap#c-req-table(hidden)
-
-      section.card
-        .head
-          div
-            h2= t('Data transferred')
-            .sub#c-kb-sub
-          button.toggle-table(type="button" data-for="kb")= t('Show as table')
-        .legend
-          span
-            i(style="background: var(--series-1)")
-            = t('Received (KB in)')
-          span
-            i(style="background: var(--series-2)")
-            = t('Sent (KB out)')
-        .chart#c-kb
-        .table-wrap#c-kb-table(hidden)
-
-      section.card
-        .head
-          div
-            h2= t('Average response time')
-            .sub= t('milliseconds, per point - empty where there were no requests')
-          button.toggle-table(type="button" data-for="lat")= t('Show as table')
-        .chart#c-lat
-        .table-wrap#c-lat-table(hidden)
-
-      section.card
-        h2= t('By route')
-        .sub= t('Since the gateway started. p95: 95% of the latest 500 requests were faster than this. KB in: what clients sent; KB out: what the gateway sent back (headers included; WebSockets counted when they close).')
+        h2= t('Services')
+        .sub= t('Each service counts the requests it answers itself - also those from other services, not only through the gateway. Choose one to see it below.')
         .table-wrap
-          table.data#routes
+          table.data#services
             thead
               tr
-                th= t('Route')
-                th= t('Requests')
-                th 2xx
-                th 3xx
-                th 4xx
-                th 5xx
+                th= t('Service')
+                th= t('Status')
+                th= t('Requests/s')
                 th= t('Avg ms')
-                th= t('p95 ms')
-                th= t('Max ms')
-                th= t('KB in')
-                th= t('KB out')
+                th= t('5xx / min')
+                th= t('KB/s')
+                th= t('CPU')
+                th= t('Memory')
+                th= t('Delay p99')
+                th= t('Up for')
             tbody
-        p#routes-empty.empty-note(hidden)= t('No requests yet.')
+
+      h2#t-scope-title.scope-title
+      p#t-scope-note.empty-note(hidden)
+      #t-detail
+        .tiles
+          .tile#k-rate
+            .k= t('Requests per second')
+            .v —
+            .s= t('average over the last minute')
+          .tile#k-latency
+            .k= t('Response time')
+            .v —
+            .s= t('average over the last minute')
+          .tile#k-errors
+            .k= t('Server errors')
+            .v —
+            .s= t('5xx in the last minute')
+          .tile#k-inflight
+            .k= t('In progress')
+            .v —
+            .s= t('requests being answered now')
+          .tile#k-ws
+            .k= t('WebSockets open')
+            .v —
+            .s
+          .tile#k-total
+            .k= t('Requests since start')
+            .v —
+            .s
+          .tile#k-rate-kb
+            .k= t('Data per second')
+            .v —
+            .s= t('in + out, over the last minute')
+          .tile#k-total-kb
+            .k= t('Data since start')
+            .v —
+            .s
+          .tile#k-cpu
+            .k= t('CPU')
+            .v —
+            .s= t('of one core, since the last update')
+          .tile#k-mem
+            .k= t('Memory')
+            .v —
+            .s
+          .tile#k-loop
+            .k= t('Event-loop delay')
+            .v —
+            .s= t('p99 - how long work waited')
+
+        section.card
+          .head
+            div
+              h2= t('Requests')
+              .sub#c-req-sub
+            button.toggle-table(type="button" data-for="req")= t('Show as table')
+          .legend
+            span
+              i(style="background: var(--series-1)")
+              = t('OK (2xx, 3xx)')
+            span
+              i(style="background: var(--series-2)")
+              = t('Client errors (4xx)')
+            span
+              i(style="background: var(--series-3)")
+              = t('Server errors (5xx)')
+          .chart#c-req
+          .table-wrap#c-req-table(hidden)
+
+        section.card
+          .head
+            div
+              h2= t('Data transferred')
+              .sub#c-kb-sub
+            button.toggle-table(type="button" data-for="kb")= t('Show as table')
+          .legend
+            span
+              i(style="background: var(--series-1)")
+              = t('Received (KB in)')
+            span
+              i(style="background: var(--series-2)")
+              = t('Sent (KB out)')
+          .chart#c-kb
+          .table-wrap#c-kb-table(hidden)
+
+        section.card
+          .head
+            div
+              h2= t('Average response time')
+              .sub= t('milliseconds, per point - empty where there were no requests')
+            button.toggle-table(type="button" data-for="lat")= t('Show as table')
+          .chart#c-lat
+          .table-wrap#c-lat-table(hidden)
+
+        section.card
+          h2= t('By route')
+          .sub= t('Since the gateway started. p95: 95% of the latest 500 requests were faster than this. KB in: what clients sent; KB out: what the gateway sent back (headers included; WebSockets counted when they close).')
+          .table-wrap
+            table.data#routes
+              thead
+                tr
+                  th= t('Route')
+                  th= t('Requests')
+                  th 2xx
+                  th 3xx
+                  th 4xx
+                  th 5xx
+                  th= t('Avg ms')
+                  th= t('p95 ms')
+                  th= t('Max ms')
+                  th= t('KB in')
+                  th= t('KB out')
+              tbody
+          p#routes-empty.empty-note(hidden)= t('No requests yet.')
 
     script.
       (function () {
@@ -192,6 +241,8 @@ html(lang=lang || "en")
         var LOCALE = !{JSON.stringify(lang === 'ko' ? 'ko-KR' : 'en-US')};
         var PERIOD = { '5m': 2000, '1h': 10000, '24h': 60000 };
         var windowKey = '5m', paused = false, timer = null, last = null;
+        // The service shown below the table (?service=), and the latest list.
+        var scope = new URLSearchParams(location.search).get('service') || 'gateway', services = [];
         var SERIES = [
           { key: 'ok', label: t('OK (2xx, 3xx)'), color: 'var(--series-1)', value: function (p) { return p['2xx'] + p['3xx']; } },
           { key: '4xx', label: t('Client errors (4xx)'), color: 'var(--series-2)', value: function (p) { return p['4xx']; } },
@@ -438,6 +489,10 @@ html(lang=lang || "en")
           tile('k-total', fmt(data.totals.count), '', uptime(data.now - data.startedAt));
           tile('k-rate-kb', kb((lm.bytesIn + lm.bytesOut) / 60), 'KB/s', t('↓ {in} KB in · ↑ {out} KB out, last minute', { in: kb(lm.bytesIn), out: kb(lm.bytesOut) }));
           tile('k-total-kb', kb(data.totals.bytesIn + data.totals.bytesOut), 'KB', t('↓ {in} KB in · ↑ {out} KB out', { in: kb(data.totals.bytesIn), out: kb(data.totals.bytesOut) }));
+          var proc = data.process || {};
+          tile('k-cpu', proc.cpuPercent == null ? '—' : fmt(proc.cpuPercent, 1), proc.cpuPercent == null ? '' : '%');
+          tile('k-mem', proc.rssMb == null ? '—' : fmt(proc.rssMb, 0), proc.rssMb == null ? '' : 'MB', proc.heapUsedMb == null ? '' : t('{n} MB of it JavaScript heap', { n: fmt(proc.heapUsedMb, 0) }) + (proc.node ? ' · Node ' + proc.node : ''));
+          tile('k-loop', proc.loopDelayMs ? fmt(proc.loopDelayMs.p99, 1) : '—', proc.loopDelayMs ? 'ms' : '', proc.loopDelayMs ? t('p99 - how long work waited') + ' · ' + t('max {n} ms', { n: fmt(proc.loopDelayMs.max, 1) }) : null, proc.loopDelayMs && proc.loopDelayMs.p99 > 100);
           drawRequests(data);
           drawData(data);
           drawLatency(data);
@@ -471,9 +526,76 @@ html(lang=lang || "en")
           $('t-updated').textContent = (paused ? t('Paused') : t('Live')) + ' · ' + t('updated {time}', { time: new Date(data.now).toLocaleTimeString(LOCALE) });
         }
 
+        // The table of every service: status (icon + label, never colour
+        // alone), last-minute traffic and process health; a name chooses it.
+        function renderServices() {
+          var tbody = document.querySelector('#services tbody');
+          tbody.textContent = '';
+          services.forEach(function (svc) {
+            var st = svc.stats || null, lm = st ? st.lastMinute : null, proc = st ? st.process || {} : {};
+            var tr = document.createElement('tr');
+            if (svc.name === scope) tr.className = 'on';
+            var name = document.createElement('td');
+            name.className = 'svc';
+            var pick = document.createElement('button');
+            pick.type = 'button';
+            pick.textContent = svc.name;
+            pick.addEventListener('click', function () { choose(svc.name); });
+            name.appendChild(pick);
+            tr.appendChild(name);
+            var status = document.createElement('td');
+            status.className = 'status';
+            var badge = document.createElement('span');
+            var state = !svc.up ? 'down' : st ? 'up' : 'warn';
+            badge.className = 'st ' + state;
+            badge.textContent = state === 'down' ? '✕ ' + t('Down') : state === 'up' ? '● ' + t('Up') : '● ' + t('Up');
+            if (svc.error) { var why = document.createElement('small'); why.textContent = t(svc.error); badge.appendChild(document.createTextNode(' ')); badge.appendChild(why); }
+            status.appendChild(badge);
+            tr.appendChild(status);
+            var cells = st ? [
+              fmt(lm.perSecond, 2), lm.avgMs == null ? '—' : fmt(lm.avgMs, 1), fmt(lm.errors), kb((lm.bytesIn + lm.bytesOut) / 60),
+              proc.cpuPercent == null ? '—' : fmt(proc.cpuPercent, 1) + '%', proc.rssMb == null ? '—' : fmt(proc.rssMb, 0) + ' MB',
+              proc.loopDelayMs ? fmt(proc.loopDelayMs.p99, 1) + ' ms' : '—', uptime((proc.uptimeSec || 0) * 1000).replace(/^up /, ''),
+            ] : ['—', '—', '—', '—', '—', '—', '—', '—'];
+            cells.forEach(function (c) { var td = document.createElement('td'); td.textContent = c; tr.appendChild(td); });
+            tbody.appendChild(tr);
+          });
+          var select = $('t-scope');
+          select.textContent = '';
+          services.forEach(function (svc) { var o = document.createElement('option'); o.value = svc.name; o.textContent = svc.name; select.appendChild(o); });
+          select.value = scope;
+        }
+
+        // Show the chosen service below the table (its stats, or why there are none).
+        function showScope() {
+          var svc = services.filter(function (x) { return x.name === scope; })[0] || services[0];
+          if (!svc) return;
+          scope = svc.name;
+          $('t-scope-title').textContent = t('Showing: {name}', { name: svc.name });
+          if (svc.stats) {
+            $('t-scope-note').hidden = true;
+            $('t-detail').hidden = false;
+            render(svc.stats);
+          } else {
+            $('t-detail').hidden = true;
+            $('t-scope-note').textContent = t('No statistics from {name}: {why}', { name: svc.name, why: t(svc.error || 'Not reachable') });
+            $('t-scope-note').hidden = false;
+          }
+        }
+        function choose(name) {
+          scope = name;
+          try {
+            var qs = new URLSearchParams(location.search);
+            qs.set('service', name);
+            history.replaceState(null, '', location.pathname + '?' + qs);
+          } catch (err) { /* ignore */ }
+          renderServices();
+          showScope();
+        }
+
         function load() {
           $('t-body').classList.add('loading');
-          return fetch('/admin/traffic/data?window=' + windowKey, { headers: { Accept: 'application/json' } })
+          return fetch('/admin/traffic/services?window=' + windowKey, { headers: { Accept: 'application/json' } })
             .then(function (res) {
               if (res.status === 401) { location.href = '/login?next=/admin/traffic'; throw new Error(t('Not logged in')); }
               return res.json().catch(function () { return {}; }).then(function (data) {
@@ -481,7 +603,13 @@ html(lang=lang || "en")
                 return data;
               });
             })
-            .then(function (data) { $('t-error').hidden = true; render(data); })
+            .then(function (data) {
+              $('t-error').hidden = true;
+              services = data.services || [];
+              renderServices();
+              showScope();
+              $('t-updated').textContent = (paused ? t('Paused') : t('Live')) + ' · ' + t('updated {time}', { time: new Date().toLocaleTimeString(LOCALE) });
+            })
             .catch(function (err) { $('t-error').textContent = err.message; $('t-error').hidden = false; })
             .then(function () { $('t-body').classList.remove('loading'); });
         }
@@ -498,6 +626,7 @@ html(lang=lang || "en")
             load().then(schedule);
           });
         });
+        $('t-scope').addEventListener('change', function () { choose(this.value); });
         $('t-pause').addEventListener('click', function () {
           paused = !paused;
           this.textContent = paused ? t('Resume') : t('Pause');

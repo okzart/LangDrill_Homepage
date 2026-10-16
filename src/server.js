@@ -1,6 +1,7 @@
 // Loads variables from .env into process.env (PORT, GATEWAY_URL, COOKIE_SECRET)
 require('dotenv').config();
 const fs = require('fs');
+const { TrafficMonitor } = require('./trafficStats.cjs');
 const path = require('path');
 const express = require('express');
 const cookieParser = require('cookie-parser');
@@ -50,7 +51,8 @@ const authRoutes = new AuthRoutes(gatewayClient);
 const dashboardRoutes = new DashboardRoutes(gatewayClient);
 const progressRoutes = new ProgressRoutes(gatewayClient);
 const communityRoutes = new CommunityRoutes(gatewayClient);
-const adminRoutes = new AdminRoutes(gatewayClient);
+const traffic = new TrafficMonitor('homepage');
+const adminRoutes = new AdminRoutes(gatewayClient, traffic);
 const chatRoutes = new ChatRoutes(gatewayClient);
 const passagesRoutes = new PassagesRoutes(gatewayClient);
 const listeningRoutes = new ListeningRoutes(gatewayClient);
@@ -75,6 +77,12 @@ const sharedSetsRoutes = new MySetsRoutes(gatewayClient, 'shared');
 const BODY_LIMIT = '5mb';
 
 const app = express();
+// Traffic statistics for the admin Traffic page (trafficStats.cjs - a copy of
+// the gateway's; scripts/sync-traffic-stats.sh keeps it the same): every
+// request recorded under its route. This site is the public entry, so its
+// numbers are not served at /internal/traffic like the services' - the
+// admin page reads them directly (routes/adminRoutes.js).
+app.use(traffic.express());
 app.use(cookieParser(process.env.COOKIE_SECRET));
 
 // Static files for the pages that are too big to keep inline (the

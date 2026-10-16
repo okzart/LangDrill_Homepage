@@ -27,8 +27,11 @@ function withError(res, redirectTo, err) {
 }
 
 class AdminRoutes {
-  constructor(gatewayClient) {
+  // `traffic`: this site's own traffic statistics (trafficStats.cjs), shown
+  // with the services' on the Traffic page.
+  constructor(gatewayClient, traffic = null) {
     this.gatewayClient = gatewayClient;
+    this.traffic = traffic;
     this.router = express.Router();
     const guard = [requireLogin, requireAdmin];
 
@@ -52,6 +55,32 @@ class AdminRoutes {
     // The API gateway's live traffic: the page, and the numbers it polls.
     this.router.get('/admin/traffic', ...guard, (req, res) => res.render('admin/traffic'));
     this.router.get('/admin/traffic/data', ...guard, AsyncHandler.wrap(this.trafficData.bind(this)));
+    this.router.get('/admin/traffic/services', ...guard, AsyncHandler.wrap(this.servicesData.bind(this)));
+  }
+
+  // Every service's statistics (the gateway's GET /admin/services) and this
+  // site's own, as JSON for the page: { window, services: [{ name, target,
+  // routes, up, error?, stats? }] } with "homepage" after "gateway". If the
+  // gateway can't be reached, this site's numbers still come back.
+  async servicesData(req, res) {
+    const window = ['5m', '1h', '24h'].includes(req.query.window) ? req.query.window : '5m';
+    const own = {
+      name: 'homepage',
+      target: null,
+      routes: [],
+      up: true,
+      ...(this.traffic && this.traffic.enabled ? { stats: JSON.parse(this.traffic.snapshotJson(window)) } : { error: 'Traffic statistics are turned off (TRAFFIC_STATS=off)' }),
+    };
+    res.set('Cache-Control', 'no-store');
+    try {
+      const data = await this.gatewayClient.get(`/admin/services?window=${window}`, req.auth.token);
+      const services = data.services || [];
+      res.json({ window, services: [...services.slice(0, 1), own, ...services.slice(1)] });
+    } catch (err) {
+      if (!(err instanceof GatewayError)) throw err;
+      if (err.status === 401 || err.status === 403) return res.status(err.status).json({ error: req.t(err.message) });
+      res.json({ window, services: [{ name: 'gateway', target: null, routes: [], up: false, error: 'Not reachable' }, own] });
+    }
   }
 
   // The gateway's own statistics (its GET /admin/traffic, see the gateway's
